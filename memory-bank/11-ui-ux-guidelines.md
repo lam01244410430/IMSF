@@ -1,0 +1,6 @@
+# UI and UX guidelines
+Organize navigation around overview, finance, inventory, lifecycle, recipes, and household settings. Keep primary actions reachable on mobile. Allow wrapping or scrolling for wide tables. Label fields, focus, and errors. Support keyboard and screen reader navigation with semantic controls.
+Provide loading, empty, error, and retry states. Format money and quantities by locale. Use react-i18next with en, vi, and zh-CN. Keep business identifiers separate from translation keys. Display household and time zone context.
+Repository files and engineering documentation use English. Interface localization follows the supported locales.
+
+Before designing or redesigning a frontend interface, select a relevant reference from [Awesome DESIGN.md](../docs/design-references/awesome-design-md/README.md). Adapt its typography, spacing, color, and component patterns to the workflow. For dense dashboards and data tables, start with the [local Linear reference](../docs/design-references/awesome-design-md/linear.DESIGN.md). Review the result for generic card grids, decorative effects, and inconsistent hierarchy. Preserve accessibility and localization when adapting any reference.

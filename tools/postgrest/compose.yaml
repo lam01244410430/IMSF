@@ -1,0 +1,27 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: rest_smoke
+      POSTGRES_PASSWORD: ${REST_DB_PASSWORD:?Run start.ps1 first}
+      REST_API_PASSWORD: ${REST_API_PASSWORD:?Run start.ps1 first}
+    ports:
+      - "127.0.0.1:5544:5432"
+    volumes:
+      - ./init.sh:/docker-entrypoint-initdb.d/01-rest.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d rest_smoke"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  rest:
+    image: postgrest/postgrest:v16.0
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGRST_DB_URI: postgres://rest_authenticator:${REST_API_PASSWORD}@db:5432/rest_smoke
+      PGRST_DB_SCHEMAS: rest_probe
+      PGRST_DB_ANON_ROLE: rest_reader
+    ports:
+      - "127.0.0.1:3033:3000"

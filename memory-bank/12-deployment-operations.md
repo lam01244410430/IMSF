@@ -1,0 +1,3 @@
+# Deployment and operations
+Phase 02 establishes Python 3.14, frontend tooling, PostgreSQL 16+, Docker Compose, and CI. Configure database connections, signing keys, allowed origins, and logging without example credentials.
+Verify application and database health, migration compatibility, and backup recovery before deployment. The proposed pg_dump/pg_restore process uses encrypted off-site storage and rehearsals in an isolated database. Record release images, migration revisions, health checks, and rollback points. Monitor error rates, job lag, connection pools, and backup age. RPO and RTO await review.

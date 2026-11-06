@@ -1,0 +1,3 @@
+# Current phase
+Phase 00 engineering foundation delivered. Phase 01 architecture and requirements conditionally approved. Phase 02 started 2026-11-05 after user approval of the pre-Phase-02 gates. P02-01 delivered 2026-11-05 (initial commit 14a903b on task/P02-01-toolchain; CI steps verified locally, remote CI pending).
+ P02-02 started 2026-11-05 after user approval; Peter is manager/coordinator, Codex on lampro is worker.

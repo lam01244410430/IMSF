@@ -1,0 +1,1 @@
+"""P02-01 minimal service package."""

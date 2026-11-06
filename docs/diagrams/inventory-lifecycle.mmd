@@ -1,0 +1,9 @@
+stateDiagram-v2
+  [*] --> ACTIVE
+  ACTIVE --> ACTIVE: Partial deduction
+  ACTIVE --> CONSUMED: Fully consumed
+  ACTIVE --> DISCARDED: Fully discarded
+  note right of ACTIVE
+    Freshness is derived separately.
+    Mixed depletion status awaits review.
+  end note

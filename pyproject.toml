@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "family-finance-inventory"
+version = "0.1.0"
+description = "Family finance and inventory lifecycle management system (P02-01 minimal service)"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi==0.162.0",
+    "SQLAlchemy[asyncio]==2.1.8",
+    "alembic==1.20.1",
+    "psycopg[binary]==3.3.8",
+    "pydantic==2.14.2",
+    "pydantic-settings==2.16.2",
+    "uvicorn==0.54.0",
+    "httpx==0.28.1",
+    # Python 3.14 support verified in upstream PyPI release metadata.
+    "pwdlib[argon2]==0.3.1",
+    "PyJWT==2.15.1",
+    "cryptography==50.0.2", # Fernet for the separately keyed refresh grace cache.
+]
+
+[project.optional-dependencies]
+test = ["pytest==9.2.0"]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

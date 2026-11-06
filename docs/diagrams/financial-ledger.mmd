@@ -1,0 +1,6 @@
+flowchart LR
+  Transaction[Transaction] --> Payment[Payment]
+  Transaction --> Entry[Posted ledger entry]
+  Payment --> Entry
+  Entry --> Balance[Account balance]
+  Correction[Reversal or adjustment] --> Entry

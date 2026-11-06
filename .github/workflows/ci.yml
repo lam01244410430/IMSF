@@ -1,0 +1,38 @@
+# GitHub Actions workflow. Local verification is recorded separately;
+# remote success requires a completed workflow run for the published commit.
+name: ci
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: postgres:16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: p02_test_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql+psycopg://postgres@localhost:5432/p02_test_ci
+      P02_DISPOSABLE_DATABASE: p02_test_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Install
+        run: pip install -e .[test]
+      - name: Health tests
+        run: python -m pytest tests/test_health.py -v
+      - name: Fresh-DB Alembic test
+        run: python -m pytest tests/test_migration.py -v
+      - name: Syntax check
+        run: python -m compileall app alembic migrations tests

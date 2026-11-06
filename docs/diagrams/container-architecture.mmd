@@ -1,0 +1,14 @@
+flowchart TD
+  Web[React] --> API[FastAPI API]
+  API --> Identity[Identity and permissions]
+  API --> Checkout[Checkout application service]
+  Checkout --> Finance[Finance]
+  Checkout --> Inventory[Inventory]
+  Lifecycle[Lifecycle] --> Inventory
+  Analytics[Analytics] --> Queries[Read-only queries]
+  Recipes[Recipes] --> Queries
+  Worker[Scheduler] --> Lifecycle
+  Finance --> DB[(PostgreSQL)]
+  Inventory --> DB
+  Identity --> DB
+  Queries --> DB

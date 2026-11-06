@@ -1,0 +1,4 @@
+flowchart LR
+  Member[Household member] --> ERP[Household management system]
+  ERP --> DB[(PostgreSQL)]
+  ERP -. when configured .-> Email[Email service]

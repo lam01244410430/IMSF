@@ -1,0 +1,6 @@
+flowchart LR
+  Browser[Browser] --> Auth[Authentication]
+  Auth --> Scope[Household membership and permission]
+  Scope --> UseCase[Application use case]
+  UseCase --> SQL[Household scope and composite foreign keys]
+  UseCase --> Audit[Redacted audit record]

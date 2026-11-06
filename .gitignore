@@ -1,0 +1,23 @@
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+*.sqlite*
+*.dump
+*.pem
+*.key
+
+# Graphify machine-local state; share the report and rendered graph.
+graphify-out/cache/
+graphify-out/.graphify*
+graphify-out/manifest.json
+graphify-out/*-extraction-audit.json

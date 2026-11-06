@@ -1,0 +1,93 @@
+# PostgreSQL V1 schema specification
+
+Status is proposed for Phase 01 review. The target is PostgreSQL 16+ with async SQLAlchemy and Alembic in the existing modular monolith. This specification expands ADR-0002 through ADR-0006 and ADR-0008. The [core ERD](../diagrams/database-erd.mmd) is an orientation diagram. The contracts below are the migration design reference.
+
+## Storage and ownership
+
+- Use generated BIGINT identity primary keys unless a key is explicitly defined. All columns listed below are required unless marked optional. Use TIMESTAMPTZ for instants, DATE for calendar dates, and TEXT with checks for finite code sets. Store event instants with server defaults. Use JSONB for audit details, job arguments and saved response bodies.
+- Scoped rows have a required household_id referencing households. Each scoped identity table exposes UNIQUE (household_id, id). Every scoped relationship uses both columns in its FK, including optional references. Optional references keep household_id required and allow only the target ID to be null. Use restrictive deletes and explicit archival for objects with history.
+- Use NUMERIC(20,6) for amounts and base quantities and NUMERIC(30,12) for rates and unit costs. Reject non-finite values, overflow and input with unsupported fractional digits before SQL coercion. Currency metadata determines accepted monetary scale. Reject zero for signed events. Serialize decimals as strings.
+- Use application authorization on every scoped read and write. Resolve IDs within the authorized household. Historical actor references use retained membership IDs. Use distinct migration and runtime credentials. Grant ledger, movement and audit inserts and reads without update or delete privileges on those relations.
+- Use normalized keys for login, role and currency codes. Use the application's IANA time zone validation. Use en, vi and zh-Hans as locale codes. Archive selectable objects without losing historical joins.
+
+## Identity and household
+
+| Relation | Columns beyond the standard key and scope | Keys and checks |
+|---|---|---|
+| users | email, email_key, password_hash, locale, state, created_at, optional verified_at | Global. Unique email_key. State PENDING, ACTIVE or DISABLED. |
+| households | name, created_at, optional archived_at | Global root. |
+| household_settings | household_id, timezone, locale, reporting_currency, warning_days | Scope is the PK. Currency FK. Default warning_days is 3 and must be nonnegative. |
+| roles | code | Global reference. Unique code. Seed OWNER, ADMIN, FINANCE_MANAGER, INVENTORY_MANAGER, MEMBER and VIEWER. |
+| permissions | code | Global reference. Unique code. |
+| role_permissions | role_id, permission_id | Global mapping. Composite PK and reference FKs. |
+| household_members | user_id, role_id, joined_at, optional removed_at | Unique (household_id, user_id). Active membership requires removed_at IS NULL. Retain the ID on reactivation. |
+| household_invitations | email_key, role_id, inviter_member_id, token_digest, expires_at, optional accepted_at, optional revoked_at | Unique digest. Acceptance and revocation are mutually exclusive. Lock and consume invitation once. |
+| auth_sessions | user_id, created_at, expires_at, optional revoked_at | Global per-user session family. |
+| refresh_tokens | session_id, token_digest, issued_at, expires_at, optional consumed_at | Global. Unique digest. Lock the session during rotation. Replay of a consumed token revokes its family in a committed transaction. |
+| auth_challenges | user_id, purpose, token_digest, expires_at, optional consumed_at | Global. Unique digest. Purpose VERIFY_EMAIL or RESET_PASSWORD. Consume atomically and revoke sessions on password reset. |
+| audit_logs | event_at, request_id, action, target_type, optional target_id, optional actor_member_id, details | Scoped append-only audit. Null actor denotes a system action. Target descriptors are historical data and are never resolved as authorization. |
+| auth_audit_events | event_at, request_id, event_code, optional user_id | Global security events. Store neither credentials nor token material. |
+
+Serialize ownership changes by locking the household and require at least one active OWNER after each mutation. Lock the acting membership on sensitive writes so revocation and authorization have a consistent order.
+
+## Finance
+
+| Relation | Columns beyond the standard key and scope | Keys and checks |
+|---|---|---|
+| currencies | code, minor_units | Global. Code PK, three uppercase letters, scale 0 through 6. Version policy before changing denominations in use. |
+| accounts | name, currency_code, created_at, optional archived_at | Currency FK. Unique (household_id, id, currency_code) for currency-bound references. Opening balance is a posted entry. |
+| categories | name, kind, optional archived_at | Kind INCOME or EXPENSE. Unique household, kind and name. |
+| transactions | kind, status, occurred_at, currency_code, total_amount, created_by_member_id, optional category_id, optional original_transaction_id, optional posted_at | Kind INCOME, EXPENSE, TRANSFER, REFUND, REVERSAL or OPENING. Status DRAFT or POSTED. Nonnegative total. Posted timestamp required only for POSTED. Link refunds and reversals to original transaction. One posted full reversal per original via partial unique index. |
+| transaction_items | transaction_id, line_no, description, quantity, net_amount, optional product_id, optional base_quantity | Unique per transaction and line_no. Positive quantities, nonnegative net. Product and base quantity must appear together. Expose unique (household_id, id, product_id) for purchase lot FK. |
+| transaction_payments | transaction_id, account_id, currency_code, amount, transaction_amount, direction, settled_at, optional exchange_rate | Positive amounts. Direction IN or OUT. Composite FK includes account currency. transaction_amount is the applied amount in transaction currency. Equal currencies require identical amounts and no rate. Different currencies require a positive rate. |
+| account_ledger_entries | transaction_id, account_id, currency_code, signed_amount, posted_at, optional payment_id, optional reverses_entry_id | Composite FK includes account currency. Enforce payment belongs to the same transaction, account and currency with a composite FK to its unique tuple. Unique payment when present and unique reversal target when present. |
+| reconciliation_sessions | account_id, currency_code, statement_date, statement_balance, state, opened_by_member_id, optional closed_at | Currency-bound account FK. State OPEN or CLOSED. Closed state requires closed_at. |
+| reconciliation_matches | session_id, account_id, ledger_entry_id, matched_at | Unique ledger entry. Include account_id in both composite FKs and expose corresponding parent unique tuples. |
+
+Account balances are the sum of signed ledger entries by account and currency. Partial settlement is derived from the sum of applied payments. Lock the transaction and affected accounts in ascending ID order before creating payments and ledger entries. Validate line totals, direction, currency, category, transfer legs, and overpayment in the application transaction. Posted commercial fields are immutable. Transfers record two opposite account entries. Cross-currency legs retain both exact amounts and the rate used. Lock the original transaction for refunds and reversals. Cap cumulative refunds at the settled refundable amount and verify original account and currency rules. A full reversal mirrors each original entry, links it once, and is allowed only when prior refunds and stock effects can be resolved consistently. A purchase refund with a physical return records outbound movements in the same transaction. A cash-only refund records no stock movement. Closing reconciliation locks the account and session and checks the statement against the matched entry set and previously reconciled balance. Financial history is retained.
+
+## Inventory and lifecycle
+
+| Relation | Columns beyond the standard key and scope | Keys and checks |
+|---|---|---|
+| measurement_units | code, dimension | Global, unique code. |
+| unit_conversions | from_unit_id, to_unit_id, factor | Global, composite PK. Positive factor, distinct units, same dimension. Expose unique unit ID and dimension tuples for dimension-bound FKs. Convert only with an explicit factor or identity. |
+| product_categories | name, optional archived_at | Unique household and name. |
+| products | name, base_unit_id, optional category_id, optional archived_at | Global unit FK. Base unit is immutable once stock history exists. |
+| inventory_lots | product_id, source_kind, received_at, received_quantity, remaining_quantity, optional purchase_item_id, optional expires_on, optional cost_currency, optional unit_cost, optional terminal_state | Source PURCHASE, GIFT or MANUAL. Purchase requires item FK including product ID. Positive receipt and 0 <= remaining <= received. Cost currency and nonnegative cost are paired. Terminal state required at zero and absent above zero. |
+| inventory_movements | lot_id, kind, quantity_delta, occurred_at, optional actor_member_id, optional transaction_id, optional reason | Signed delta. RECEIPT and ADJUST_IN positive. CONSUME, DISPOSE, RETURN and ADJUST_OUT negative. One receipt per lot via partial unique index. |
+| inventory_adjustments | movement_id, counted_quantity, reason | Unique movement. Nonnegative count. Adjustment event kind and delta checked against prior balance. |
+| consumption_records | movement_id, optional cooking_history_id | Unique movement, scoped FKs. |
+| disposal_records | movement_id, reason_code | Unique movement, scoped FK. |
+| expiration_alerts | lot_id, alert_kind, local_date, created_at | Unique household, lot, alert_kind and local_date. |
+
+Create the lot and its receipt movement atomically. Validate purchase quantity across split lots under the purchase item lock. Stock commands lock product rows in ascending ID order, then eligible lot rows, recalculate against current quantities and write events and the lot projection in the same transaction. All commands that can affect FEFO eligibility use this protocol. Require SUM(quantity_delta) = remaining_quantity in reconciliation. Enforce event-kind alignment with lifecycle details in the service and use a single write path for each command. Excess found above the lot cap uses a separately sourced lot under the proposed baseline. Corrections preserve prior events. Terminal state design proposal uses CONSUMED, DISCARDED, RETURNED, ADJUSTED_OUT or MIXED based on the recorded depletion paths when stock reaches zero. Active state is derived from positive quantity. Undated lots are eligible after dated lots in the proposed baseline and report UNKNOWN freshness. Expiry day remains eligible. Sort by expires_on NULLS LAST, received_at, id. Cost remains fixed on the lot. Waste uses DISPOSE deltas times known lot cost grouped by currency, with unknown-cost quantities reported separately.
+
+## Recipes and operations
+
+| Relation | Columns beyond the standard key and scope | Keys and checks |
+|---|---|---|
+| recipes | name, servings, created_by_member_id, optional instructions, optional archived_at | Positive servings. |
+| recipe_ingredients | recipe_id, line_no, product_id, quantity, unit_id, essential | Unique recipe and line number. Positive quantity. Require conversion to product base unit. |
+| recipe_cooking_history | recipe_id, cooked_at, servings, actor_member_id, recipe_snapshot | Positive servings. Record the executed recipe snapshot and link resulting consumption records. |
+| notifications | recipient_member_id, event_key, kind, payload, created_at, optional read_at | Unique household, recipient and event_key. Include stable localization code and validated payload. |
+| notification_preferences | member_id, channel, enabled | Composite PK (household_id, member_id, channel). |
+| scheduled_jobs | job_key, kind, state, run_after, attempt_count, payload, optional lease_until, optional lease_token, optional completed_at, optional error_code | Unique household and job_key. State READY, RUNNING, SUCCEEDED or FAILED. RUNNING requires lease fields. Nonnegative attempts. |
+| idempotency_requests | actor_member_id, operation, request_key, request_hash, response_status, response_body, created_at | Unique household, actor, operation and request_key. Store bounded keys and validated response data. |
+
+Recipe recommendations and reports use household-scoped reads and derive results from source records. Rank according to the [algorithm draft](../../memory-bank/6-algorithms.md). Cooking with stock deduction locks and updates all affected stock in one transaction. Workers claim due jobs with row locks and SKIP LOCKED, commit a lease, and fence completion with the lease token. Expired leases are reclaimable. Write database effects with the completion update under the same job lock and use source uniqueness for deduplication. Deliveries to external channels require a provider idempotency contract before enabling retries.
+
+## Transaction and index contracts
+
+- Every replayable write reserves the idempotency key using INSERT ON CONFLICT and stores the final successful response in the same transaction. The in-progress row may use a transaction-local provisional response, which must never commit. On conflict, read the committed row in a fresh statement, verify the canonical request hash, and return the saved response or HTTP 409. Recheck current authorization before replay. Rollback removes both the reservation and effects.
+- Checkout validates and writes finance, payment entries, purchase items, lots, receipts and audit in one application transaction. Repositories share the unit of work. Keep account locks before product locks for cross-module operations. Retry transient deadlocks or serialization failures by restarting the entire unit of work with the same key.
+- Index scoped referencing columns when they lack a suitable leading index. Add transactions (household_id, occurred_at DESC, id DESC), ledger (household_id, account_id, posted_at, id), movements (household_id, lot_id, occurred_at, id), and active lots (household_id, product_id, expires_on, received_at, id) WHERE remaining_quantity > 0. Add a separate expiry scan index (household_id, expires_on, id) over positive dated lots. Index notifications by household, recipient and descending created_at/id, jobs by state/run_after and state/lease_until, and membership by user for household discovery.
+- Use stable cursor tie breakers. Start with source queries and reconcile projections before adding materialized summaries. Never aggregate money across currencies without an explicit conversion policy.
+
+## Migration and acceptance
+
+Create revisions in dependency order. Start with shared references and identity, then finance, inventory and lifecycle, recipes, and operations. Create products before linking finance items to products, and add the optional cooking link after cooking history exists. Seed reference codes deterministically. Add stricter constraints to populated databases only after validation and auditable backfill. Rehearse upgrade on empty and populated PostgreSQL databases. For populated production data use forward corrections or a rehearsed restore when downgrades would discard history.
+
+Required evidence includes FK rejection for cross-household writes, scoped query authorization, last-owner and refresh-token races, currency precision and bounds, ledger reconciliation and competing refunds, checkout rollback after partial writes, concurrent same-key replay and payload conflict, simultaneous FEFO deductions, expiry and time zone boundaries, job fencing, and waste reconciliation. Run against real PostgreSQL under the runtime role. Verify deployment compatibility and backup recovery before release.
+
+Proposed mixed depletion, undated stock, and adjustment handling require Phase 04–05 review. The [open decisions](../../memory-bank/15-open-questions.md) remain policy gates for retention, authentication, currency rounding and rates, valuation, and recipe substitutions. Transport, provider selection, and retention values are configurable policy decisions. No PostgreSQL migration or runtime acceptance evidence exists for this design revision.

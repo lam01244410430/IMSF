@@ -1,0 +1,14 @@
+{
+  "nodes": 414,
+  "edges": 515,
+  "communities": 56,
+  "unique_ids": true,
+  "exported_edge_endpoints_present": true,
+  "community_labels_present": true,
+  "html_document_present": true,
+  "sha256": {
+    "graph.json": "8e2dfb46b437dfb432724b08b4d3b5603aca88c0b731b9aaeda54bf61ba2ea3a",
+    "graph.html": "ea5e3cb420d7ce1ff6995533b3b2ff9cf6db21668b6c6f1db59d1ab8d169d331",
+    "GRAPH_REPORT.md": "d5f86b2a08c78470899d9683c417a4cd19f11b9f77d81edd3716f8bb24a34eac"
+  }
+}

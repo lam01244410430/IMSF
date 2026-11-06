@@ -1,0 +1,9 @@
+flowchart TD
+  A[Authorize and validate] --> B[Claim idempotency key in transaction]
+  B --> C[Write transaction and items]
+  C --> D[Write payments and ledger entries]
+  D --> E[Write applicable lots and inbound movements]
+  E --> F[Commit]
+  C -. write failure .-> G[Roll back transaction]
+  D -. write failure .-> G
+  E -. write failure .-> G

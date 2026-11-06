@@ -1,0 +1,3 @@
+# Project brief
+Smart Family Finance & Inventory Lifecycle Management System V1.0 serves individuals, couples, and multi-member households. It links income, expenses, account entries, purchases, inventory lots, consumption, disposal, waste analysis, and recipe recommendations.
+Acceptance requires tracing each financial and inventory change within its household and preventing access by other households. V1 includes an auditable account ledger, deterministic recommendations, and English, Vietnamese, and Simplified Chinese interfaces. Recurring transactions are planned for a later phase. External AI is optional.
