@@ -19,7 +19,7 @@ from app.identity.dto import RegistrationResult, RegisterRequest
 from app.identity.infrastructure.email import EmailProvider
 from app.identity.infrastructure.models import AuthChallenge, AuthRateLimit, User
 from app.identity.infrastructure.rate_limits import SqlAlchemyRateLimitStorage
-from app.identity.infrastructure.security import Argon2PasswordHasher, token_digest
+from app.identity.infrastructure.security import Argon2PasswordHasher, token_digest, jwt_secret
 
 
 class IdentityRequestError(Exception):
@@ -97,14 +97,17 @@ class AuthService:
                     token = await self._challenge(user, now)
                     email = user.email
         if token is not None:
-            await self._deliver(email, token)
+            try:
+                await self._deliver(email, token)
+            except IdentityRequestError:
+                pass
         return RegistrationResult()
 
     async def confirm(self, token: str, ip: str) -> RegistrationResult:
         now = self.clock()
         # Rolling-hour buckets avoid a reset at a wall-clock hour boundary.
         # The advisory lock serializes per-IP updates and checks across workers.
-        secret = os.environ["JWT_SECRET"].encode()
+        secret = jwt_secret().encode()
         subject = hmac.new(secret, ip.encode(), hashlib.sha256).hexdigest()
         async with self.session.begin():
             await self.session.execute(text("SELECT pg_advisory_xact_lock(:key)"),

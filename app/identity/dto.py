@@ -55,3 +55,15 @@ class ErrorResponse(BaseModel):
     error_code: str = "IDENTITY_REQUEST_FAILED"
     details: str = "Unable to complete the request."
     request_id: str
+
+
+class LoginRequest(EmailInput):
+    password: SecretStr = Field(min_length=1, max_length=128, exclude=True)
+
+
+class SessionResult(BaseModel):
+    access_token: str
+    token_type: Literal["bearer"]
+    expires_in: int
+    csrf_token: str
+    state: Literal["PENDING", "ACTIVE"]

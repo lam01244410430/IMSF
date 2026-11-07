@@ -29,6 +29,13 @@ def token_digest(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
+def jwt_secret() -> str:
+    secret = os.environ.get("JWT_SECRET", "")
+    if len(secret.encode()) < 32:
+        raise RuntimeError("JWT_SECRET must contain at least 32 bytes")
+    return secret
+
+
 class IdentitySecurity:
     def __init__(self, *, issuer: str, audience: str) -> None:
         # MANAGER PROPOSAL (merge gate): HS256 via PyJWT; JWT_SECRET only from
@@ -43,7 +50,10 @@ class IdentitySecurity:
         if not issuer or not audience:
             raise ValueError("JWT issuer and audience are required")
         self._secret = secret
-        self._fernet = Fernet(grace_key.encode("ascii"))
+        try:
+            self._fernet = Fernet(grace_key.encode("ascii"))
+        except (ValueError, UnicodeError):
+            raise RuntimeError("REFRESH_GRACE_KEY must be a valid Fernet key") from None
         self._issuer = issuer
         self._audience = audience
 
@@ -63,10 +73,10 @@ class IdentitySecurity:
     def encrypt_successor(self, token: str) -> bytes:
         return self._fernet.encrypt(token.encode("utf-8"))
 
-    def decrypt_successor(self, ciphertext: bytes, *, grace_expires_at: datetime) -> str:
+    def decrypt_successor(self, ciphertext: bytes, *, grace_expires_at: datetime, now: datetime | None = None) -> str:
         # The caller must lock the session and verify that the successor remains
         # current. Expired ciphertext is cleared through the repository in the
         # caller's transaction; this adapter never bypasses the grace deadline.
-        if datetime.now(timezone.utc) >= grace_expires_at:
+        if (now or datetime.now(timezone.utc)) >= grace_expires_at:
             raise ValueError("Refresh grace expired")
-        return self._fernet.decrypt(ciphertext, ttl=10).decode("utf-8")
+        return self._fernet.decrypt(ciphertext).decode("utf-8")

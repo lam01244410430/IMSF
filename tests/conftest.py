@@ -62,3 +62,9 @@ def identity_database(disposable_database_url):
     migrate("head")
     # Leave schema for operator inspection; every data write rolls back.
     return disposable_database_url
+
+
+@pytest.fixture(autouse=True)
+def refresh_grace_configuration(monkeypatch):
+    from cryptography.fernet import Fernet
+    monkeypatch.setenv("REFRESH_GRACE_KEY", Fernet.generate_key().decode())

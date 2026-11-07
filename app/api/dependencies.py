@@ -1,4 +1,4 @@
-"""Step 2 authentication: consume existing Bearer credentials, never issue them."""
+"""Bearer authentication and database-resolved household authorization."""
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
@@ -15,15 +15,10 @@ from app.identity.auth_service import AuthService
 from app.identity.dto import UserResponse
 from app.identity.infrastructure.email import EmailProvider
 from app.identity.infrastructure.models import AuthSession, User
+from app.identity.infrastructure.security import jwt_secret
+from app.identity.infrastructure.repositories import SqlAlchemyIdentityRepository
 
 bearer = HTTPBearer(auto_error=False)
-
-
-def jwt_secret() -> str:
-    secret = os.environ.get("JWT_SECRET", "")
-    if len(secret.encode()) < 32:
-        raise RuntimeError("JWT_SECRET must contain at least 32 bytes")
-    return secret
 
 
 async def get_db():
@@ -95,3 +90,21 @@ async def require_active_user(user: Annotated[UserResponse, Depends(current_user
     if user.state != "ACTIVE":
         raise HTTPException(status_code=403)
     return user
+
+
+async def require_household_member(
+    household_id: int,
+    user: Annotated[UserResponse, Depends(require_active_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Resolve current membership from persistence, never from token claims."""
+    async with session.begin():
+        member = await SqlAlchemyIdentityRepository(session).active_member(household_id, user.id)
+        if member is None:
+            raise HTTPException(status_code=404)
+        return member
+
+
+def get_session_service(session: Annotated[AsyncSession, Depends(get_db)]):
+    from app.identity.session_service import SessionService
+    return SessionService(session)

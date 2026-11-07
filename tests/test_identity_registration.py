@@ -177,7 +177,7 @@ def test_pending_verification_only_state_and_household_gate(http, database):
         return {"allowed": True}
 
     assert client.get("/test-only-active-gate", headers=headers).status_code == 403
-    assert client.post(PREFIX + "/auth/email-verification/resend", headers=headers).status_code == 200
+    assert client.post(PREFIX + "/auth/email-verification/resend", headers=headers).status_code == 202
     assert client.post(PREFIX + "/auth/email-verification/confirm", json={"token": provider.messages[0][1]}).status_code == 200
     assert client.get("/test-only-active-gate", headers=headers).status_code == 200
     assert client.get(PREFIX + "/users/me", headers=headers).json()["state"] == "ACTIVE"
@@ -494,10 +494,28 @@ def test_exact_route_scope_and_openapi(http):
     identity = {path: set(methods) for path, methods in schema["paths"].items() if path.startswith(PREFIX)}
     assert identity == {
         PREFIX + "/auth/register": {"post"},
+        PREFIX + "/auth/login": {"post"},
+        PREFIX + "/auth/refresh": {"post"},
+        PREFIX + "/auth/logout": {"post"},
         PREFIX + "/auth/email-verification/resend": {"post"},
         PREFIX + "/auth/email-verification/confirm": {"post"},
         PREFIX + "/auth/email": {"patch"},
         PREFIX + "/users/me": {"get"},
     }
-    for path in ("/auth/login", "/auth/logout", "/auth/refresh", "/auth/password-reset", "/households"):
+    for path in ("/auth/password-reset", "/households"):
         assert http[0].post(PREFIX + path, json={}).status_code == 404
+
+
+def test_resend_delivery_failure_is_generic_202(http, database):
+    client, provider, _ = http
+    past = datetime.now(timezone.utc) - timedelta(minutes=2)
+    user_id, _ = asyncio.run(registered(database, provider, now=past))
+    token = asyncio.run(existing_access(database, user_id))
+    async def fail(**kwargs):
+        raise RuntimeError("private provider detail")
+    provider.send = fail
+    response = client.post(PREFIX + "/auth/email-verification/resend",
+                           headers={"Authorization": "Bearer " + token})
+    assert response.status_code == 202
+    assert response.json() == RegistrationResult().model_dump()
+    assert "private" not in response.text
