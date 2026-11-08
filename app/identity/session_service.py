@@ -112,7 +112,8 @@ class SessionService(AuthService):
                 if token.consumed_at is not None:
                     successor = await self.session.get(RefreshToken, token.successor_id)
                     if (token.grace_expires_at and now < token.grace_expires_at
-                            and successor.consumed_at is None and token.successor_ciphertext):
+                            and successor is not None and successor.consumed_at is None
+                            and token.successor_ciphertext):
                         if user.state != "ACTIVE":
                             raise IdentityRequestError()
                         material = session_security().decrypt_successor(token.successor_ciphertext,

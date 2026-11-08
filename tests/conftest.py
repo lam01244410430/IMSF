@@ -1,4 +1,4 @@
-﻿"""Opt-in disposable DB fixtures. Never create/drop DBs or derive dev URLs."""
+"""Opt-in disposable DB fixtures. Never create/drop DBs or derive dev URLs."""
 import asyncio
 import os
 import re
@@ -68,3 +68,15 @@ def identity_database(disposable_database_url):
 def refresh_grace_configuration(monkeypatch):
     from cryptography.fernet import Fernet
     monkeypatch.setenv("REFRESH_GRACE_KEY", Fernet.generate_key().decode())
+
+
+async def cleanup_identity_database(engine):
+    """FK-safe data cleanup for the explicitly disposable identity test DB only."""
+    async with engine.begin() as connection:
+        for table in (
+            "refresh_tokens", "auth_challenges", "auth_audit_events", "auth_sessions",
+            "auth_rate_limits", "audit_logs", "household_invitations", "household_members",
+            "household_settings", "households", "users",
+        ):
+            await connection.execute(text(f"DELETE FROM {table}"))
+    await engine.dispose()

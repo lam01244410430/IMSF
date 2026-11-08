@@ -50,7 +50,7 @@ async def current_user(
         raise HTTPException(status_code=401)
     # Issuer/audience are deployment identifiers, not JWT-controlled values.
     # Until configured, authenticated routes fail closed. No refresh encryption
-    # key is needed here because Step 2 does not implement refresh or issuance.
+    # key is needed here: access-token validation never decrypts refresh material.
     issuer = os.environ.get("JWT_ISSUER")
     audience = os.environ.get("JWT_AUDIENCE")
     if not issuer or not audience:
@@ -108,3 +108,19 @@ async def require_household_member(
 def get_session_service(session: Annotated[AsyncSession, Depends(get_db)]):
     from app.identity.session_service import SessionService
     return SessionService(session)
+
+
+def require_household_permission(permission: str):
+    """Reusable fail-closed gate for future household endpoint groups."""
+    async def check(
+        member: Annotated[object, Depends(require_household_member)],
+        session: Annotated[AsyncSession, Depends(get_db)],
+    ):
+        from app.identity.infrastructure.models import Role
+        from app.identity.permissions import allows
+        async with session.begin():
+            role = await session.scalar(select(Role.code).where(Role.id == member.role_id))
+            if not allows(role, permission):
+                raise HTTPException(status_code=403)
+        return member
+    return check

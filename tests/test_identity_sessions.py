@@ -7,6 +7,7 @@ from typing import Annotated
 
 import jwt
 import pytest
+from conftest import cleanup_identity_database
 from cryptography.fernet import Fernet
 from fastapi import Depends
 from fastapi.testclient import TestClient
@@ -40,23 +41,7 @@ def database(identity_database):
     factory = async_sessionmaker(engine, expire_on_commit=False)
     yield factory
 
-    async def cleanup():
-        async with engine.begin() as connection:
-            for table in (
-                "refresh_tokens",
-                "auth_challenges",
-                "auth_audit_events",
-                "auth_sessions",
-                "auth_rate_limits",
-                "audit_logs",
-                "household_invitations",
-                "household_members",
-                "households",
-                "users",
-            ):
-                await connection.execute(text(f"DELETE FROM {table}"))
-        await engine.dispose()
-    asyncio.run(cleanup())
+    asyncio.run(cleanup_identity_database(engine))
 
 
 @pytest.fixture
@@ -305,5 +290,24 @@ def test_replay_revokes_even_after_email_returns_user_to_pending(database):
             await db.execute(update(User).where(User.id == uid).values(state="PENDING"))
         with pytest.raises(IdentityRequestError):
             await call(database, "refresh", original[1], now=now + timedelta(seconds=10))
+        assert (await records(database, AuthSession))[0].revoked_at is not None
+    asyncio.run(scenario())
+
+
+def test_refresh_grace_missing_successor_fails_closed(database, monkeypatch):
+    async def scenario():
+        await seed(database)
+        now = datetime.now(timezone.utc)
+        original = await call(database, "login", "person@example.test", PASSWORD, "ip", now=now)
+        await call(database, "refresh", original[1], now=now)
+        async with database() as db:
+            real_get = db.get
+            async def missing_successor(model, key, **kwargs):
+                if model is RefreshToken:
+                    return None
+                return await real_get(model, key, **kwargs)
+            monkeypatch.setattr(db, "get", missing_successor)
+            with pytest.raises(IdentityRequestError):
+                await SessionService(db, clock=lambda: now + timedelta(seconds=1)).refresh(original[1])
         assert (await records(database, AuthSession))[0].revoked_at is not None
     asyncio.run(scenario())

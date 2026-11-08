@@ -17,7 +17,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.identity.domain import normalize_email
 from app.identity.dto import RegistrationResult, RegisterRequest
 from app.identity.infrastructure.email import EmailProvider
-from app.identity.infrastructure.models import AuthChallenge, AuthRateLimit, User
+from app.identity.infrastructure.models import (
+    AuthChallenge, AuthRateLimit, Household, HouseholdMember, Role, User,
+)
 from app.identity.infrastructure.rate_limits import SqlAlchemyRateLimitStorage
 from app.identity.infrastructure.security import Argon2PasswordHasher, token_digest, jwt_secret
 
@@ -155,6 +157,27 @@ class AuthService:
                     raise IdentityRequestError()
                 if user.email_key == email:
                     return RegistrationResult()
+                # Serialize state transitions with every membership/ownership write.
+                # Lock all joined households (not only current OWNER memberships):
+                # a concurrent transfer may promote this user while we wait.
+                household_ids = (await self.session.scalars(select(HouseholdMember.household_id).where(
+                    HouseholdMember.user_id == user_id, HouseholdMember.removed_at.is_(None)
+                ).order_by(HouseholdMember.household_id))).all()
+                for household_id in household_ids:
+                    await self.session.scalar(select(Household).where(
+                        Household.id == household_id).with_for_update())
+                    role = await self.session.scalar(select(Role.code).join(
+                        HouseholdMember, HouseholdMember.role_id == Role.id).where(
+                            HouseholdMember.household_id == household_id,
+                            HouseholdMember.user_id == user_id, HouseholdMember.removed_at.is_(None)))
+                    if role == "OWNER":
+                        others = await self.session.scalar(select(func.count()).select_from(HouseholdMember).join(
+                            Role, Role.id == HouseholdMember.role_id).join(User, User.id == HouseholdMember.user_id).where(
+                                HouseholdMember.household_id == household_id,
+                                HouseholdMember.removed_at.is_(None), Role.code == "OWNER",
+                                User.state == "ACTIVE", User.id != user_id))
+                        if not others:
+                            raise IdentityRequestError()
                 user.email = user.email_key = email
                 user.state = "PENDING"
                 user.verified_at = None

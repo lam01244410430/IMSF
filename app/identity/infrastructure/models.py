@@ -171,3 +171,10 @@ class AuthRateLimit(Base):
     subject_digest: Mapped[str] = mapped_column(sa.String(64), primary_key=True)
     window_started_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), primary_key=True)
     attempts: Mapped[int] = mapped_column(sa.Integer)
+
+
+class HouseholdSettings(Base):
+    __tablename__ = "household_settings"
+    household_id: Mapped[int] = mapped_column(sa.ForeignKey("households.id"), primary_key=True)
+    # MANAGER PROPOSAL: no currency, locale, or timezone policy is frozen here.
+    values: Mapped[dict[str, str]] = mapped_column(JSONB, server_default=sa.text("'{}'::jsonb"))

@@ -1,4 +1,4 @@
-﻿"""PostgreSQL migration and constraint checks; operator-created fresh DB only."""
+"""PostgreSQL migration and constraint checks; operator-created fresh DB only."""
 import asyncio
 
 import pytest
@@ -24,7 +24,7 @@ def test_upgrade_downgrade_upgrade(disposable_database_url):
         engine = create_async_engine(url)
         try:
             async with engine.connect() as connection:
-                assert (await connection.execute(text("SELECT version_num FROM alembic_version"))).scalar_one() == "000000000002"
+                assert (await connection.execute(text("SELECT version_num FROM alembic_version"))).scalar_one() == "000000000003"
                 assert set((await connection.execute(text("SELECT code FROM roles"))).scalars()) == {
                     "OWNER", "ADMIN", "FINANCE_MANAGER", "INVENTORY_MANAGER", "MEMBER", "VIEWER",
                 }

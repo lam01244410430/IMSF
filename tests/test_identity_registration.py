@@ -13,6 +13,7 @@ from typing import Annotated
 
 import jwt
 import pytest
+from conftest import cleanup_identity_database
 from fastapi import Depends
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
@@ -54,13 +55,7 @@ def database(identity_database):
     factory = async_sessionmaker(engine, expire_on_commit=False)
     yield factory
 
-    async def cleanup():
-        # Only this explicit disposable DB is touched. Keep seed roles intact.
-        async with engine.begin() as connection:
-            for table in ("auth_challenges", "auth_rate_limits", "auth_sessions", "users"):
-                await connection.execute(text(f"DELETE FROM {table}"))
-        await engine.dispose()
-    asyncio.run(cleanup())
+    asyncio.run(cleanup_identity_database(engine))
 
 
 @pytest.fixture
@@ -501,8 +496,17 @@ def test_exact_route_scope_and_openapi(http):
         PREFIX + "/auth/email-verification/confirm": {"post"},
         PREFIX + "/auth/email": {"patch"},
         PREFIX + "/users/me": {"get"},
+        PREFIX + "/households": {"post", "get"},
+        PREFIX + "/households/{household_id}": {"get", "patch"},
+        PREFIX + "/households/{household_id}/archive": {"post"},
+        PREFIX + "/households/{household_id}/members": {"get"},
+        PREFIX + "/households/{household_id}/members/{member_id}": {"patch", "delete"},
+        PREFIX + "/households/{household_id}/transfer": {"post"},
+        PREFIX + "/households/{household_id}/invitations": {"post"},
+        PREFIX + "/households/{household_id}/invitations/accept": {"post"},
+        PREFIX + "/households/{household_id}/invitations/{invitation_id}": {"delete"},
     }
-    for path in ("/auth/password-reset", "/households"):
+    for path in ("/auth/password-reset",):
         assert http[0].post(PREFIX + path, json={}).status_code == 404
 
 
