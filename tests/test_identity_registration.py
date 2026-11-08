@@ -489,6 +489,8 @@ def test_exact_route_scope_and_openapi(http):
     identity = {path: set(methods) for path, methods in schema["paths"].items() if path.startswith(PREFIX)}
     assert identity == {
         PREFIX + "/auth/register": {"post"},
+        PREFIX + "/auth/password-reset/request": {"post"},
+        PREFIX + "/auth/password-reset/confirm": {"post"},
         PREFIX + "/auth/login": {"post"},
         PREFIX + "/auth/refresh": {"post"},
         PREFIX + "/auth/logout": {"post"},

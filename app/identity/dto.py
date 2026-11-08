@@ -67,3 +67,21 @@ class SessionResult(BaseModel):
     expires_in: int
     csrf_token: str
     state: Literal["PENDING", "ACTIVE"]
+
+
+class PasswordResetRequest(EmailInput):
+    pass
+
+
+class PasswordResetConfirmRequest(VerifyEmailRequest):
+    # Bounds are checked inside the challenge transaction so failed confirms
+    # with an identifiable token count toward its five-attempt limit.
+    password: SecretStr = Field(exclude=True)
+
+
+class PasswordResetResult(BaseModel):
+    message: str = "If eligible, password reset instructions will be sent."
+
+
+class PasswordResetConfirmed(BaseModel):
+    message: str = "Password changed. Please log in again."

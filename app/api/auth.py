@@ -1,13 +1,14 @@
 """Thin identity routes; application services own session transactions."""
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request, Response, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response, HTTPException
 
 from app.api.dependencies import current_user, get_auth_service, get_session_service
 from app.identity.auth_service import AuthService
 from app.identity.dto import (
     ChangeEmailRequest, RegisterRequest, RegistrationResult, UserResponse,
     VerifyEmailRequest, LoginRequest, SessionResult,
+    PasswordResetRequest, PasswordResetConfirmRequest, PasswordResetResult, PasswordResetConfirmed,
 )
 
 router = APIRouter(prefix="/api/v1")
@@ -80,3 +81,19 @@ async def logout(request: Request, service: Sessions):
     response.delete_cookie("refresh_token", path=COOKIE_PATH, secure=True,
                            httponly=True, samesite="lax")
     return response
+
+
+@router.post("/auth/password-reset/request", response_model=PasswordResetResult)
+async def request_password_reset(body: PasswordResetRequest, request: Request,
+                                 background_tasks: BackgroundTasks, response: Response, service: Service):
+    response.headers["Cache-Control"] = "no-store"
+    return await service.request_password_reset(body.email,
+        request.client.host if request.client else "unknown", schedule=background_tasks.add_task)
+
+
+@router.post("/auth/password-reset/confirm", response_model=PasswordResetConfirmed)
+async def confirm_password_reset(body: PasswordResetConfirmRequest, request: Request,
+                                 background_tasks: BackgroundTasks, response: Response, service: Service):
+    response.headers["Cache-Control"] = "no-store"
+    return await service.confirm_password_reset(body.token.get_secret_value(), body.password.get_secret_value(),
+        request.client.host if request.client else "unknown", schedule=background_tasks.add_task)

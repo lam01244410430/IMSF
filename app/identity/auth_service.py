@@ -194,3 +194,115 @@ class AuthService:
                 raise
             return RegistrationResult()
         return RegistrationResult()
+
+    async def _reset_budget(self, ip, now, email=None):
+        """Committed rolling limits, including failed/unknown submissions.
+
+        MANAGER PROPOSALS for merge review: shared request/confirm 5/hour/IP,
+        request 3/hour/email_key. Request exhaustion still returns generic 200.
+        """
+        buckets = [("reset_ip", ip, 5)]
+        if email is not None:
+            buckets.append(("reset_email", email, 3))
+        allowed = True
+        async with self.session.begin():
+            for scope, value, limit in buckets:
+                subject = hmac.new(jwt_secret().encode(), value.encode(), hashlib.sha256).hexdigest()
+                await self.session.execute(text("SELECT pg_advisory_xact_lock(:key)"),
+                                           {"key": int(subject[:15], 16)})
+                count = await self.session.scalar(select(func.coalesce(func.sum(AuthRateLimit.attempts), 0)).where(
+                    AuthRateLimit.scope == scope, AuthRateLimit.subject_digest == subject,
+                    AuthRateLimit.window_started_at > now - timedelta(hours=1)))
+                allowed = allowed and count < limit
+                if count < limit:
+                    await SqlAlchemyRateLimitStorage(self.session).increment(
+                        scope=scope, subject_digest=subject, window_started_at=now)
+        return allowed
+
+    async def _reset_deliver(self, email, subject, body):
+        if self.provider is not None:
+            try:
+                await self.provider.send(recipient=email, subject=subject, body=body)
+            except Exception:
+                # Providers may include the secret body in exception messages.
+                pass
+
+    async def request_password_reset(self, email, ip, *, schedule=None):
+        from app.identity.dto import PasswordResetResult
+        email = normalize_email(email)
+        now = self.clock()
+        allowed = await self._reset_budget(ip, now, email)
+        # Generate and digest on every path, including unknown/disabled users.
+        raw = secrets.token_urlsafe(32)
+        digest = token_digest(raw)
+        recipient = None
+        async with self.session.begin():
+            user = await self.session.scalar(select(User).where(User.email_key == email).with_for_update())
+            if allowed and user is not None and user.state != "DISABLED":
+                now = self.clock()
+                await self.session.execute(update(AuthChallenge).where(
+                    AuthChallenge.user_id == user.id, AuthChallenge.purpose == "RESET_PASSWORD",
+                    AuthChallenge.consumed_at.is_(None)).values(consumed_at=now))
+                self.session.add(AuthChallenge(user_id=user.id, purpose="RESET_PASSWORD",
+                    token_digest=digest, created_at=now, expires_at=now + timedelta(minutes=60)))
+                await self.session.flush()
+                recipient = user.email
+        if recipient is not None:
+            if schedule is None:
+                await self._reset_deliver(recipient, "Reset your password", raw)
+            else:
+                # HTTP sends after the response, keeping provider latency/failure
+                # out of public account-existence timing. No console fallback.
+                schedule(self._reset_deliver, recipient, "Reset your password", raw)
+        return PasswordResetResult()
+
+    async def confirm_password_reset(self, raw, password, ip, *, schedule=None):
+        from app.identity.dto import PasswordResetConfirmed
+        from app.identity.infrastructure.models import AuthSession, RefreshToken
+        now = self.clock()
+        if not await self._reset_budget(ip, now):
+            raise IdentityRequestError()
+        valid = False
+        recipient = None
+        async with self.session.begin():
+            digest = token_digest(raw)
+            owner_id = await self.session.scalar(select(AuthChallenge.user_id).where(
+                AuthChallenge.token_digest == digest, AuthChallenge.purpose == "RESET_PASSWORD"))
+            if owner_id is not None:
+                # Same lock ordering as login/refresh: user, then family/token.
+                user = await self.session.scalar(select(User).where(User.id == owner_id).with_for_update())
+                challenge = await self.session.scalar(select(AuthChallenge).where(
+                    AuthChallenge.token_digest == digest, AuthChallenge.purpose == "RESET_PASSWORD").with_for_update())
+                now = self.clock()
+                if challenge.consumed_at is None and challenge.failed_attempts < 5:
+                    eligible = user.state != "DISABLED" and challenge.expires_at > now
+                    acceptable = 12 <= len(password) <= 128
+                    if eligible and acceptable:
+                        acceptable = not await run_in_threadpool(self.hasher.verify, password, user.password_hash)
+                    if eligible and acceptable:
+                        user.password_hash = await run_in_threadpool(self.hasher.hash, password)
+                        await self.session.execute(update(AuthSession).where(
+                            AuthSession.user_id == user.id, AuthSession.revoked_at.is_(None)).values(revoked_at=now))
+                        family_ids = select(AuthSession.id).where(AuthSession.user_id == user.id)
+                        await self.session.execute(update(RefreshToken).where(
+                            RefreshToken.session_id.in_(family_ids)).values(
+                                consumed_at=func.coalesce(RefreshToken.consumed_at, now),
+                                successor_ciphertext=None, grace_expires_at=None))
+                        await self.session.execute(update(AuthChallenge).where(
+                            AuthChallenge.user_id == user.id, AuthChallenge.purpose == "RESET_PASSWORD",
+                            AuthChallenge.consumed_at.is_(None)).values(consumed_at=now))
+                        recipient = user.email
+                        valid = True
+                    else:
+                        challenge.failed_attempts += 1
+                        if challenge.failed_attempts >= 5:
+                            challenge.consumed_at = now
+        # Raise outside the transaction: failed-attempt increments must persist.
+        if not valid:
+            raise IdentityRequestError()
+        body = "Your password has changed. Please log in again."
+        if schedule is None:
+            await self._reset_deliver(recipient, "Password changed", body)
+        else:
+            schedule(self._reset_deliver, recipient, "Password changed", body)
+        return PasswordResetConfirmed()
