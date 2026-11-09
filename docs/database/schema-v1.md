@@ -30,6 +30,26 @@ Status is proposed for Phase 01 review. The target is PostgreSQL 16+ with async 
 
 Serialize ownership changes by locking the household and require at least one active OWNER after each mutation. Lock the acting membership on sensitive writes so revocation and authorization have a consistent order.
 
+
+> Identity implementation note (2026-11-09, migrations 000000000002–
+> 000000000003, branch task/P02-02-password-reset, HEAD 123bdd9):
+> the identity tables in this section are implemented as listed, with the
+> following differences from the table above, all verified in code and
+> tests. (a) household_settings is implemented as a JSONB `values` bag
+> defaulting to `{}` — the structured columns timezone / locale /
+> reporting_currency / warning_days (default 3) in the table above are
+> superseded for identity; defaults are open decision 6. (b) The
+> auth_rate_limits table is implemented but not described in this document;
+> see app/identity/infrastructure/models.py and migration 000000000003.
+> (c) Implemented columns not listed above: auth_sessions.csrf_digest +
+> last_activity_at; refresh_tokens.successor_id + successor_ciphertext +
+> grace_expires_at (grace_expires_at = consumed_at + 10 seconds, enforced
+> by check ck_refresh_grace); auth_challenges.failed_attempts;
+> household_invitations.emailed_at. (d) The core ERD
+> (docs/diagrams/database-erd.mmd) remains an orientation diagram: it omits
+> auth_sessions, auth_challenges, auth_rate_limits, auth_audit_events and
+> household_invitations, and draws USERS -> REFRESH_TOKENS directly.
+
 ## Finance
 
 | Relation | Columns beyond the standard key and scope | Keys and checks |

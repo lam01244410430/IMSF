@@ -4,7 +4,7 @@
 | P00-01 | Repository discovery and governance | None | File and skill structure checks | Delivered |
 | P01-01 | ADRs, ERD, [PostgreSQL schema specification](../docs/database/schema-v1.md), contracts, and traceability | P00-01 | Scope and key decisions reviewed | Conditionally approved |
 | P02-01 | Toolchain, minimal service, Compose, Alembic, and CI | P01-01 | Python 3.14 dependencies, health checks, empty database migration, and CI verified | Delivered |
-| P02-02 | Identity, households, and RBAC | P02-01 | Registration, login, rotation, isolation, and authorization tests | In progress |
+| P02-02 | Identity, households, and RBAC | P02-01 | Registration, login, rotation, isolation, and authorization tests | Delivered |
 | P03-01 | Ledger, payments, reversals, and reconciliation | P02-02 | Decimal precision, concurrent idempotency, and balance verification | Planned |
 | P04-01 | Products, lots, movements, and checkout | P03-01 | Atomic rollback, ownership constraints, and concurrent deductions | Planned |
 | P05-01 | FEFO, consumption, disposal, and expiry jobs | P04-01 | Time zone boundaries, partial deductions, and deduplication | Planned |
