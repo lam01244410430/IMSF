@@ -1,5 +1,5 @@
 """PROPOSAL OPEN-01/04: explicit currencies and decimal string boundaries."""
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Annotated, Literal
 
@@ -255,3 +255,91 @@ class BalanceResponse(ReadDTO):
     currency_code: str
     balance: SerializedDecimal
     cursor: str | None
+
+
+# OPEN-09 PROPOSAL: manual observations, exact acknowledgment, retained withdrawal.
+class ReconciliationCreate(WriteDTO):
+    account_id: Identifier
+    currency_code: CurrencyCode
+    statement_date: date
+    statement_balance: Amount
+    statement_source: Literal["BANK_STATEMENT", "CASH_COUNT"]
+    statement_reference: Annotated[str, Field(max_length=200)] | None = None
+
+
+class MatchCreate(WriteDTO):
+    ledger_entry_id: Identifier
+
+
+class MatchWithdraw(WriteDTO):
+    reason: Annotated[str, Field(min_length=1, max_length=1000)]
+
+
+class ReconciliationClose(WriteDTO):
+    acknowledged_outstanding_entry_ids: list[Identifier]
+
+
+class ReconciliationRefresh(WriteDTO):
+    pass
+
+
+class IntegrityIssue(ReadDTO):
+    code: Literal["PAYMENT_LEDGER_MISSING", "PAYMENT_LEDGER_MISMATCH", "TRANSFER_UNBALANCED",
+                  "OVERSETTLED", "REVERSAL_INCOMPLETE", "STATEMENT_DIFFERENCE", "UNMATCHED_LEDGER", "CUTOFF_STALE"]
+    account_id: int | None = None
+    currency_code: str | None = None
+    transaction_id: int | None = None
+    payment_id: int | None = None
+    ledger_entry_id: int | None = None
+    expected_amount: SerializedDecimal
+    actual_amount: SerializedDecimal
+
+
+class IntegrityAccount(ReadDTO):
+    account_id: int
+    currency_code: str
+    balance: SerializedDecimal
+    entry_count: int
+    payment_count: int
+
+
+class IntegrityReport(ReadDTO):
+    accounts: list[IntegrityAccount]
+    integrity_issues: list[IntegrityIssue]
+
+
+class ReconciliationActiveMatch(ReadDTO):
+    match_id: int
+    ledger_entry_id: int
+
+
+class ReconciliationReport(ReadDTO):
+    session_id: int
+    account_id: int
+    currency_code: str
+    state: Literal["OPEN", "CLOSED"]
+    statement_date: date
+    statement_source: str
+    statement_reference: str | None
+    created_at: datetime
+    opened_by_member_id: int
+    closed_at: datetime | None
+    closed_by_member_id: int | None
+    previous_session_id: int | None
+    previous_statement_balance: SerializedDecimal
+    cutoff_ledger_entry_id: int | None
+    matched_entry_ids: list[int]
+    active_matches: list[ReconciliationActiveMatch]
+    matched_total: SerializedDecimal
+    expected_closing_balance: SerializedDecimal
+    statement_balance: SerializedDecimal
+    difference: SerializedDecimal
+    unmatched_entry_ids: list[int]
+    unmatched_count: int
+    integrity_issues: list[IntegrityIssue]
+    close_eligible: bool
+
+
+class ReconciliationPage(ReadDTO):
+    items: list[ReconciliationReport]
+    next_cursor: str | None

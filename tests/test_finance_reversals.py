@@ -243,12 +243,18 @@ def test_payment_racing_reversal_has_consistent_single_outcome(f):
 
 def test_cannot_reverse_draft_or_reversal(f):
     draft = create_draft(f)
-    assert reverse(f, draft["id"]).status_code == 409
+    rejected = reverse(f, draft["id"])
+    assert rejected.status_code == 409
+    assert rejected.json()["error_code"] == "FINANCE_REVERSAL_INELIGIBLE"
     assert post(f, draft).status_code == 200
     response = reverse(f, draft["id"])
     assert response.status_code == 201, response.text
-    assert reverse(f, response.json()["reversal_transaction"]["id"]).status_code == 409
-    assert reverse(f, draft["id"], key="different").status_code == 409
+    rejected = reverse(f, response.json()["reversal_transaction"]["id"])
+    assert rejected.status_code == 409
+    assert rejected.json()["error_code"] == "FINANCE_REVERSAL_INELIGIBLE"
+    rejected = reverse(f, draft["id"], key="different")
+    assert rejected.status_code == 409
+    assert rejected.json()["error_code"] == "FINANCE_REVERSAL_INELIGIBLE"
     foreign = f.client.post(f"/api/v1/households/{f.other_hid}/transactions",
         headers=f.actors["OUTSIDER"].headers | {"Idempotency-Key": "foreign"}, json=DRAFT).json()
     for tid in (foreign["id"], 9223372036854775807):
@@ -292,6 +298,9 @@ def test_archived_account_reversal_is_allowed(f):
     # OPEN-11 PROPOSAL reversal exception; ordinary settlement remains blocked.
     original, aids = prepared(f)
     assert f.request("POST", f"/accounts/{aids[0]}/archive").status_code == 204
+    blocked = post(f, create_draft(f), [payment(aids[0])])
+    assert blocked.status_code == 409
+    assert blocked.json()["error_code"] == "FINANCE_ACCOUNT_ARCHIVED"
     response = reverse(f, original["id"])
     assert response.status_code == 201, response.text
     assert reversal_counts(f) == {"headers": 1, "payments": 1, "entries": 1, "audit": 1, "keys": 1}
@@ -340,3 +349,19 @@ def test_persisted_incomplete_mirror_rolls_back(f, monkeypatch):
     assert reversal_counts(f) == {"headers": 0, "payments": 0, "entries": 0, "audit": 0, "keys": 0}
     assert not query(f, "SELECT id FROM idempotency_requests WHERE household_id=:hid AND request_key='incomplete'")
     assert f.request("GET", f"/transactions/{original['id']}").json()["is_reversed"] is False
+
+
+@pytest.mark.parametrize("kind", ["INCOME", "OPENING"])
+def test_income_and_opening_reversals(f, kind):
+    aid = account(f)
+    draft = create_draft(f, kind=kind, **({"items": []} if kind == "OPENING" else {}))
+    assert post(f, draft, [payment(aid, direction="IN")]).status_code == 200
+    response = reverse(f, draft["id"])
+    assert response.status_code == 201
+    rid = response.json()["reversal_transaction"]["id"]
+    mirror = rows(f, "account_ledger_entries", rid)[0]
+    original = rows(f, "account_ledger_entries", draft["id"])[0]
+    assert mirror["reverses_entry_id"] == original["id"]
+    assert mirror["signed_amount"] == Decimal("-12.30")
+    assert rows(f, "transaction_payments", rid)[0]["direction"] == "OUT"
+    assert_zero(f)

@@ -25,6 +25,9 @@ from app.finance.dto import (
 from app.finance.infrastructure.household_access import SqlAlchemyHouseholdAccess
 from app.finance.infrastructure.repositories import SqlAlchemyFinanceRepository
 from app.finance.ledger_service import LedgerService
+from app.finance.reconciliation_service import ReconciliationService
+from app.finance.dto import (IntegrityReport, ReconciliationCreate, ReconciliationReport,
+    ReconciliationPage, MatchCreate, MatchWithdraw, ReconciliationClose, ReconciliationRefresh)
 
 
 class FinanceRoute(APIRoute):
@@ -195,3 +198,67 @@ async def ledger(household_id: Identifier, actor: Principal, service: Service,
 async def account_balance(household_id: Identifier, account_id: Identifier, actor: Principal, service: Service,
                           as_of: datetime | None = None, cursor: Cursor = None):
     return await service.balance(actor, household_id, account_id, as_of=as_of, cursor=cursor)
+
+
+# OPEN-09/10/14 PROPOSALS: manual reconciliation, finance.post writes and saved responses.
+
+
+def get_reconciliation_service(session: Annotated[AsyncSession, Depends(get_db)]):
+    return ReconciliationService(session, SqlAlchemyFinanceRepository(session), SqlAlchemyHouseholdAccess(session))
+
+
+Reconciliation = Annotated[ReconciliationService, Depends(get_reconciliation_service)]
+
+
+@router.get("/finance/integrity", response_model=IntegrityReport)
+async def finance_integrity(household_id: Identifier, actor: Principal, service: Reconciliation,
+                            account_id: Identifier | None = None, currency_code: str | None = None):
+    return await service.integrity(actor, household_id, account_id, currency_code)
+
+
+@router.post("/reconciliations", response_model=ReconciliationReport, status_code=201)
+async def create_reconciliation(household_id: Identifier, body: ReconciliationCreate, key: Key,
+                                actor: Principal, service: Reconciliation):
+    return saved_response(await service.create_session(actor, household_id, body, key))
+
+
+@router.get("/reconciliations", response_model=ReconciliationPage)
+async def reconciliation_sessions(household_id: Identifier, actor: Principal, service: Reconciliation,
+                                   limit: Limit = 50, cursor: Cursor = None, account_id: Identifier | None = None):
+    return await service.sessions(actor, household_id, limit, cursor, account_id)
+
+
+@router.get("/reconciliations/{session_id}", response_model=ReconciliationReport)
+async def reconciliation_session(household_id: Identifier, session_id: Identifier,
+                                  actor: Principal, service: Reconciliation):
+    return await service.report(actor, household_id, session_id)
+
+
+@router.post("/reconciliations/{session_id}/matches", response_model=ReconciliationReport, status_code=201)
+async def reconciliation_match(household_id: Identifier, session_id: Identifier, body: MatchCreate,
+                                key: Key, actor: Principal, service: Reconciliation):
+    return saved_response(await service.mutate(actor, household_id, session_id, "matches", body, key))
+
+
+@router.post("/reconciliations/{session_id}/matches/{match_id}/unmatch", response_model=ReconciliationReport)
+async def reconciliation_unmatch(household_id: Identifier, session_id: Identifier, match_id: Identifier,
+                                  body: MatchWithdraw, key: Key, actor: Principal, service: Reconciliation):
+    return saved_response(await service.mutate(actor, household_id, session_id, "unmatch", body, key, match_id=match_id))
+
+
+@router.get("/reconciliations/{session_id}/discrepancies", response_model=ReconciliationReport)
+async def reconciliation_discrepancies(household_id: Identifier, session_id: Identifier,
+                                        actor: Principal, service: Reconciliation):
+    return await service.report(actor, household_id, session_id)
+
+
+@router.post("/reconciliations/{session_id}/close", response_model=ReconciliationReport)
+async def reconciliation_close(household_id: Identifier, session_id: Identifier, body: ReconciliationClose,
+                                key: Key, actor: Principal, service: Reconciliation):
+    return saved_response(await service.mutate(actor, household_id, session_id, "close", body, key))
+
+
+@router.post("/reconciliations/{session_id}/refresh-cutoff", response_model=ReconciliationReport)
+async def reconciliation_refresh(household_id: Identifier, session_id: Identifier, body: ReconciliationRefresh,
+                                  key: Key, actor: Principal, service: Reconciliation):
+    return saved_response(await service.mutate(actor, household_id, session_id, "refresh-cutoff", body, key))

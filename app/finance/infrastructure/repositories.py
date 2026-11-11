@@ -7,11 +7,13 @@ from sqlalchemy.dialects.postgresql import insert
 
 from app.finance.infrastructure.models import (
     Account, AccountLedgerEntry, Category, Currency, IdempotencyRequest, Transaction, TransactionItem, TransactionPayment,
+    ReconciliationSession, ReconciliationMatch,
 )
 from app.identity.infrastructure.models import AuditLog
 
 MODELS = {"accounts": Account, "categories": Category, "transactions": Transaction, "items": TransactionItem,
-          "payments": TransactionPayment, "ledger": AccountLedgerEntry}
+          "payments": TransactionPayment, "ledger": AccountLedgerEntry,
+          "reconciliations": ReconciliationSession, "matches": ReconciliationMatch}
 
 
 def record(row):
@@ -152,3 +154,24 @@ class SqlAlchemyFinanceRepository:
             select(latest.c.id).scalar_subquery().label("id"),
         ))).mappings().one()
         return dict(row)
+
+    async def reconciliation_rows(self, household_id, resource):
+        """Unpaginated source rows for integrity; no mutations or balance cache."""
+        model = MODELS[resource]
+        return [record(row) for row in (await self.session.scalars(select(model).where(
+            model.household_id == household_id).order_by(model.id).execution_options(populate_existing=True))).all()]
+
+    async def reconciliation_anchor(self, household_id, account_id, currency_code):
+        model = ReconciliationSession
+        row = await self.session.scalar(select(model).where(model.household_id == household_id,
+            model.account_id == account_id, model.currency_code == currency_code, model.state == "CLOSED").order_by(model.id.desc()).limit(1))
+        return record(row) if row else None
+
+    async def reconciliation_open(self, household_id, account_id):
+        return await self.session.scalar(select(ReconciliationSession.id).where(
+            ReconciliationSession.household_id == household_id, ReconciliationSession.account_id == account_id,
+            ReconciliationSession.state == "OPEN"))
+
+    async def reconciliation_cutoff(self, household_id, account_id):
+        return await self.session.scalar(select(func.max(AccountLedgerEntry.id)).where(
+            AccountLedgerEntry.household_id == household_id, AccountLedgerEntry.account_id == account_id))

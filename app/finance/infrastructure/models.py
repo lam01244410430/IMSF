@@ -1,5 +1,5 @@
 """Finance persistence. PROPOSAL OPEN-01: NUMERIC(20,6); no stored balances."""
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -176,3 +176,58 @@ class IdempotencyRequest(Scoped, Base):
     response_status: Mapped[int] = mapped_column(sa.SmallInteger)
     response_body: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), server_default=sa.func.now())
+
+
+# OPEN-09 PROPOSAL: single open account observation; retained manual matching.
+class ReconciliationSession(Scoped, Base):
+    __tablename__ = "reconciliation_sessions"
+    __table_args__ = (
+        scoped_unique(), sa.UniqueConstraint("household_id", "id", "account_id"),
+        sa.UniqueConstraint("household_id", "id", "account_id", "currency_code"),
+        sa.ForeignKeyConstraint(["household_id", "account_id", "currency_code"], ["accounts.household_id", "accounts.id", "accounts.currency_code"]),
+        sa.ForeignKeyConstraint(["household_id", "previous_session_id", "account_id", "currency_code"], ["reconciliation_sessions.household_id", "reconciliation_sessions.id", "reconciliation_sessions.account_id", "reconciliation_sessions.currency_code"]),
+        sa.ForeignKeyConstraint(["household_id", "cutoff_ledger_entry_id", "account_id"], ["account_ledger_entries.household_id", "account_ledger_entries.id", "account_ledger_entries.account_id"]),
+        scoped_fk("opened_by_member_id", "household_members"), scoped_fk("closed_by_member_id", "household_members"),
+        sa.CheckConstraint("state IN ('OPEN','CLOSED')", name="ck_reconciliation_state"),
+        sa.CheckConstraint("(state='OPEN' AND closed_at IS NULL AND closed_by_member_id IS NULL) OR (state='CLOSED' AND closed_at IS NOT NULL AND closed_by_member_id IS NOT NULL)", name="ck_reconciliation_closed"),
+        sa.CheckConstraint("previous_session_id IS NULL OR previous_session_id <> id", name="ck_reconciliation_prior"),
+        sa.CheckConstraint("statement_source IN ('BANK_STATEMENT','CASH_COUNT')", name="ck_reconciliation_source"),
+        sa.CheckConstraint("statement_reference IS NULL OR length(statement_reference)<=200", name="ck_reconciliation_reference"),
+        sa.CheckConstraint("statement_balance NOT IN ('NaN'::numeric,'Infinity'::numeric,'-Infinity'::numeric)", name="ck_reconciliation_amount"),
+        sa.Index("uq_reconciliation_open", "household_id", "account_id", unique=True, postgresql_where=sa.text("state='OPEN'")),
+        sa.Index("ix_reconciliation_account", "household_id", "account_id", "id"),
+    )
+    account_id: Mapped[int] = mapped_column(sa.BigInteger)
+    currency_code: Mapped[str] = mapped_column(sa.ForeignKey("currencies.code"))
+    statement_date: Mapped[date] = mapped_column(sa.Date)
+    statement_balance: Mapped[Decimal] = mapped_column(sa.Numeric(20, 6))
+    state: Mapped[str] = mapped_column(sa.Text, server_default="OPEN")
+    opened_by_member_id: Mapped[int] = mapped_column(sa.BigInteger)
+    closed_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), server_default=sa.func.now())
+    statement_source: Mapped[str] = mapped_column(sa.Text)
+    statement_reference: Mapped[str | None] = mapped_column(sa.Text)
+    previous_session_id: Mapped[int | None] = mapped_column(sa.BigInteger)
+    closed_by_member_id: Mapped[int | None] = mapped_column(sa.BigInteger)
+    cutoff_ledger_entry_id: Mapped[int | None] = mapped_column(sa.BigInteger)
+
+
+class ReconciliationMatch(Scoped, Base):
+    __tablename__ = "reconciliation_matches"
+    __table_args__ = (
+        scoped_unique(),
+        sa.ForeignKeyConstraint(["household_id", "session_id", "account_id"], ["reconciliation_sessions.household_id", "reconciliation_sessions.id", "reconciliation_sessions.account_id"]),
+        sa.ForeignKeyConstraint(["household_id", "ledger_entry_id", "account_id"], ["account_ledger_entries.household_id", "account_ledger_entries.id", "account_ledger_entries.account_id"]),
+        scoped_fk("matched_by_member_id", "household_members"), scoped_fk("unmatched_by_member_id", "household_members"),
+        sa.CheckConstraint("(unmatched_at IS NULL) = (unmatched_by_member_id IS NULL)", name="ck_match_withdrawal"),
+        sa.CheckConstraint("unmatched_at IS NULL OR unmatched_at >= matched_at", name="ck_match_time"),
+        sa.Index("uq_reconciliation_active_match", "household_id", "ledger_entry_id", unique=True, postgresql_where=sa.text("unmatched_at IS NULL")),
+        sa.Index("ix_reconciliation_matches_session", "household_id", "session_id", "id"),
+    )
+    session_id: Mapped[int] = mapped_column(sa.BigInteger)
+    account_id: Mapped[int] = mapped_column(sa.BigInteger)
+    ledger_entry_id: Mapped[int] = mapped_column(sa.BigInteger)
+    matched_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), server_default=sa.func.now())
+    matched_by_member_id: Mapped[int] = mapped_column(sa.BigInteger)
+    unmatched_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
+    unmatched_by_member_id: Mapped[int | None] = mapped_column(sa.BigInteger)

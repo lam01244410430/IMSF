@@ -113,13 +113,13 @@ def test_idempotency_header_cors_and_error_compatibility(f):
     assert error.status_code == 422 and set(error.json()) == {"error_code", "details", "request_id"}
 
 
-def test_step5_routes_are_absent(f):
+def test_step5_routes_are_present_without_delete(f):
     paths = f.app.openapi()["paths"]
+    assert "/api/v1/households/{household_id}/reconciliations" in paths
     for path in paths:
-        if "households/{household_id}" in path:
-            assert "/reconciliations" not in path
-            if any(word in path for word in ("/accounts", "/categories", "/transactions", "/currencies")):
-                assert "delete" not in paths[path]
+        if "households/{household_id}" in path and any(word in path for word in
+            ("/accounts", "/categories", "/transactions", "/currencies", "/ledger", "/finance", "/reconciliations")):
+            assert "delete" not in paths[path]
 
 
 @pytest.mark.parametrize("change,expected", [("removed", 404), ("archive", 409), ("revoked", 401), ("demoted", 403)])
@@ -312,3 +312,77 @@ def test_step4_cross_household_ids_are_404(f):
     assert post(f, own).status_code == 200
     assert f.request("POST", f"/transactions/{own['id']}/reversals", role="OUTSIDER", json=body).status_code == 404
     assert f.request("POST", f"/transactions/{own['id']}/reversals", json=body).status_code == 201
+
+
+STEP5_EXPECTED = {
+    "OWNER": {0, 1, 2, 3, 4, 5, 6, 7, 8},
+    "FINANCE_MANAGER": {0, 1, 2, 3, 4, 5, 6, 7, 8},
+    "ADMIN": {0, 2, 3, 6}, "INVENTORY_MANAGER": {0, 2, 3, 6},
+    "MEMBER": {0, 2, 3, 6}, "VIEWER": {0, 2, 3, 6},
+}
+
+
+@pytest.mark.parametrize("role", STEP5_EXPECTED)
+@pytest.mark.parametrize("index", range(9))
+def test_every_step5_route_role_matrix(f, role, index):
+    from test_finance_reconciliation import entry, open_session, session_body, path, match
+    from test_finance_transactions import account
+    aid = account(f)
+    e = entry(f, aid)
+    second = entry(f, aid)
+    s = open_session(f, aid, "1")
+    assert match(f, s, e["id"]).status_code == 201
+    mid = query(f, "SELECT id FROM reconciliation_matches WHERE household_id=:hid")[0]["id"]
+    routes = [
+        ("GET", "/finance/integrity", None, 200),
+        ("POST", "/reconciliations", session_body(account(f)), 201),
+        ("GET", "/reconciliations", None, 200),
+        ("GET", path(s), None, 200),
+        ("POST", path(s)+"/matches", {"ledger_entry_id": second["id"]}, 201),
+        ("POST", path(s)+f"/matches/{mid}/unmatch", {"reason": "Matrix"}, 200),
+        ("GET", path(s)+"/discrepancies", None, 200),
+        ("POST", path(s)+"/close", {"acknowledged_outstanding_entry_ids": [second["id"]]}, 200),
+        ("POST", path(s)+"/refresh-cutoff", {}, 200),
+    ]
+    method, url, body, expected = routes[index]
+    r = f.request(method, url, role=role, **({"json": body} if body is not None else {}))
+    assert r.status_code == (expected if index in STEP5_EXPECTED[role] else 403), r.text
+    if index not in STEP5_EXPECTED[role]:
+        assert r.json()["error_code"] == "FINANCE_FORBIDDEN"
+
+
+@pytest.mark.parametrize("key", [False, "", "a"*129, "has space", "tab\there"])
+def test_step5_idempotency_key_required(f, key):
+    from test_finance_reconciliation import session_body
+    from test_finance_transactions import account
+    r = f.request("POST", "/reconciliations", key=key, json=session_body(account(f)))
+    assert r.status_code == 422 and r.json()["details"] == {}
+
+
+def test_step5_archived_household_rejects_writes_and_replays(f):
+    from test_finance_reconciliation import session_body
+    from test_finance_transactions import account
+    body = session_body(account(f))
+    assert f.request("POST", "/reconciliations", key="saved-session", json=body).status_code == 201
+    assert f.client.post(f"/api/v1/households/{f.hid}/archive", headers=f.actors["OWNER"].headers).status_code == 204
+    for key in ("saved-session", "new-session"):
+        assert f.request("POST", "/reconciliations", key=key, json=body).status_code == 409
+    for url in ("/reconciliations", "/finance/integrity"):
+        assert f.request("GET", url).status_code == 200
+
+
+def test_step5_cross_household_session_and_match_ids_are_404(f):
+    from test_finance_reconciliation import open_session, session_body, path, entry, match
+    from test_finance_transactions import account
+    base = f"/api/v1/households/{f.other_hid}"
+    h = f.actors["OUTSIDER"].headers
+    aid = f.client.post(base+"/accounts", headers=h | {"Idempotency-Key": "foreign-account"}, json={"name": "Foreign", "currency_code": "USD"}).json()["id"]
+    other = f.client.post(base+"/reconciliations", headers=h | {"Idempotency-Key": "foreign-session"}, json=session_body(aid))
+    assert other.status_code == 201
+    foreign = other.json()
+    for method, suffix, body in [("GET", "", None), ("GET", "/discrepancies", None), ("POST", "/close", {"acknowledged_outstanding_entry_ids": []}), ("POST", "/refresh-cutoff", {}), ("POST", "/matches", {"ledger_entry_id": 1}), ("POST", "/matches/1/unmatch", {"reason": "Foreign"})]:
+        assert f.request(method, path(foreign)+suffix, **({"json": body} if body is not None else {})).status_code == 404
+    own_aid = account(f); e = entry(f, own_aid); own = open_session(f, own_aid)
+    assert match(f, own, e["id"]).status_code == 201
+    mid = query(f, "SELECT id FROM reconciliation_matches WHERE household_id=:hid")[0]["id"]
+    assert f.client.post(base+path(foreign)+f"/matches/{mid}/unmatch", headers=h | {"Idempotency-Key": "foreign-match"}, json={"reason": "Foreign"}).status_code == 404

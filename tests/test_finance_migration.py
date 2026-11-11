@@ -64,7 +64,7 @@ def test_metadata_matches_schema(finance_database_urls):
     async def run():
         engine = create_async_engine(finance_database_urls[0], poolclass=NullPool)
         async with engine.connect() as c:
-            assert await c.scalar(text("SELECT version_num FROM alembic_version")) == "000000000005"
+            assert await c.scalar(text("SELECT version_num FROM alembic_version")) == "000000000006"
             differences = await c.run_sync(lambda sync: compare_metadata(MigrationContext.configure(sync), Base.metadata))
             assert differences == []
             assert (await c.execute(text("SELECT code,minor_units FROM currencies ORDER BY code"))).all() == [
@@ -230,4 +230,104 @@ def test_incomplete_idempotency_reservation_cannot_commit(f):
         assert failure.value.orig.sqlstate == "55000"
         async with f.db() as db:
             assert await db.scalar(text("SELECT count(*) FROM idempotency_requests WHERE household_id=:hid"), {"hid": f.hid}) == 0
+    asyncio.run(run())
+
+
+def test_reconciliation_schema_columns_and_constraints(f):
+    from test_finance_transactions import query
+    expected = {
+        "reconciliation_sessions": {"id", "household_id", "account_id", "currency_code", "statement_date", "statement_balance", "state", "opened_by_member_id", "closed_at", "created_at", "statement_source", "statement_reference", "previous_session_id", "closed_by_member_id", "cutoff_ledger_entry_id"},
+        "reconciliation_matches": {"id", "household_id", "session_id", "account_id", "ledger_entry_id", "matched_at", "matched_by_member_id", "unmatched_at", "unmatched_by_member_id"},
+    }
+    for table, columns in expected.items():
+        assert {r["column_name"] for r in query(f, "SELECT column_name FROM information_schema.columns WHERE table_name=:table", table=table)} == columns
+    indices = query(f, "SELECT indexdef FROM pg_indexes WHERE tablename='reconciliation_matches'")
+    assert any("UNIQUE" in r["indexdef"] and "household_id, ledger_entry_id" in r["indexdef"] and "unmatched_at IS NULL" in r["indexdef"] for r in indices)
+
+
+def test_reconciliation_active_unique_and_closed_runtime_guards(f, finance_database_urls):
+    from test_finance_reconciliation import entry, open_session, match, close
+    from test_finance_transactions import account, query
+    aid = account(f); e = entry(f, aid); s = open_session(f, aid, "1")
+    assert match(f, s, e["id"]).status_code == 201
+    mid = query(f, "SELECT id FROM reconciliation_matches WHERE household_id=:hid")[0]["id"]
+    async def duplicate():
+        async with f.db() as db, db.begin():
+            with pytest.raises(DBAPIError) as failure:
+                async with db.begin_nested():
+                    await db.execute(text("INSERT INTO reconciliation_matches(household_id,session_id,account_id,ledger_entry_id,matched_by_member_id) VALUES (:hid,:sid,:aid,:lid,:mid)"), {"hid": f.hid, "sid": s["session_id"], "aid": aid, "lid": e["id"], "mid": f.actors["OWNER"].member_id})
+            assert failure.value.orig.sqlstate == "23505"
+    asyncio.run(duplicate())
+    assert close(f, s).status_code == 200
+    async def guards():
+        engine = create_async_engine(finance_database_urls[0], poolclass=NullPool)
+        async with engine.connect() as c:
+            outer = await c.begin()
+            role = c.dialect.identifier_preparer.quote(make_url(finance_database_urls[1]).username)
+            # Prove ordinary grants and trigger backstop separately, all rolled back.
+            for table in ("reconciliation_sessions", "reconciliation_matches"):
+                assert not await c.scalar(text("SELECT has_table_privilege(:role,:table,'DELETE')"), {"role": make_url(finance_database_urls[1]).username, "table": table})
+                await c.execute(text(f"GRANT UPDATE,DELETE ON {table} TO {role}"))
+            await c.execute(text(f"SET LOCAL ROLE {role}"))
+            for sql in ["UPDATE reconciliation_sessions SET state='OPEN',closed_at=NULL,closed_by_member_id=NULL WHERE id=:sid", "DELETE FROM reconciliation_sessions WHERE id=:sid", "UPDATE reconciliation_matches SET unmatched_at=now(),unmatched_by_member_id=:actor WHERE id=:mid", "DELETE FROM reconciliation_matches WHERE id=:mid", "INSERT INTO reconciliation_matches(household_id,session_id,account_id,ledger_entry_id,matched_by_member_id) VALUES (:hid,:sid,:aid,:lid,:actor)"]:
+                with pytest.raises(DBAPIError) as error:
+                    async with c.begin_nested():
+                        await c.execute(text(sql), {"sid": s["session_id"], "mid": mid, "actor": f.actors["OWNER"].member_id, "hid": f.hid, "aid": aid, "lid": e["id"]})
+                assert error.value.orig.sqlstate == "55000"
+            await outer.rollback()
+        await engine.dispose()
+    asyncio.run(guards())
+    assert query(f, "SELECT state FROM reconciliation_sessions WHERE household_id=:hid")[0]["state"] == "CLOSED"
+
+
+def test_downgrade_refuses_reconciliation_history(f, finance_database_urls):
+    """Run downgrade inside rollback on finance DB; no retained table is dropped."""
+    from alembic.operations import Operations
+    import importlib.util
+    from test_finance_reconciliation import open_session
+    from test_finance_transactions import account
+    open_session(f, account(f))
+    async def run():
+        engine = create_async_engine(finance_database_urls[0], poolclass=NullPool)
+        async with engine.connect() as c:
+            outer = await c.begin()
+            def invoke(sync):
+                spec = importlib.util.spec_from_file_location("recon_revision", "migrations/versions/000000000006_finance_reconciliation.py")
+                module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+                with Operations.context(MigrationContext.configure(sync)):
+                    module.downgrade()
+            with pytest.raises(DBAPIError) as error:
+                await c.run_sync(invoke)
+            assert error.value.orig.sqlstate == "55000"
+            await outer.rollback()
+        await engine.dispose()
+    asyncio.run(run())
+
+
+def test_reconciliation_composite_ownership_currency_and_cutoff_fks(f):
+    """Independent SQL tuple probes, runtime role, savepoints and outer rollback."""
+    async def run():
+        async with f.db() as db, db.begin():
+            p = await raw_seed(db, f)
+            p["sid"] = await db.scalar(text("INSERT INTO reconciliation_sessions(household_id,account_id,currency_code,statement_date,statement_balance,opened_by_member_id,statement_source,cutoff_ledger_entry_id) VALUES (:hid,:aid,'USD',current_date,0,:mid,'CASH_COUNT',:lid) RETURNING id"), p)
+            probes = [
+                ("INSERT INTO reconciliation_sessions(household_id,account_id,currency_code,statement_date,statement_balance,opened_by_member_id,statement_source) VALUES (:hid,:foreign,'USD',current_date,0,:mid,'CASH_COUNT')", "23503"),
+                ("INSERT INTO reconciliation_sessions(household_id,account_id,currency_code,statement_date,statement_balance,opened_by_member_id,statement_source) VALUES (:hid,:bid,'JPY',current_date,0,:mid,'CASH_COUNT')", "23503"),
+                ("INSERT INTO reconciliation_sessions(household_id,account_id,currency_code,statement_date,statement_balance,opened_by_member_id,statement_source,previous_session_id) VALUES (:hid,:bid,'USD',current_date,0,:mid,'CASH_COUNT',:sid)", "23503"),
+                ("INSERT INTO reconciliation_sessions(household_id,account_id,currency_code,statement_date,statement_balance,opened_by_member_id,statement_source,cutoff_ledger_entry_id) VALUES (:hid,:bid,'USD',current_date,0,:mid,'CASH_COUNT',:lid)", "23503"),
+                ("INSERT INTO reconciliation_sessions(household_id,account_id,currency_code,statement_date,statement_balance,opened_by_member_id,statement_source) VALUES (:other,:foreign,'USD',current_date,0,:mid,'CASH_COUNT')", "23503"),
+                ("INSERT INTO reconciliation_sessions(household_id,account_id,currency_code,statement_date,statement_balance,opened_by_member_id,statement_source) VALUES (:hid,:aid,'USD',current_date,0,:mid,'CASH_COUNT')", "23505"),
+                ("INSERT INTO reconciliation_sessions(household_id,account_id,currency_code,statement_date,statement_balance,opened_by_member_id,statement_source) VALUES (:hid,:bid,'USD',current_date,0,:mid,'FEED')", "23514"),
+                ("INSERT INTO reconciliation_sessions(household_id,account_id,currency_code,statement_date,statement_balance,opened_by_member_id,statement_source) VALUES (:hid,:bid,'USD',current_date,'NaN',:mid,'CASH_COUNT')", "23514"),
+                ("INSERT INTO reconciliation_matches(household_id,session_id,account_id,ledger_entry_id,matched_by_member_id) VALUES (:hid,:sid,:bid,:lid,:mid)", "23503"),
+                ("INSERT INTO reconciliation_matches(household_id,session_id,account_id,ledger_entry_id,matched_by_member_id) VALUES (:other,:sid,:aid,:lid,:mid)", "23503"),
+            ]
+            for sql, state in probes:
+                with pytest.raises(DBAPIError) as error:
+                    async with db.begin_nested():
+                        await db.execute(text(sql), p)
+                assert error.value.orig.sqlstate == state
+            assert await db.scalar(text("SELECT count(*) FROM reconciliation_sessions WHERE household_id=:hid"), p) == 1
+            assert await db.scalar(text("SELECT count(*) FROM reconciliation_matches WHERE household_id=:hid"), p) == 0
+            await db.rollback()
     asyncio.run(run())
