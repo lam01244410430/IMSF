@@ -10,6 +10,8 @@ from starlette.exceptions import HTTPException
 from app.api.auth import router as auth_router
 from app.api.households import router as households_router
 from app.api.finance import router as finance_router
+from app.api.inventory import router as inventory_router
+from app.inventory.domain import InventoryRequestError
 from app.finance.domain import FinanceRequestError
 from app.api.dependencies import jwt_secret
 from app.identity.session_service import session_security, SessionCsrfError
@@ -38,6 +40,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(households_router)
     app.include_router(finance_router)
+    app.include_router(inventory_router)
 
     async def identity_error(request: Request, exc: Exception):
         status = exc.status_code if isinstance(exc, (HTTPException, HouseholdRequestError)) else (
@@ -54,6 +57,7 @@ def create_app() -> FastAPI:
         }, headers={"Cache-Control": "no-store"})
 
     app.add_exception_handler(FinanceRequestError, finance_error)
+    app.add_exception_handler(InventoryRequestError, finance_error)
     app.add_exception_handler(HouseholdRequestError, identity_error)
     app.add_exception_handler(SessionCsrfError, identity_error)
     app.add_exception_handler(IdentityRequestError, identity_error)

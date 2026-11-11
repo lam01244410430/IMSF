@@ -3,7 +3,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, PlainSerializer, field_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, PlainSerializer, field_validator, model_validator
 from app.finance.money import exact_decimal
 
 
@@ -38,12 +38,31 @@ class ItemCreate(WriteDTO):
     description: Annotated[str, Field(min_length=1, max_length=1000)]
     quantity: Amount
     net_amount: Amount
+    # P04-OPEN-01/13 PROPOSAL: nullable paired DRAFT-only stock annotation.
+    product_id: Identifier | None = None
+    base_quantity: Annotated[Amount, Field(gt=0)] | None = None
+
+    @model_validator(mode="after")
+    def product_pair(self):
+        if (self.product_id is None) != (self.base_quantity is None):
+            raise ValueError("Product/base quantity must be paired")
+        return self
 
 
 class ItemPatch(WriteDTO):
     description: Annotated[str, Field(min_length=1, max_length=1000)] | None = None
     quantity: Amount | None = None
     net_amount: Amount | None = None
+    product_id: Identifier | None = None
+    base_quantity: Annotated[Amount, Field(gt=0)] | None = None
+
+    @model_validator(mode="after")
+    def product_pair(self):
+        if ("product_id" in self.model_fields_set) != ("base_quantity" in self.model_fields_set):
+            raise ValueError("Patch both product fields together")
+        if (self.product_id is None) != (self.base_quantity is None):
+            raise ValueError("Product/base quantity must be paired")
+        return self
 
     @field_validator("description", "quantity", "net_amount", mode="before")
     @classmethod
@@ -126,6 +145,8 @@ class ItemResponse(ReadDTO):
     description: str
     quantity: SerializedDecimal
     net_amount: SerializedDecimal
+    product_id: int | None = None
+    base_quantity: SerializedDecimal | None = None
 
 
 class TransactionResponse(ReadDTO):

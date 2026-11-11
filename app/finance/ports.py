@@ -8,6 +8,7 @@ class HouseholdAccess(Protocol):
 
 
 class FinanceRepository(Protocol):
+    async def product(self, household_id: int, identifier: int) -> dict | None: ...
     async def currencies(self) -> list[dict]: ...
     async def currency(self, code: str) -> dict | None: ...
     async def get(self, resource: str, household_id: int, identifier: int, *, lock: bool = False) -> dict | None: ...
@@ -29,3 +30,18 @@ class FinanceRepository(Protocol):
     async def reconciliation_anchor(self, household_id: int, account_id: int, currency_code: str) -> dict | None: ...
     async def reconciliation_open(self, household_id: int, account_id: int) -> int | None: ...
     async def reconciliation_cutoff(self, household_id: int, account_id: int) -> int | None: ...
+
+
+# P04-OPEN-10/11 PROPOSALS: inventory supplies scoped immutable facts;
+# finance retains ownership of the decided unresolved-refund eligibility rule.
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class ReversalEffectsSnapshot:
+    unresolved_refunds: tuple[dict, ...]
+    stock_lot_ids: tuple[int, ...]
+
+
+class ReversalEffects(Protocol):
+    async def load_locked(self, household_id: int, original_transaction_id: int) -> ReversalEffectsSnapshot: ...

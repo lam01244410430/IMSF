@@ -25,6 +25,7 @@ from app.finance.dto import (
 from app.finance.infrastructure.household_access import SqlAlchemyHouseholdAccess
 from app.finance.infrastructure.repositories import SqlAlchemyFinanceRepository
 from app.finance.ledger_service import LedgerService
+from app.inventory.infrastructure.reversal_effects import SqlAlchemyReversalEffects
 from app.finance.reconciliation_service import ReconciliationService
 from app.finance.dto import (IntegrityReport, ReconciliationCreate, ReconciliationReport,
     ReconciliationPage, MatchCreate, MatchWithdraw, ReconciliationClose, ReconciliationRefresh)
@@ -68,7 +69,7 @@ def finance_actor(
 
 
 def get_finance_service(session: Annotated[AsyncSession, Depends(get_db)]):
-    return LedgerService(session, SqlAlchemyFinanceRepository(session), SqlAlchemyHouseholdAccess(session))
+    return LedgerService(session, SqlAlchemyFinanceRepository(session), SqlAlchemyHouseholdAccess(session), SqlAlchemyReversalEffects(session))
 
 
 Principal = Annotated[Actor, Depends(finance_actor)]

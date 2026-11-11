@@ -64,7 +64,7 @@ def test_metadata_matches_schema(finance_database_urls):
     async def run():
         engine = create_async_engine(finance_database_urls[0], poolclass=NullPool)
         async with engine.connect() as c:
-            assert await c.scalar(text("SELECT version_num FROM alembic_version")) == "000000000006"
+            assert await c.scalar(text("SELECT version_num FROM alembic_version")) == "000000000007"
             differences = await c.run_sync(lambda sync: compare_metadata(MigrationContext.configure(sync), Base.metadata))
             assert differences == []
             assert (await c.execute(text("SELECT code,minor_units FROM currencies ORDER BY code"))).all() == [

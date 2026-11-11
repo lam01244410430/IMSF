@@ -14,7 +14,7 @@ from app.finance.domain import FinanceRequestError, require_full_reversal_eligib
 from app.finance.dto import (AccountResponse, BalanceResponse, CategoryResponse, ItemResponse,
     LedgerEntryResponse, PaymentBatchResponse, ReversalResponse, TransactionResponse)
 from app.finance.money import canonical_decimal
-from app.finance.ports import FinanceRepository, HouseholdAccess
+from app.finance.ports import FinanceRepository, HouseholdAccess, ReversalEffects
 
 RESPONSES = {"accounts": AccountResponse, "categories": CategoryResponse, "transactions": TransactionResponse, "items": ItemResponse}
 
@@ -32,10 +32,11 @@ def canonical(value):
 
 
 class LedgerService:
-    def __init__(self, session, repository: FinanceRepository, access: HouseholdAccess):
+    def __init__(self, session, repository: FinanceRepository, access: HouseholdAccess, reversal_effects: ReversalEffects | None = None):
         self.session = session
         self.repository = repository
         self.access = access
+        self.reversal_effects = reversal_effects
 
     async def _object(self, resource, hid, identifier, *, lock=False):
         result = await self.repository.get(resource, hid, identifier, lock=lock)
@@ -52,6 +53,18 @@ class LedgerService:
     async def _validate(self, hid, header, items):
         scale = await self._currency(header["currency_code"])
         validate_draft(header, items, scale)
+        # P04-OPEN-01/13 PROPOSAL: paired DRAFT annotations are scoped reads.
+        for item in items:
+            if (item.get("product_id") is None) != (item.get("base_quantity") is None):
+                raise FinanceRequestError(422, "FINANCE_INVALID_VALUE")
+            if item.get("product_id") is not None:
+                product = await self.repository.product(hid, item["product_id"])
+                if product is None:
+                    raise FinanceRequestError(404, "FINANCE_NOT_FOUND")
+                if product["archived_at"] is not None:
+                    raise FinanceRequestError(409, "FINANCE_CONFLICT")
+                if item["base_quantity"] <= 0:
+                    raise FinanceRequestError(422, "FINANCE_INVALID_VALUE")
         if header.get("category_id") is not None:
             category = await self._object("categories", hid, header["category_id"])
             if category["archived_at"] is not None:
@@ -291,10 +304,14 @@ class LedgerService:
                 await self._object("accounts", hid, account_id, lock=True)
                 # OPEN-11 PROPOSAL reversal exception: archived accounts allow
                 # audited correction of history, without new external execution.
-            # OPEN-07 PROPOSAL: P03 has no refund/inventory persistence or input
-            # endpoints, so the available linked set is explicitly empty. Future
-            # adapters must load those links under these locks before this guard.
-            require_full_reversal_eligible(result, [])
+            # P04-OPEN-10/11 PROPOSALS: real facts under the original lock.
+            # Existing P03 unresolved-refund rule has priority over stock refusal.
+            if self.reversal_effects is None:
+                raise RuntimeError("ReversalEffects must be configured")
+            effects = await self.reversal_effects.load_locked(hid, identifier)
+            require_full_reversal_eligible(result, list(effects.unresolved_refunds))
+            if effects.stock_lot_ids:
+                raise FinanceRequestError(409, "FINANCE_STOCK_EFFECT_UNRESOLVED")
             instant = datetime.now(timezone.utc)
             reversal = await self.repository.create("transactions", {
                 "household_id": hid, "kind": "REVERSAL", "status": "POSTED",

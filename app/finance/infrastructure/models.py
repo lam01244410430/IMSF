@@ -92,6 +92,12 @@ class TransactionItem(Scoped, Base):
     __tablename__ = "transaction_items"
     __table_args__ = (scoped_unique(), scoped_fk("transaction_id", "transactions"),
         sa.UniqueConstraint("household_id", "transaction_id", "line_no"),
+        sa.UniqueConstraint("household_id", "id", "product_id"),
+        sa.UniqueConstraint("household_id", "id", "transaction_id"),
+        scoped_fk("product_id", "products"),
+        sa.CheckConstraint("(product_id IS NULL) = (base_quantity IS NULL)", name="ck_items_product_pair"),
+        sa.CheckConstraint(finite("base_quantity", "> 0"), name="ck_items_base_quantity"),
+        sa.Index("ix_item_product", "household_id", "product_id"),
         sa.CheckConstraint("line_no > 0", name="ck_items_line"),
         sa.CheckConstraint("length(btrim(description)) BETWEEN 1 AND 1000", name="ck_items_description"),
         sa.CheckConstraint(finite("quantity", "> 0"), name="ck_items_quantity"),
@@ -101,12 +107,15 @@ class TransactionItem(Scoped, Base):
     description: Mapped[str] = mapped_column(sa.Text)
     quantity: Mapped[Decimal] = mapped_column(sa.Numeric(20, 6))
     net_amount: Mapped[Decimal] = mapped_column(sa.Numeric(20, 6))
+    # P04-OPEN-01/14 PROPOSAL: new/editable DRAFT only; no posted backfill.
+    product_id: Mapped[int | None] = mapped_column(sa.BigInteger)
+    base_quantity: Mapped[Decimal | None] = mapped_column(sa.Numeric(20, 6))
 
 
 class TransactionPayment(Scoped, Base):
     __tablename__ = "transaction_payments"
     __table_args__ = (
-        scoped_unique(), sa.UniqueConstraint("household_id", "id", "transaction_id", "account_id", "currency_code"),
+        scoped_unique(), sa.UniqueConstraint("household_id", "id", "transaction_id"), sa.UniqueConstraint("household_id", "id", "transaction_id", "account_id", "currency_code"),
         sa.ForeignKeyConstraint(["household_id", "transaction_id", "currency_code"], ["transactions.household_id", "transactions.id", "transactions.currency_code"]),
         sa.ForeignKeyConstraint(["household_id", "account_id", "currency_code"], ["accounts.household_id", "accounts.id", "accounts.currency_code"]),
         scoped_fk("created_by_member_id", "household_members"), scoped_fk("reverses_payment_id", "transaction_payments"),
@@ -139,7 +148,7 @@ class TransactionPayment(Scoped, Base):
 class AccountLedgerEntry(Scoped, Base):
     __tablename__ = "account_ledger_entries"
     __table_args__ = (
-        scoped_unique(), sa.UniqueConstraint("household_id", "id", "account_id"),
+        scoped_unique(), sa.UniqueConstraint("household_id", "id", "transaction_id"), sa.UniqueConstraint("household_id", "id", "account_id"),
         sa.ForeignKeyConstraint(["household_id", "transaction_id", "currency_code"], ["transactions.household_id", "transactions.id", "transactions.currency_code"]),
         sa.ForeignKeyConstraint(["household_id", "account_id", "currency_code"], ["accounts.household_id", "accounts.id", "accounts.currency_code"]),
         sa.ForeignKeyConstraint(["household_id", "payment_id", "transaction_id", "account_id", "currency_code"],

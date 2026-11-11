@@ -24,6 +24,11 @@ class SqlAlchemyFinanceRepository:
     def __init__(self, session):
         self.session = session
 
+    async def product(self, household_id, identifier):
+        from app.inventory.infrastructure.models import Product
+        row = await self.session.scalar(select(Product).where(Product.household_id == household_id, Product.id == identifier))
+        return record(row) if row else None
+
     async def currencies(self):
         return [record(row) for row in (await self.session.scalars(select(Currency).order_by(Currency.code))).all()]
 
