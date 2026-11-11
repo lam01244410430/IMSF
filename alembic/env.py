@@ -1,6 +1,6 @@
 """Alembic env (async). URL comes from DATABASE_URL via settings.
 
-Registers identity persistence metadata; never loads HTTP services.
+Registers identity and finance persistence metadata; never loads HTTP services.
 """
 
 import asyncio
@@ -22,6 +22,7 @@ from alembic import context
 from app.core.config import get_settings
 from app.db.base import Base
 from app.identity.infrastructure import models  # noqa: F401
+from app.finance.infrastructure import models as finance_models  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:

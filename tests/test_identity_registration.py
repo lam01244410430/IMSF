@@ -507,6 +507,17 @@ def test_exact_route_scope_and_openapi(http):
         PREFIX + "/households/{household_id}/invitations": {"post"},
         PREFIX + "/households/{household_id}/invitations/accept": {"post"},
         PREFIX + "/households/{household_id}/invitations/{invitation_id}": {"delete"},
+        # Step 2 compatibility: keep the exact full /api/v1 route assertion.
+        PREFIX + "/households/{household_id}/currencies": {"get"},
+        PREFIX + "/households/{household_id}/accounts": {"post", "get"},
+        PREFIX + "/households/{household_id}/accounts/{account_id}": {"get"},
+        PREFIX + "/households/{household_id}/accounts/{account_id}/archive": {"post"},
+        PREFIX + "/households/{household_id}/categories": {"post", "get"},
+        PREFIX + "/households/{household_id}/categories/{category_id}/archive": {"post"},
+        PREFIX + "/households/{household_id}/transactions": {"post", "get"},
+        PREFIX + "/households/{household_id}/transactions/{transaction_id}": {"patch", "get"},
+        PREFIX + "/households/{household_id}/transactions/{transaction_id}/items": {"post"},
+        PREFIX + "/households/{household_id}/transactions/{transaction_id}/items/{item_id}": {"patch"},
     }
     for path in ("/auth/password-reset",):
         assert http[0].post(PREFIX + path, json={}).status_code == 404

@@ -9,6 +9,8 @@ from starlette.exceptions import HTTPException
 
 from app.api.auth import router as auth_router
 from app.api.households import router as households_router
+from app.api.finance import router as finance_router
+from app.finance.domain import FinanceRequestError
 from app.api.dependencies import jwt_secret
 from app.identity.session_service import session_security, SessionCsrfError
 from app.api.browser import allowed_origins
@@ -31,10 +33,11 @@ def create_app() -> FastAPI:
     app = FastAPI(title="family-finance-inventory", lifespan=lifespan)
     app.add_middleware(CORSMiddleware, allow_origins=allowed_origins(),
                        allow_credentials=True, allow_methods=["GET", "POST", "PATCH", "DELETE"],
-                       allow_headers=["Authorization", "Content-Type", "X-CSRF-Token"])
+                       allow_headers=["Authorization", "Content-Type", "X-CSRF-Token", "Idempotency-Key"])
     app.include_router(health_router)
     app.include_router(auth_router)
     app.include_router(households_router)
+    app.include_router(finance_router)
 
     async def identity_error(request: Request, exc: Exception):
         status = exc.status_code if isinstance(exc, (HTTPException, HouseholdRequestError)) else (
@@ -45,6 +48,12 @@ def create_app() -> FastAPI:
             request_id=str(uuid4()),
         ).model_dump(), headers={"Cache-Control": "no-store"})
 
+    async def finance_error(request: Request, exc: FinanceRequestError):
+        return JSONResponse(status_code=exc.status_code, content={
+            "error_code": exc.code, "details": {}, "request_id": str(uuid4()),
+        }, headers={"Cache-Control": "no-store"})
+
+    app.add_exception_handler(FinanceRequestError, finance_error)
     app.add_exception_handler(HouseholdRequestError, identity_error)
     app.add_exception_handler(SessionCsrfError, identity_error)
     app.add_exception_handler(IdentityRequestError, identity_error)

@@ -9,6 +9,7 @@ from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
 from app.db.base import Base
 from app.identity.infrastructure import models  # noqa: F401
+from app.finance.infrastructure import models as finance_models  # noqa: F401
 from conftest import migrate, table_names
 
 
@@ -24,7 +25,7 @@ def test_upgrade_downgrade_upgrade(disposable_database_url):
         engine = create_async_engine(url)
         try:
             async with engine.connect() as connection:
-                assert (await connection.execute(text("SELECT version_num FROM alembic_version"))).scalar_one() == "000000000003"
+                assert (await connection.execute(text("SELECT version_num FROM alembic_version"))).scalar_one() == "000000000004"
                 assert set((await connection.execute(text("SELECT code FROM roles"))).scalars()) == {
                     "OWNER", "ADMIN", "FINANCE_MANAGER", "INVENTORY_MANAGER", "MEMBER", "VIEWER",
                 }
