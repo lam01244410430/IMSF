@@ -1,4 +1,4 @@
-"""Step 2 only: exact, retained DRAFT commands and durable replay."""
+"""Retained drafts, atomic posting, settlement and source-derived balances."""
 import asyncio
 from decimal import Decimal
 
@@ -188,13 +188,319 @@ def test_test_only_scale6_currency_storage_boundary_and_no_sql_rounding(f, finan
 
 def test_posted_header_and_items_reject_patch(f):
     draft = create_draft(f, role="MEMBER")
-    async def post_fixture():
-        # Controlled SQL fixture only: there is no Step 2 posting command/route.
-        async with f.db() as db, db.begin():
-            await db.execute(text("UPDATE transactions SET status='POSTED',posted_at=now() WHERE household_id=:hid AND id=:tid"),
-                             {"hid": f.hid, "tid": draft["id"]})
-    asyncio.run(post_fixture())
+    assert f.request('POST', f"/transactions/{draft['id']}/post", json={'payments': []}).status_code == 200
     for method, suffix, body in [("PATCH", "", {"total_amount": "1"}),
         ("POST", "/items", {"line_no": 2, "description": "New", "quantity": "1", "net_amount": "1"}),
         ("PATCH", f"/items/{draft['items'][0]['id']}", {"description": "Changed"})]:
         assert f.request(method, f"/transactions/{draft['id']}" + suffix, json=body, role="MEMBER").status_code == 409
+
+
+def account(f, currency="USD"):
+    response = f.request("POST", "/accounts", json={"name": "Settlement", "currency_code": currency})
+    assert response.status_code == 201, response.text
+    return response.json()["id"]
+
+
+def payment(aid, amount="12.30", direction="OUT", **extra):
+    return {"account_id": aid, "amount": amount, "currency_code": "USD", "direction": direction} | extra
+
+
+def post(f, draft, payments=None, **kwargs):
+    return f.request("POST", f"/transactions/{draft['id']}/post", json={"payments": payments or []}, **kwargs)
+
+
+def assert_balances(f):
+    # Every affected account/currency is independently summed from persisted rows.
+    for row in query(f, "SELECT a.id,a.currency_code,coalesce(sum(l.signed_amount),0) AS balance FROM accounts a LEFT JOIN account_ledger_entries l ON l.household_id=a.household_id AND l.account_id=a.id AND l.currency_code=a.currency_code WHERE a.household_id=:hid GROUP BY a.id,a.currency_code"):
+        response = f.request("GET", f"/accounts/{row['id']}/balance")
+        assert response.status_code == 200, response.text
+        assert response.json()["currency_code"] == row["currency_code"]
+        assert Decimal(response.json()["balance"]) == row["balance"]
+
+
+def test_post_income_and_expense_have_correct_signs(f):
+    aid = account(f)
+    for kind, direction, sign in [("INCOME", "IN", 1), ("EXPENSE", "OUT", -1)]:
+        draft = create_draft(f, role="MEMBER", kind=kind)
+        r = post(f, draft, [payment(aid, direction=direction)])
+        assert r.status_code == 200, r.text
+        assert r.json()["status"] == "POSTED" and Decimal(r.json()["remaining_amount"]) == 0
+        rows = query(f, "SELECT signed_amount FROM account_ledger_entries WHERE household_id=:hid AND transaction_id=:tid", tid=draft["id"])
+        assert [v["signed_amount"] for v in rows] == [sign * Decimal("12.30")]
+        assert_balances(f)
+    assert f.request("GET", "/ledger").status_code == 200
+
+
+def test_partial_payment_and_remaining_amount(f):
+    aid = account(f)
+    draft = create_draft(f)
+    r = post(f, draft, [payment(aid, "2.30", method_code="CASH", external_reference="same reference")])
+    assert r.status_code == 200, r.text
+    assert Decimal(r.json()["remaining_amount"]) == 10
+    assert_balances(f)
+    path = f"/transactions/{draft['id']}/payments"
+    r = f.request("POST", path, json={"payments": [payment(aid, "5", external_reference="same reference")]})
+    assert r.status_code == 201, r.text
+    assert Decimal(r.json()["remaining_amount"]) == 5
+    assert len(r.json()["payments"]) == 1
+    assert len(f.request("GET", path).json()["payments"]) == 2
+    assert Decimal(f.request("GET", f"/transactions/{draft['id']}").json()["settled_amount"]) == Decimal("7.30")
+    assert_balances(f)
+
+
+def test_cumulative_overpayment_rejected(f):
+    aid = account(f)
+    draft = create_draft(f)
+    assert post(f, draft, [payment(aid, "10")]).status_code == 200
+    assert_balances(f)
+    r = f.request("POST", f"/transactions/{draft['id']}/payments", key="overpay", json={"payments": [payment(aid, "2"), payment(aid, "1")]})
+    assert r.status_code == 409
+    assert len(query(f, "SELECT id FROM transaction_payments WHERE household_id=:hid")) == 1
+    assert not query(f, "SELECT id FROM idempotency_requests WHERE household_id=:hid AND request_key='overpay'")
+    assert_balances(f)
+
+
+def test_two_account_transfer_is_atomic_and_zero_sum(f):
+    aid, bid = account(f), account(f)
+    draft = create_draft(f, kind="TRANSFER", items=[])
+    r = post(f, draft, [payment(aid), payment(bid, direction="IN")])
+    assert r.status_code == 200, r.text
+    assert Decimal(r.json()["settled_amount"]) == Decimal("12.30")
+    assert Decimal(r.json()["remaining_amount"]) == 0
+    entries = query(f, "SELECT signed_amount FROM account_ledger_entries WHERE household_id=:hid")
+    assert len(entries) == 2 and sum(e["signed_amount"] for e in entries) == 0
+    assert_balances(f)
+    assert f.request("POST", f"/transactions/{draft['id']}/payments", json={"payments": [payment(aid, "1")]}).status_code == 409
+
+
+@pytest.mark.parametrize("direction", ["IN", "OUT"])
+def test_opening_is_ledger_event_not_mutable_balance(f, direction):
+    aid = account(f)
+    draft = create_draft(f, kind="OPENING", items=[])
+    assert post(f, draft, [payment(aid, direction=direction)]).status_code == 200
+    assert_balances(f)
+    second = create_draft(f, kind="OPENING", items=[])
+    assert post(f, second, [payment(aid, direction=direction)]).status_code == 409
+    assert len(query(f, "SELECT id FROM account_ledger_entries WHERE household_id=:hid")) == 1
+    columns = query(f, "SELECT column_name FROM information_schema.columns WHERE table_name='accounts' AND :hid>0")
+    assert not any("balance" in c["column_name"] for c in columns)
+
+
+def test_reversed_original_cannot_receive_new_payment(f):
+    draft = create_draft(f)
+    aid = account(f)
+    assert post(f, draft).status_code == 200
+    async def seed():
+        async with f.db() as db, db.begin():
+            await db.execute(text("INSERT INTO transactions(household_id,kind,status,occurred_at,currency_code,total_amount,created_by_member_id,original_transaction_id,reversal_reason,posted_at) VALUES (:hid,'REVERSAL','POSTED',now(),'USD',12.30,:mid,:tid,'Controlled reversal fixture',now())"), {"hid": f.hid, "mid": f.actors["OWNER"].member_id, "tid": draft["id"]})
+    asyncio.run(seed())
+    assert f.request("POST", f"/transactions/{draft['id']}/payments", json={"payments": [payment(aid)]}).status_code == 409
+    assert not query(f, "SELECT id FROM transaction_payments WHERE household_id=:hid")
+
+
+@pytest.mark.parametrize("posting", [True, False])
+def test_failed_audit_rolls_back_payment_ledger_and_idempotency(f, monkeypatch, posting):
+    from app.finance.ledger_service import LedgerService
+    aid, draft = account(f), create_draft(f)
+    if not posting:
+        assert post(f, draft).status_code == 200
+    before = {t: len(query(f, f"SELECT id FROM {t} WHERE household_id=:hid")) for t in ("audit_logs", "idempotency_requests")}
+    def fail(*args, **kwargs):
+        raise RuntimeError("injected audit failure")
+    monkeypatch.setattr(LedgerService, "_audit", fail)
+    with pytest.raises(RuntimeError, match="injected audit failure"):
+        f.request("POST", f"/transactions/{draft['id']}/{'post' if posting else 'payments'}", json={"payments": [payment(aid)]})
+    for table in ("transaction_payments", "account_ledger_entries"):
+        assert not query(f, f"SELECT id FROM {table} WHERE household_id=:hid")
+    for table, n in before.items():
+        assert len(query(f, f"SELECT id FROM {table} WHERE household_id=:hid")) == n
+    assert f.request("GET", f"/transactions/{draft['id']}").json()["status"] == ("DRAFT" if posting else "POSTED")
+
+
+@pytest.mark.parametrize("case", ["zero", "items", "wrong_direction", "currency", "archived", "transfer_partial", "transfer_same", "transfer_items", "opening_partial", "opening_items", "transfer_category", "opening_category"])
+def test_invalid_posting_is_atomic(f, case):
+    aid, bid = account(f), account(f)
+    changes = {}
+    payments = [payment(aid)]
+    if case == "zero": changes = {"total_amount": "0", "items": []}; payments = []
+    if case == "items": changes = {"total_amount": "13"}
+    if case == "wrong_direction": payments = [payment(aid, direction="IN")]
+    if case == "currency": payments = [payment(account(f, "EUR"), currency_code="EUR")]
+    if case == "archived": assert f.request("POST", f"/accounts/{aid}/archive").status_code == 204
+    if case.startswith("transfer"):
+        changes = {"kind": "TRANSFER", "items": []}
+        payments = [payment(aid), payment(aid if case == "transfer_same" else bid, "1" if case == "transfer_partial" else "12.30", direction="IN")]
+    if case.startswith("opening"): changes = {"kind": "OPENING", "items": []}
+    if case == "opening_partial": payments = [payment(aid, "1")]
+    if case.endswith("items"): changes["items"] = DRAFT["items"]
+    if case.endswith("category"):
+        changes["category_id"] = f.request("POST", "/categories", json={"name": "Income", "kind": "INCOME"}).json()["id"]
+        # A category can be attached to a commercial draft, then kind changed in SQL
+        # to exercise posting's independent invariants, beyond Step 2 validation.
+        changes["kind"] = "INCOME"
+    draft = create_draft(f, **changes)
+    if case.endswith("category"):
+        async def seed():
+            async with f.db() as db, db.begin():
+                await db.execute(text("UPDATE transactions SET kind=:kind WHERE household_id=:hid AND id=:tid"), {"hid": f.hid, "tid": draft["id"], "kind": "TRANSFER" if case.startswith("transfer") else "OPENING"})
+        asyncio.run(seed())
+    r = post(f, draft, payments)
+    assert r.status_code in {409, 422}, r.text
+    assert not query(f, "SELECT id FROM transaction_payments WHERE household_id=:hid")
+    assert not query(f, "SELECT id FROM account_ledger_entries WHERE household_id=:hid")
+    assert f.request("GET", f"/transactions/{draft['id']}").json()["status"] == "DRAFT"
+
+
+@pytest.mark.parametrize("extra", [{"exchange_rate": "1"}, {"transaction_amount": "12"}, {"method_code": "WIRE"}, {"external_reference": "a" * 201}, {"amount": 12.3}, {"amount": "1.001"}, {"amount": "0"}, {"reverses_payment_id": 1}, {"pan": "secret"}])
+def test_unsupported_payment_input_rejected(f, extra):
+    draft, aid = create_draft(f), account(f)
+    assert post(f, draft, [payment(aid) | extra]).status_code == 422
+    assert not query(f, "SELECT id FROM transaction_payments WHERE household_id=:hid")
+
+
+def test_unpaid_bill_and_payment_state_requirements(f):
+    aid, draft = account(f), create_draft(f)
+    path = f"/transactions/{draft['id']}/payments"
+    assert f.request("POST", path, json={"payments": [payment(aid)]}).status_code == 409
+    assert f.request("POST", path, json={"payments": []}).status_code == 422
+    assert post(f, draft).status_code == 200
+    assert_balances(f)
+    assert post(f, draft).status_code == 409
+    assert f.request("POST", path, json={"payments": [payment(aid)]}).status_code == 201
+    assert_balances(f)
+
+
+def test_ledger_and_balance_use_posting_time_and_stable_boundary(f):
+    aid = account(f)
+    first = create_draft(f, occurred_at="2020-01-01T00:00:00Z")
+    assert post(f, first, [payment(aid, "1")]).status_code == 200
+    assert_balances(f)
+    snapshot = f.request("GET", f"/accounts/{aid}/balance").json()
+    second = create_draft(f, occurred_at="2019-01-01T00:00:00Z")
+    assert post(f, second, [payment(aid, "2")]).status_code == 200
+    assert_balances(f)
+    ledger = f.request("GET", "/ledger", params={"account_id": aid, "limit": 1}).json()
+    assert ledger["items"][0]["transaction_id"] == second["id"]
+    page = f.request("GET", "/ledger", params={"account_id": aid, "limit": 1, "cursor": ledger["next_cursor"]}).json()
+    assert page["items"][0]["transaction_id"] == first["id"]
+    old = f.request("GET", f"/accounts/{aid}/balance", params={"cursor": snapshot["cursor"]})
+    assert old.status_code == 200 and Decimal(old.json()["balance"]) == -1
+    before = f.request("GET", f"/accounts/{aid}/balance", params={"as_of": "2021-01-01T00:00:00Z"}).json()
+    assert Decimal(before["balance"]) == 0
+    assert not f.request("GET", "/ledger", params={"date_to": "2021-01-01T00:00:00Z"}).json()["items"]
+    bid = account(f)
+    assert f.request("GET", f"/accounts/{bid}/balance", params={"cursor": snapshot["cursor"]}).status_code == 422
+    for path in ("/ledger", f"/accounts/{aid}/balance"):
+        assert f.request("GET", path, params={"cursor": "bad"}).status_code == 422
+    assert f.request("GET", f"/accounts/{aid}/balance", params={"as_of": "2026-01-01T00:00:00"}).status_code == 422
+
+
+def test_unresolved_refund_blocks_future_full_reversal():
+    from app.finance.domain import FinanceRequestError, require_full_reversal_eligible
+    original = {"status": "POSTED", "kind": "EXPENSE", "is_reversed": False}
+    require_full_reversal_eligible(original, [])
+    with pytest.raises(FinanceRequestError) as error:
+        require_full_reversal_eligible(original, [{"status": "POSTED", "is_reversed": False}])
+    assert error.value.status_code == 409
+    require_full_reversal_eligible(original, [{"status": "POSTED", "is_reversed": True}])
+
+
+def test_transfer_second_leg_failure_rolls_back_every_effect(f, monkeypatch):
+    from app.finance.infrastructure.repositories import SqlAlchemyFinanceRepository
+    aid, bid = account(f), account(f)
+    draft = create_draft(f, kind="TRANSFER", items=[])
+    original = SqlAlchemyFinanceRepository.create
+    entries = []
+    async def fail(self, resource, values):
+        result = await original(self, resource, values)
+        if resource == "ledger":
+            entries.append(result["id"])
+            if len(entries) == 2:
+                raise RuntimeError("second leg failure")
+        return result
+    monkeypatch.setattr(SqlAlchemyFinanceRepository, "create", fail)
+    with pytest.raises(RuntimeError, match="second leg failure"):
+        post(f, draft, [payment(aid), payment(bid, direction="IN")], key="second-leg")
+    for table in ("transaction_payments", "account_ledger_entries"):
+        assert not query(f, f"SELECT id FROM {table} WHERE household_id=:hid")
+    assert not query(f, "SELECT id FROM idempotency_requests WHERE household_id=:hid AND request_key='second-leg'")
+    assert f.request("GET", f"/transactions/{draft['id']}").json()["status"] == "DRAFT"
+    assert_balances(f)
+
+
+def test_opening_cannot_backdate_before_existing_commercial_entry(f):
+    aid = account(f)
+    assert post(f, create_draft(f), [payment(aid)]).status_code == 200
+    opening = create_draft(f, kind="OPENING", items=[], occurred_at="2000-01-01T00:00:00Z")
+    assert post(f, opening, [payment(aid, direction="IN")]).status_code == 409
+    assert_balances(f)
+
+
+def test_balance_and_ledger_equal_posting_times_use_id_boundary(f):
+    # Controlled append-only SQL fixture: identical timestamps require ID ordering.
+    aid, draft = account(f), create_draft(f)
+    assert post(f, draft).status_code == 200
+    async def seed(amount):
+        async with f.db() as db, db.begin():
+            pid = await db.scalar(text("INSERT INTO transaction_payments(household_id,transaction_id,account_id,currency_code,amount,transaction_amount,direction,settled_at,created_by_member_id) VALUES (:hid,:tid,:aid,'USD',:amount,:amount,'OUT','2026-01-01T00:00:00Z',:mid) RETURNING id"), {"hid": f.hid, "tid": draft["id"], "aid": aid, "mid": f.actors["OWNER"].member_id, "amount": amount})
+            await db.execute(text("INSERT INTO account_ledger_entries(household_id,transaction_id,account_id,currency_code,signed_amount,posted_at,payment_id) VALUES (:hid,:tid,:aid,'USD',:amount,'2026-01-01T00:00:00Z',:pid)"), {"hid": f.hid, "tid": draft["id"], "aid": aid, "amount": -amount, "pid": pid})
+    asyncio.run(seed(1))
+    snapshot = f.request("GET", f"/accounts/{aid}/balance").json()
+    asyncio.run(seed(2))
+    assert_balances(f)
+    assert Decimal(f.request("GET", f"/accounts/{aid}/balance", params={"as_of": "2026-01-01T00:00:00Z", "cursor": snapshot["cursor"]}).json()["balance"]) == -1
+    first = f.request("GET", "/ledger", params={"account_id": aid, "limit": 1}).json()
+    second = f.request("GET", "/ledger", params={"account_id": aid, "limit": 1, "cursor": first["next_cursor"]}).json()
+    assert first["items"][0]["id"] > second["items"][0]["id"]
+    assert second["next_cursor"] is None
+    for params in ({"date_from": "2026-02-01T00:00:00Z", "date_to": "2026-01-01T00:00:00Z"}, {"date_from": "2026-01-01T00:00:00"}, {"limit": 201}):
+        assert f.request("GET", "/ledger", params=params).status_code == 422
+
+
+def test_payment_metadata_is_settled_history(f):
+    aid, draft = account(f), create_draft(f)
+    assert post(f, draft, [payment(aid, method_code="BANK_TRANSFER", external_reference="Receipt 42")]).status_code == 200
+    row = f.request("GET", f"/transactions/{draft['id']}/payments").json()["payments"][0]
+    assert row["method_code"] == "BANK_TRANSFER" and row["external_reference"] == "Receipt 42"
+    assert row["created_by_member_id"] == f.actors["OWNER"].member_id
+    assert row["settled_at"] and row["created_at"] and row["reverses_payment_id"] is None
+    assert_balances(f)
+
+
+@pytest.mark.parametrize("kind", ["INCOME", "EXPENSE"])
+def test_posting_requires_nonempty_commercial_items(kind):
+    from app.finance.domain import FinanceRequestError, validate_settlement
+    header = DRAFT | {"kind": kind, "total_amount": Decimal("12.30"), "category_id": None}
+    with pytest.raises(FinanceRequestError) as error:
+        validate_settlement(header, [], [], Decimal(0), 2, posting=True)
+    assert error.value.status_code == 422
+
+
+def test_payment_dto_accepts_only_offset_aware_settlement_time():
+    from app.finance.dto import PaymentCreate
+    from pydantic import ValidationError
+    dto = PaymentCreate.model_validate(payment(1, settled_at="2020-01-01T07:00:00+07:00"))
+    assert dto.settled_at.isoformat() == "2020-01-01T00:00:00+00:00"
+    for value in (None, "2020-01-01T00:00:00"):
+        with pytest.raises(ValidationError):
+            PaymentCreate.model_validate(payment(1, settled_at=value))
+
+
+def test_backdated_settlement_keeps_actual_ledger_posting_time(f):
+    aid, draft = account(f), create_draft(f)
+    r = post(f, draft, [payment(aid, settled_at="2020-01-01T00:00:00Z")])
+    assert r.status_code == 200, r.text
+    p = f.request("GET", f"/transactions/{draft['id']}/payments").json()["payments"][0]
+    assert p["settled_at"].startswith("2020-01-01")
+    assert not f.request("GET", "/ledger", params={"date_to": "2021-01-01T00:00:00Z"}).json()["items"]
+    assert_balances(f)
+
+
+def test_archived_account_rejects_additional_payment(f):
+    aid, draft = account(f), create_draft(f)
+    assert post(f, draft, [payment(aid, "1")]).status_code == 200
+    assert f.request("POST", f"/accounts/{aid}/archive").status_code == 204
+    r = f.request("POST", f"/transactions/{draft['id']}/payments", json={"payments": [payment(aid, "1")]})
+    assert r.status_code == 409
+    assert len(query(f, "SELECT id FROM transaction_payments WHERE household_id=:hid")) == 1
+    assert_balances(f)

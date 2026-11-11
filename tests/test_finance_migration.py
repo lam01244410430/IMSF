@@ -64,7 +64,7 @@ def test_metadata_matches_schema(finance_database_urls):
     async def run():
         engine = create_async_engine(finance_database_urls[0], poolclass=NullPool)
         async with engine.connect() as c:
-            assert await c.scalar(text("SELECT version_num FROM alembic_version")) == "000000000004"
+            assert await c.scalar(text("SELECT version_num FROM alembic_version")) == "000000000005"
             differences = await c.run_sync(lambda sync: compare_metadata(MigrationContext.configure(sync), Base.metadata))
             assert differences == []
             assert (await c.execute(text("SELECT code,minor_units FROM currencies ORDER BY code"))).all() == [
@@ -111,7 +111,7 @@ async def raw_seed(db, f):
     ("UPDATE transactions SET total_amount=2 WHERE id=:tid", "55000"),
     ("UPDATE transaction_items SET net_amount=2 WHERE id=:iid", "55000"),
     ("INSERT INTO transaction_items(household_id,transaction_id,line_no,description,quantity,net_amount) VALUES (:hid,:tid,2,'Late',1,1)", "55000"),
-    ("UPDATE transaction_payments SET amount=2 WHERE id=:pid", "55000"),
+    ("UPDATE transaction_payments SET amount=2 WHERE id=:pid", "42501"),
     ("DELETE FROM transactions WHERE id=:tid", "42501"),
     ("DELETE FROM transaction_items WHERE id=:iid", "42501"),
     ("DELETE FROM transaction_payments WHERE id=:pid", "42501"),
@@ -151,6 +151,7 @@ def test_guards_still_reject_accidentally_broadened_runtime_grants(f, finance_da
             params = await raw_seed(c, f)
             for statement in (
                 "UPDATE account_ledger_entries SET signed_amount=-2 WHERE id=:lid",
+                "UPDATE transaction_payments SET amount=2 WHERE id=:pid",
                 "DELETE FROM account_ledger_entries WHERE id=:lid",
                 "DELETE FROM transactions WHERE id=:tid",
                 "DELETE FROM transaction_items WHERE id=:iid",
@@ -170,6 +171,39 @@ def test_guards_still_reject_accidentally_broadened_runtime_grants(f, finance_da
             await outer.rollback()
         await engine.dispose()
     asyncio.run(run())
+
+
+def test_revision4_upgrade_narrows_existing_payment_grant(rehearsal_url, finance_database_urls, monkeypatch):
+    """Already-applied revision 4, populated payments, actual runtime denial."""
+    monkeypatch.setenv("DATABASE_URL", rehearsal_url)
+    migrate("000000000004", downgrade=True)
+    role = make_url(finance_database_urls[1]).username
+    async def snapshot(*, seed=False):
+        engine = create_async_engine(rehearsal_url, poolclass=NullPool)
+        async with engine.begin() as db:
+            if seed:
+                aid = await db.scalar(text("INSERT INTO accounts(household_id,name,currency_code) VALUES (1,'Grant rehearsal','USD') RETURNING id"))
+                tid = await db.scalar(text("INSERT INTO transactions(household_id,kind,status,occurred_at,currency_code,total_amount,created_by_member_id,posted_at) VALUES (1,'INCOME','POSTED',now(),'USD',1,1,now()) RETURNING id"))
+                await db.execute(text("INSERT INTO transaction_payments(household_id,transaction_id,account_id,currency_code,amount,transaction_amount,direction,settled_at,created_by_member_id) VALUES (1,:tid,:aid,'USD',1,1,'IN',now(),1)"), {"tid": tid, "aid": aid})
+            grant = await db.scalar(text("SELECT has_table_privilege(:role,'transaction_payments','UPDATE')"), {"role": role})
+            rows = (await db.execute(text("SELECT to_jsonb(p) FROM transaction_payments p ORDER BY id"))).scalars().all()
+        await engine.dispose()
+        return grant, rows
+    before_grant, before = asyncio.run(snapshot(seed=True))
+    assert before_grant is True and len(before) == 1
+    migrate("head")
+    after_grant, after = asyncio.run(snapshot())
+    assert after_grant is False and after == before
+    runtime_url = make_url(finance_database_urls[1]).set(database=make_url(rehearsal_url).database).render_as_string(hide_password=False)
+    async def runtime_denial():
+        engine = create_async_engine(runtime_url, poolclass=NullPool)
+        async with engine.begin() as db:
+            with pytest.raises(DBAPIError) as error:
+                async with db.begin_nested():
+                    await db.execute(text("UPDATE transaction_payments SET external_reference='changed' WHERE id=:id"), {"id": before[0]["id"]})
+            assert error.value.orig.sqlstate == "42501"
+        await engine.dispose()
+    asyncio.run(runtime_denial())
 
 
 def test_downgrade_refuses_populated_finance(rehearsal_url, monkeypatch):

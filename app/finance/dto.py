@@ -162,3 +162,85 @@ class CategoryPage(ReadDTO):
 class TransactionPage(ReadDTO):
     items: list[TransactionResponse]
     next_cursor: str | None
+
+
+class PaymentCreate(WriteDTO):
+    """OPEN-05 PROPOSAL: a settled bookkeeping record, never a gateway command."""
+    account_id: Identifier
+    currency_code: CurrencyCode
+    amount: Amount
+    transaction_amount: Amount | None = None
+    direction: Literal["IN", "OUT"]
+    settled_at: datetime | None = None
+    method_code: Literal["CASH", "BANK_TRANSFER", "CARD", "OTHER"] | None = None
+    external_reference: Annotated[str, Field(max_length=200)] | None = None
+
+    @field_validator("settled_at")
+    @classmethod
+    def settlement_offset_required(cls, v):
+        if v is None:
+            raise ValueError("Omit settled_at to use server posting time")
+        return TransactionDraftCreate.offset_required(v)
+
+    @field_validator("transaction_amount", mode="before")
+    @classmethod
+    def nonnull(cls, v):
+        if v is None:
+            raise ValueError("Omit transaction_amount to use amount")
+        return v
+
+
+class TransactionPost(WriteDTO):
+    payments: list[PaymentCreate]
+
+
+class PaymentBatchCreate(WriteDTO):
+    payments: list[PaymentCreate] = Field(min_length=1)
+
+
+class PaymentResponse(ReadDTO):
+    id: int
+    household_id: int
+    transaction_id: int
+    account_id: int
+    currency_code: str
+    amount: SerializedDecimal
+    transaction_amount: SerializedDecimal
+    direction: str
+    settled_at: datetime
+    created_at: datetime
+    created_by_member_id: int
+    method_code: str | None
+    external_reference: str | None
+    reverses_payment_id: int | None
+
+
+class PaymentBatchResponse(ReadDTO):
+    transaction_id: int
+    payments: list[PaymentResponse]
+    settled_amount: SerializedDecimal
+    remaining_amount: SerializedDecimal
+
+
+class LedgerEntryResponse(ReadDTO):
+    id: int
+    household_id: int
+    transaction_id: int
+    account_id: int
+    currency_code: str
+    signed_amount: SerializedDecimal
+    posted_at: datetime
+    payment_id: int | None
+    reverses_entry_id: int | None
+
+
+class LedgerPage(ReadDTO):
+    items: list[LedgerEntryResponse]
+    next_cursor: str | None
+
+
+class BalanceResponse(ReadDTO):
+    account_id: int
+    currency_code: str
+    balance: SerializedDecimal
+    cursor: str | None

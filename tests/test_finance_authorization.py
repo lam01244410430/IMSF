@@ -113,11 +113,11 @@ def test_idempotency_header_cors_and_error_compatibility(f):
     assert error.status_code == 422 and set(error.json()) == {"error_code", "details", "request_id"}
 
 
-def test_step3_to_5_routes_are_absent(f):
+def test_step4_to_5_routes_are_absent(f):
     paths = f.app.openapi()["paths"]
     for path in paths:
         if "households/{household_id}" in path:
-            assert not any(word in path for word in ("/payments", "/post", "/reversals", "/ledger", "/balance", "/reconciliations"))
+            assert not any(word in path for word in ("/reversals", "/reconciliations"))
             if any(word in path for word in ("/accounts", "/categories", "/transactions", "/currencies")):
                 assert "delete" not in paths[path]
 
@@ -177,3 +177,80 @@ def test_token_expiring_after_current_user_check_still_returns_401(monkeypatch):
     with pytest.raises(HTTPException) as failure:
         finance_actor(SimpleNamespace(id=1), HTTPAuthorizationCredentials(scheme="Bearer", credentials=token))
     assert failure.value.status_code == 401
+
+
+STEP3_ROUTES = [
+    ("POST", "/transactions/{tid}/post", 200),
+    ("POST", "/transactions/{tid}/payments", 201),
+    ("GET", "/transactions/{tid}/payments", 200),
+    ("GET", "/ledger", 200),
+    ("GET", "/accounts/{aid}/balance", 200),
+]
+STEP3_EXPECTED = {
+    "OWNER": {0, 1, 2, 3, 4}, "FINANCE_MANAGER": {0, 1, 2, 3, 4},
+    "ADMIN": {2, 3, 4}, "INVENTORY_MANAGER": {2, 3, 4},
+    "MEMBER": {2, 3, 4}, "VIEWER": {2, 3, 4},
+}
+
+
+@pytest.mark.parametrize("role", STEP3_EXPECTED)
+@pytest.mark.parametrize("index", range(len(STEP3_ROUTES)))
+def test_every_step3_route_role_matrix(f, role, index):
+    from test_finance_transactions import account, payment, post, assert_balances
+    aid, draft = account(f), create_draft(f, role="MEMBER")
+    if index != 0:
+        assert post(f, draft).status_code == 200
+    method, path, expected = STEP3_ROUTES[index]
+    r = f.request(method, path.format(tid=draft["id"], aid=aid), role=role,
+                  **({"json": {"payments": [payment(aid, "1")]}} if method == "POST" else {}))
+    assert r.status_code == (expected if index in STEP3_EXPECTED[role] else 403), r.text
+    assert_balances(f)
+
+
+def test_step3_archived_household_rejects_writes_and_replays(f):
+    from test_finance_transactions import account, payment, post
+    aid, draft = account(f), create_draft(f)
+    assert post(f, draft, key="saved-post").status_code == 200
+    path = f"/transactions/{draft['id']}/payments"
+    body = {"payments": [payment(aid, "1")]}
+    assert f.request("POST", path, key="saved-pay", json=body).status_code == 201
+    assert f.client.post(f"/api/v1/households/{f.hid}/archive", headers=f.actors["OWNER"].headers).status_code == 204
+    assert post(f, draft, key="saved-post").status_code == 409
+    for key in ("saved-pay", "new-pay"):
+        assert f.request("POST", path, key=key, json=body).status_code == 409
+    for method, path, _ in STEP3_ROUTES[2:]:
+        assert f.request(method, path.format(tid=draft["id"], aid=aid)).status_code == 200
+
+
+def test_step3_cross_household_ids_are_404(f):
+    from test_finance_transactions import account, payment, post
+    base = f"/api/v1/households/{f.other_hid}"
+    headers = f.actors["OUTSIDER"].headers
+    foreign = f.client.post(base + "/accounts", headers=headers | {"Idempotency-Key": "account"}, json={"name": "Other", "currency_code": "USD"}).json()["id"]
+    draft = f.client.post(base + "/transactions", headers=headers | {"Idempotency-Key": "draft"}, json=DRAFT).json()
+    for method, path, _ in STEP3_ROUTES:
+        r = f.request(method, path.format(tid=draft["id"], aid=foreign), **({"json": {"payments": [] if path.endswith("/post") else [payment(foreign)]}} if method == "POST" else {"params": {"account_id": foreign}} if path == "/ledger" else {}))
+        assert r.status_code == 404, r.text
+    own = create_draft(f)
+    assert post(f, own, [payment(foreign)]).status_code == 404
+
+
+@pytest.mark.parametrize("suffix", ["post", "payments"])
+@pytest.mark.parametrize("key", [False, "", "a" * 129, "has space", "tab\there"])
+def test_step3_idempotency_key_required(f, suffix, key):
+    from test_finance_transactions import account, payment
+    draft, aid = create_draft(f), account(f)
+    r = f.request("POST", f"/transactions/{draft['id']}/{suffix}", key=key, json={"payments": [payment(aid)]})
+    assert r.status_code == 422
+    assert set(r.json()) == {"error_code", "details", "request_id"}
+
+
+def test_finance_errors_have_stable_codes_without_changing_identity(f):
+    response = f.request("POST", "/transactions", key=False, json=DRAFT)
+    assert response.status_code == 422
+    assert response.json()["error_code"] == "FINANCE_INVALID_INPUT"
+    assert isinstance(response.json()["details"], dict) and response.json()["request_id"]
+    response = f.client.get(f"/api/v1/households/{f.hid}/ledger")
+    assert response.status_code == 401 and response.json()["error_code"] == "FINANCE_UNAUTHENTICATED"
+    response = f.client.get("/api/v1/users/me")
+    assert response.status_code == 401 and response.json()["error_code"] == "IDENTITY_REQUEST_FAILED"

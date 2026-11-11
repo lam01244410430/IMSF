@@ -8,9 +8,9 @@ ADMINISTER = PermissionCode.FINANCE_POST
 DRAFT = PermissionCode.FINANCE_DRAFT
 
 
-def require_draft_editor(context: HouseholdContext, transaction: dict) -> None:
+def require_draft_editor(context: HouseholdContext, transaction: dict, *, check_status: bool = True) -> None:
     # OPEN-06 PROPOSAL: MEMBER edits only own retained DRAFTs. Rank is not a grant.
     if context.role == "MEMBER" and context.member_id != transaction["created_by_member_id"]:
         raise FinanceRequestError(403, "FINANCE_FORBIDDEN")
-    if transaction["status"] != "DRAFT":
+    if check_status and transaction["status"] != "DRAFT":
         raise FinanceRequestError(409, "FINANCE_DRAFT_REQUIRED")

@@ -1,26 +1,48 @@
-"""Step 2 routes only. Application services authorize and own transactions."""
+"""Finance routes. Application services authorize and own transactions."""
+import json
 import os
+from datetime import datetime
 from typing import Annotated, Literal
 
 import jwt
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response
-from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.routing import APIRoute
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import bearer, get_db, jwt_secret, require_active_user
 from fastapi.security import HTTPAuthorizationCredentials
 from app.identity.dto import UserResponse
-from app.finance.domain import Actor
+from app.finance.domain import Actor, FinanceRequestError
 from app.finance.dto import (
     AccountCreate, AccountPage, AccountResponse, CategoryCreate, CategoryPage,
     CategoryResponse, CurrencyResponse, Identifier, ItemCreate, ItemPatch,
+    BalanceResponse, LedgerPage, PaymentBatchCreate, PaymentBatchResponse, TransactionPost,
     ItemResponse, TransactionDraftCreate, TransactionDraftPatch, TransactionPage, TransactionResponse,
 )
 from app.finance.infrastructure.household_access import SqlAlchemyHouseholdAccess
 from app.finance.infrastructure.repositories import SqlAlchemyFinanceRepository
 from app.finance.ledger_service import LedgerService
 
-router = APIRouter(prefix="/api/v1/households/{household_id}", tags=["finance"])
+
+class FinanceRoute(APIRoute):
+    """Finance error codes apply only to this router; identity stays unchanged."""
+    def get_route_handler(self):
+        handler = super().get_route_handler()
+        async def finance_handler(request):
+            try:
+                return await handler(request)
+            except RequestValidationError:
+                raise FinanceRequestError(422, "FINANCE_INVALID_INPUT") from None
+            except StarletteHTTPException as exc:
+                code = {401: "FINANCE_UNAUTHENTICATED", 403: "FINANCE_FORBIDDEN",
+                        404: "FINANCE_NOT_FOUND"}.get(exc.status_code, "FINANCE_REQUEST_FAILED")
+                raise FinanceRequestError(exc.status_code, code) from None
+        return finance_handler
+
+
+router = APIRouter(prefix="/api/v1/households/{household_id}", tags=["finance"], route_class=FinanceRoute)
 Key = Annotated[str, Header(alias="Idempotency-Key", min_length=1, max_length=128, pattern=r"^[!-~]+$")]
 Limit = Annotated[int, Query(ge=1, le=200)]
 Cursor = Annotated[str | None, Query(max_length=2048)]
@@ -53,7 +75,10 @@ def saved_response(result):
     status, body = result
     if status == 204:
         return Response(status_code=204)
-    return JSONResponse(status_code=status, content=body)
+    # JSONB does not preserve object key order. Deterministic encoding makes the
+    # first response and a durable replay byte-for-byte identical.
+    return Response(status_code=status, media_type="application/json", content=json.dumps(
+        body, ensure_ascii=False, allow_nan=False, sort_keys=True, separators=(",", ":")))
 
 
 @router.get("/currencies", response_model=list[CurrencyResponse])
@@ -132,3 +157,34 @@ async def transactions(household_id: Identifier, actor: Principal, service: Serv
 @router.get("/transactions/{transaction_id}", response_model=TransactionResponse)
 async def transaction(household_id: Identifier, transaction_id: Identifier, actor: Principal, service: Service):
     return await service.get(actor, household_id, "transactions", transaction_id)
+
+
+@router.post("/transactions/{transaction_id}/post", response_model=TransactionResponse)
+async def post_transaction(household_id: Identifier, transaction_id: Identifier, body: TransactionPost,
+                           key: Key, actor: Principal, service: Service):
+    return saved_response(await service.settle(actor, household_id, transaction_id, body, key, posting=True))
+
+
+@router.post("/transactions/{transaction_id}/payments", response_model=PaymentBatchResponse, status_code=201)
+async def add_payments(household_id: Identifier, transaction_id: Identifier, body: PaymentBatchCreate,
+                       key: Key, actor: Principal, service: Service):
+    return saved_response(await service.settle(actor, household_id, transaction_id, body, key, posting=False))
+
+
+@router.get("/transactions/{transaction_id}/payments", response_model=PaymentBatchResponse)
+async def transaction_payments(household_id: Identifier, transaction_id: Identifier, actor: Principal, service: Service):
+    return await service.payments(actor, household_id, transaction_id)
+
+
+@router.get("/ledger", response_model=LedgerPage)
+async def ledger(household_id: Identifier, actor: Principal, service: Service,
+                 account_id: Identifier | None = None, date_from: datetime | None = None,
+                 date_to: datetime | None = None, limit: Limit = 50, cursor: Cursor = None):
+    return await service.ledger(actor, household_id, account_id=account_id, date_from=date_from,
+                                date_to=date_to, limit=limit, cursor=cursor)
+
+
+@router.get("/accounts/{account_id}/balance", response_model=BalanceResponse)
+async def account_balance(household_id: Identifier, account_id: Identifier, actor: Principal, service: Service,
+                          as_of: datetime | None = None, cursor: Cursor = None):
+    return await service.balance(actor, household_id, account_id, as_of=as_of, cursor=cursor)

@@ -6,11 +6,12 @@ from sqlalchemy import func, select, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
 
 from app.finance.infrastructure.models import (
-    Account, Category, Currency, IdempotencyRequest, Transaction, TransactionItem, TransactionPayment,
+    Account, AccountLedgerEntry, Category, Currency, IdempotencyRequest, Transaction, TransactionItem, TransactionPayment,
 )
 from app.identity.infrastructure.models import AuditLog
 
-MODELS = {"accounts": Account, "categories": Category, "transactions": Transaction, "items": TransactionItem}
+MODELS = {"accounts": Account, "categories": Category, "transactions": Transaction, "items": TransactionItem,
+          "payments": TransactionPayment, "ledger": AccountLedgerEntry}
 
 
 def record(row):
@@ -72,9 +73,10 @@ class SqlAlchemyFinanceRepository:
     async def transaction_result(self, household_id, transaction_id):
         row = await self.get("transactions", household_id, transaction_id)
         row["items"] = await self.items(household_id, transaction_id)
-        # Source sums, never a mutable balance/settlement column. Step 2 writes no payments.
+        # Transfer settlement counts one leg; two full legs represent one amount.
         settled = await self.session.scalar(select(func.coalesce(func.sum(TransactionPayment.transaction_amount), 0)).where(
-            TransactionPayment.household_id == household_id, TransactionPayment.transaction_id == transaction_id))
+            TransactionPayment.household_id == household_id, TransactionPayment.transaction_id == transaction_id,
+            *([TransactionPayment.direction == "OUT"] if row["kind"] == "TRANSFER" else [])))
         reversal = await self.session.scalar(select(Transaction.id).where(Transaction.household_id == household_id,
             Transaction.original_transaction_id == transaction_id, Transaction.kind == "REVERSAL", Transaction.status == "POSTED"))
         return row | {"settled_amount": Decimal(settled), "remaining_amount": row["total_amount"] - settled,
@@ -101,3 +103,47 @@ class SqlAlchemyFinanceRepository:
     async def audit(self, values):
         self.session.add(AuditLog(**values))
         await self.session.flush()
+
+    async def payments(self, household_id, transaction_id):
+        return [record(row) for row in (await self.session.scalars(select(TransactionPayment).where(
+            TransactionPayment.household_id == household_id, TransactionPayment.transaction_id == transaction_id
+        ).order_by(TransactionPayment.id))).all()]
+
+    async def has_entries(self, household_id, account_id):
+        return await self.session.scalar(select(AccountLedgerEntry.id).where(
+            AccountLedgerEntry.household_id == household_id, AccountLedgerEntry.account_id == account_id).limit(1)) is not None
+
+    def _ledger_query(self, household_id, account_id=None, date_from=None, date_to=None):
+        model = AccountLedgerEntry
+        statement = select(model).where(model.household_id == household_id)
+        if account_id is not None:
+            statement = statement.where(model.account_id == account_id)
+        if date_from is not None:
+            statement = statement.where(model.posted_at >= date_from)
+        if date_to is not None:
+            statement = statement.where(model.posted_at <= date_to)
+        return statement
+
+    async def ledger(self, household_id, account_id, date_from, date_to, position, limit):
+        model = AccountLedgerEntry
+        statement = self._ledger_query(household_id, account_id, date_from, date_to)
+        if position:
+            statement = statement.where(tuple_(model.posted_at, model.id) < tuple_(datetime.fromisoformat(position[0]), position[1]))
+        return [record(row) for row in (await self.session.scalars(statement.order_by(
+            model.posted_at.desc(), model.id.desc()).limit(limit))).all()]
+
+    async def balance(self, household_id, account_id, as_of=None, position=None):
+        model = AccountLedgerEntry
+        statement = self._ledger_query(household_id, account_id, date_to=as_of)
+        if position:
+            statement = statement.where(tuple_(model.posted_at, model.id) <= tuple_(datetime.fromisoformat(position[0]), position[1]))
+        entries = statement.cte("visible_entries")
+        latest = select(entries).order_by(entries.c.posted_at.desc(), entries.c.id.desc()).limit(1).cte("latest_entry")
+        # One statement/snapshot: the sum and its stable boundary agree even
+        # while another connection posts or settles this account.
+        row = (await self.session.execute(select(
+            select(func.coalesce(func.sum(entries.c.signed_amount), 0)).scalar_subquery().label("balance"),
+            select(latest.c.posted_at).scalar_subquery().label("posted_at"),
+            select(latest.c.id).scalar_subquery().label("id"),
+        ))).mappings().one()
+        return dict(row)

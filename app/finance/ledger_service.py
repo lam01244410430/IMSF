@@ -1,4 +1,4 @@
-"""Step 2 application transactions: accounts, categories, retained DRAFTs only."""
+"""Application-owned finance commands and read-only ledger projections."""
 import base64
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -10,8 +10,9 @@ from uuid import uuid4
 from sqlalchemy.exc import DBAPIError
 
 from app.finance import authorization as policy
-from app.finance.domain import FinanceRequestError, validate_draft
-from app.finance.dto import AccountResponse, CategoryResponse, ItemResponse, TransactionResponse
+from app.finance.domain import FinanceRequestError, validate_draft, validate_settlement
+from app.finance.dto import (AccountResponse, BalanceResponse, CategoryResponse, ItemResponse,
+    LedgerEntryResponse, PaymentBatchResponse, TransactionResponse)
 from app.finance.money import canonical_decimal
 from app.finance.ports import FinanceRepository, HouseholdAccess
 
@@ -64,8 +65,8 @@ class LedgerService:
             "request_id": str(uuid4()), "action": action, "target_type": resource,
             "target_id": str(row["id"]), "details": details})
 
-    async def _command(self, actor, hid, permission, operation, key, body, effect, *, transaction_id=None):
-        # OPEN-14 PROPOSAL subset: durable draft-scope keys; final contract in Step 3.
+    async def _command(self, actor, hid, permission, operation, key, body, effect, *, transaction_id=None, draft_only=True):
+        # OPEN-14 PROPOSAL: durable successful commands; no provisional commit.
         if not isinstance(key, str) or not re.fullmatch(r"[\x21-\x7e]{1,128}", key):
             raise FinanceRequestError(422, "FINANCE_INVALID_IDEMPOTENCY_KEY")
         operation = f"{operation}:v1"
@@ -78,7 +79,8 @@ class LedgerService:
                     transaction = None
                     if transaction_id is not None:
                         transaction = await self._object("transactions", hid, transaction_id, lock=True)
-                        policy.require_draft_editor(context, transaction)
+                        if draft_only:
+                            policy.require_draft_editor(context, transaction, check_status=False)
                     # Authorization, creator and current session checks precede EVERY replay.
                     reservation, saved = await self.repository.reserve({"household_id": hid,
                         "actor_member_id": context.member_id, "operation": operation,
@@ -87,6 +89,8 @@ class LedgerService:
                         if saved["request_hash"] != digest:
                             raise FinanceRequestError(409, "FINANCE_IDEMPOTENCY_CONFLICT")
                         return saved["response_status"], saved["response_body"]
+                    if transaction is not None and draft_only:
+                        policy.require_draft_editor(context, transaction)
                     status, result = await effect(context, transaction)
                     await self.repository.complete(reservation, status, result)
                     return status, result
@@ -94,9 +98,13 @@ class LedgerService:
                 raise FinanceRequestError(422, "FINANCE_INVALID_VALUE") from None
             except DBAPIError as exc:
                 sqlstate = getattr(exc.orig, "sqlstate", None)
-                if sqlstate in {"40001", "40P01"} and attempt < 2:
+                transient = (sqlstate in {"40001", "40P01", "57P01"}
+                             or bool(sqlstate and sqlstate.startswith("08")) or exc.connection_invalidated)
+                if transient and attempt < 2:
                     continue  # Whole transaction restarts, including access and reservation.
-                if sqlstate in {"23505", "55000", "40001", "40P01"}:
+                if transient:
+                    raise FinanceRequestError(409, "FINANCE_RETRY_EXHAUSTED") from None
+                if sqlstate in {"23505", "55000"}:
                     raise FinanceRequestError(409, "FINANCE_CONFLICT") from None
                 if sqlstate == "23503":
                     raise FinanceRequestError(404, "FINANCE_NOT_FOUND") from None
@@ -216,3 +224,118 @@ class LedgerService:
             await self._audit(hid, context, "FINANCE_DRAFT_ITEM_ADDED" if item_id is None else "FINANCE_DRAFT_ITEM_UPDATED", "transaction_item", row)
             return (201 if item_id is None else 200), ItemResponse.model_validate(row).model_dump(mode="json")
         return await self._command(actor, hid, policy.DRAFT, path, key, values, effect, transaction_id=transaction_id)
+
+
+    async def settle(self, actor, hid, identifier, body, key, *, posting):
+        values = body.model_dump()
+        for payment in values["payments"]:
+            if payment["transaction_amount"] is None:
+                payment["transaction_amount"] = payment["amount"]
+
+        async def effect(context, transaction):
+            if transaction["status"] != ("DRAFT" if posting else "POSTED"):
+                raise FinanceRequestError(409, "FINANCE_DRAFT_REQUIRED" if posting else "FINANCE_POSTED_REQUIRED")
+            result = await self.repository.transaction_result(hid, identifier)
+            if result["is_reversed"]:
+                raise FinanceRequestError(409, "FINANCE_TRANSACTION_REVERSED")
+            if posting:
+                await self._validate(hid, transaction, result["items"])
+            scale = await self._currency(transaction["currency_code"])
+            validate_settlement(transaction, result["items"], values["payments"], result["settled_amount"], scale, posting=posting)
+            # Ordered account locks protect opening-first-entry and archive races;
+            # the transaction row protects duplicate posting and cumulative payment.
+            for account_id in sorted({p["account_id"] for p in values["payments"]}):
+                account = await self._object("accounts", hid, account_id, lock=True)
+                if account["archived_at"] is not None:
+                    raise FinanceRequestError(409, "FINANCE_ACCOUNT_ARCHIVED")
+                if account["currency_code"] != transaction["currency_code"]:
+                    raise FinanceRequestError(422, "FINANCE_FX_UNSUPPORTED")
+                if transaction["kind"] == "OPENING" and await self.repository.has_entries(hid, account_id):
+                    raise FinanceRequestError(409, "FINANCE_OPENING_NOT_FIRST")
+            # One posting instant for both transfer legs. occurred_at never drives
+            # ledger order. Negative balances are allowed (OPEN-11 PROPOSAL).
+            instant = datetime.now(timezone.utc)
+            if posting:
+                await self.repository.update("transactions", hid, identifier, {"status": "POSTED", "posted_at": instant})
+            payments = []
+            for payment in values["payments"]:
+                row = await self.repository.create("payments", payment | {"household_id": hid,
+                    "transaction_id": identifier, "created_by_member_id": context.member_id, "settled_at": payment["settled_at"] or instant})
+                payments.append(row)
+                await self.repository.create("ledger", {"household_id": hid, "transaction_id": identifier,
+                    "account_id": row["account_id"], "currency_code": row["currency_code"], "payment_id": row["id"],
+                    "signed_amount": row["amount"] if row["direction"] == "IN" else -row["amount"], "posted_at": instant})
+            await self._audit(hid, context, "FINANCE_POSTED" if posting else "FINANCE_PAYMENTS_CREATED", "transaction", transaction)
+            result = await self.repository.transaction_result(hid, identifier)
+            if posting:
+                return 200, TransactionResponse.model_validate(result).model_dump(mode="json")
+            return 201, PaymentBatchResponse.model_validate({"transaction_id": identifier, "payments": payments,
+                "settled_amount": result["settled_amount"], "remaining_amount": result["remaining_amount"]}).model_dump(mode="json")
+
+        return await self._command(actor, hid, policy.ADMINISTER,
+            f"POST /households/{hid}/transactions/{identifier}/{'post' if posting else 'payments'}",
+            key, values, effect, transaction_id=identifier, draft_only=False)
+
+    async def payments(self, actor, hid, identifier):
+        async with self.session.begin():
+            await self.access.resolve(actor, hid, policy.READ, write=False)
+            await self._object("transactions", hid, identifier)
+            result = await self.repository.transaction_result(hid, identifier)
+            return PaymentBatchResponse.model_validate({"transaction_id": identifier,
+                "payments": await self.repository.payments(hid, identifier),
+                "settled_amount": result["settled_amount"], "remaining_amount": result["remaining_amount"]}).model_dump(mode="json")
+
+    @staticmethod
+    def _instant(value):
+        if value is not None and (value.tzinfo is None or value.utcoffset() is None):
+            raise FinanceRequestError(422, "FINANCE_OFFSET_REQUIRED")
+        return value.astimezone(timezone.utc) if value is not None else None
+
+    @staticmethod
+    def _encode_cursor(scope, row):
+        return base64.urlsafe_b64encode(json.dumps({"scope": canonical(scope),
+            "position": [row["posted_at"].isoformat(), row["id"]]}, sort_keys=True, separators=(",", ":")).encode()).decode()
+
+    @staticmethod
+    def _decode_cursor(cursor, scope):
+        if cursor is None:
+            return None
+        try:
+            if len(cursor) > 2048:
+                raise ValueError()
+            data = json.loads(base64.urlsafe_b64decode(cursor.encode()))
+            position = data["position"]
+            if (data["scope"] != canonical(scope) or not isinstance(position, list) or len(position) != 2
+                or not isinstance(position[0], str) or type(position[1]) is not int or not 0 < position[1] <= 9223372036854775807):
+                raise ValueError()
+            if datetime.fromisoformat(position[0]).utcoffset() is None:
+                raise ValueError()
+            return position
+        except (ValueError, TypeError, KeyError, IndexError, UnicodeError):
+            raise FinanceRequestError(422, "FINANCE_INVALID_CURSOR") from None
+
+    async def ledger(self, actor, hid, *, account_id=None, date_from=None, date_to=None, cursor=None, limit=50):
+        date_from, date_to = self._instant(date_from), self._instant(date_to)
+        if date_from is not None and date_to is not None and date_from > date_to:
+            raise FinanceRequestError(422, "FINANCE_INVALID_DATE_RANGE")
+        scope = [hid, "ledger:v1", account_id, date_from, date_to]
+        position = self._decode_cursor(cursor, scope)
+        async with self.session.begin():
+            await self.access.resolve(actor, hid, policy.READ, write=False)
+            if account_id is not None:
+                await self._object("accounts", hid, account_id)
+            rows = await self.repository.ledger(hid, account_id, date_from, date_to, position, limit + 1)
+            next_cursor = self._encode_cursor(scope, rows[limit - 1]) if len(rows) > limit else None
+            return {"items": [LedgerEntryResponse.model_validate(r).model_dump(mode="json") for r in rows[:limit]],
+                "next_cursor": next_cursor}
+
+    async def balance(self, actor, hid, account_id, *, as_of=None, cursor=None):
+        as_of = self._instant(as_of)
+        scope = [hid, "balance:v1", account_id]
+        position = self._decode_cursor(cursor, scope)
+        async with self.session.begin():
+            await self.access.resolve(actor, hid, policy.READ, write=False)
+            account = await self._object("accounts", hid, account_id)
+            result = await self.repository.balance(hid, account_id, as_of, position)
+            return BalanceResponse.model_validate({"account_id": account_id, "currency_code": account["currency_code"],
+                "balance": result["balance"], "cursor": self._encode_cursor(scope, result) if result["id"] is not None else None}).model_dump(mode="json")
