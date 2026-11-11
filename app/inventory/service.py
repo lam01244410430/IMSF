@@ -7,6 +7,8 @@ import hashlib
 import json
 import re
 from uuid import uuid4
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from app.inventory import fefo
 from sqlalchemy.exc import DBAPIError
 from app.inventory import authorization as policy
 from app.inventory.domain import InventoryRequestError, terminal_state
@@ -89,7 +91,7 @@ class InventoryService:
         )
 
     async def _command(
-        self, actor, hid, operation, key, values, effect, *, permission=policy.MANAGE
+        self, actor, hid, operation, key, values, effect, *, permission=policy.MANAGE, additional_permissions=()
     ):
         if not isinstance(key, str) or not re.fullmatch(r"[\x21-\x7e]{1,128}", key):
             raise InventoryRequestError(422, "INVENTORY_INVALID_IDEMPOTENCY_KEY")
@@ -108,6 +110,9 @@ class InventoryService:
                     context = await self.access.resolve(
                         actor, hid, permission, write=True
                     )
+                    # P04-OPEN-07/13 PROPOSAL: intersection checked before replay.
+                    for required in additional_permissions:
+                        await self.access.resolve(actor, hid, required, write=True)
                     reservation, saved = await self.commands.reserve(
                         {
                             "household_id": hid,
@@ -415,6 +420,64 @@ class InventoryService:
         )
         return await self._response("inventory-lots", hid, lot)
 
+
+    async def deduct_in_uow(self, context, hid, values):
+        """P04-OPEN-02/05/07/08/12 PROPOSAL: reusable stock-only FEFO seam.
+
+        Caller owns authorization, reservation and transaction. Resolve the local
+        date once per attempt, then collect ALL allocations before any write.
+        """
+        pids = sorted({line["product_id"] for line in values["items"]})
+        # Retain the original/account/item prefix required by purchase triggers.
+        purchases = await self.repository.lock_purchases(
+            hid, await self.repository.stock_purchase_ids(hid, pids)
+        )
+        products = await self.repository.lock_products(hid, pids)
+        if len(products) != len(pids):
+            raise InventoryRequestError(404, "INVENTORY_NOT_FOUND")
+        products = {p["id"]: p for p in products}
+        name = await self.repository.household_timezone(hid)
+        try:
+            if not isinstance(name, str) or not name:
+                raise ValueError()
+            zone = ZoneInfo(name)
+        except (ValueError, ZoneInfoNotFoundError):
+            raise InventoryRequestError(422, "INVENTORY_TIMEZONE_REQUIRED") from None
+        local_date = datetime.now(timezone.utc).astimezone(zone).date()
+        amounts = {}
+        with localcontext() as ctx:
+            ctx.prec = 80
+            for line in values["items"]:
+                pid = line["product_id"]
+                amounts[pid] = amounts.get(pid, Decimal(0)) + await self._base_quantity(line, products[pid])
+        lots = await self.repository.lock_fefo_lots(hid, pids, local_date)
+        for lot in lots:
+            iid = lot["purchase_item_id"]
+            if iid is not None:
+                purchase = purchases.get(iid)
+                # If a new source appeared after discovery, roll back rather
+                # than acquiring the purchase prefix after product/lot locks.
+                if purchase is None or purchase["product_id"] != lot["product_id"]:
+                    raise InventoryRequestError(409, "INVENTORY_STATE_CONFLICT")
+                if (purchase["kind"] != "EXPENSE" or purchase["status"] != "POSTED"
+                        or purchase["is_reversed"]):
+                    raise InventoryRequestError(409, "INVENTORY_STATE_CONFLICT")
+        plans = fefo.allocate(hid, amounts, products, lots, local_date=local_date)
+        result = {"movement_ids": [], "consumption_record_ids": [], "disposal_record_ids": [],
+                  "adjustment_ids": [], "allocations": [], "refund_inventory_link_ids": []}
+        for lot, amount in plans:
+            purchase = purchases.get(lot["purchase_item_id"])
+            movement, detail, updated = await self._write_movement_in_uow(
+                context, hid, lot, "CONSUME", -amount, reason=values.get("reason"),
+                reason_code=values["reason_code"],
+                transaction_id=purchase["original_transaction_id"] if purchase else None,
+            )
+            result["movement_ids"].append(movement["id"])
+            result["consumption_record_ids"].append(detail["id"])
+            result["allocations"].append({"product_id": lot["product_id"], "lot_id": lot["id"],
+                "base_quantity": amount, "remaining_quantity": updated["remaining_quantity"]})
+            await self._audit(hid, context, "inventory-movements", movement, "CONSUME", values.get("reason"))
+        return StockCommandResponse.model_validate(result).model_dump(mode="json")
 
     async def _locked_stock(self, hid, lot_ids):
         """P04-OPEN-07 PROPOSAL: reuse Step 2 locks, refresh after waiting.

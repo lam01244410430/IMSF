@@ -1,6 +1,7 @@
 """P04-OPEN-07/10 proposals: scoped persistence, original→account→item→product→lot."""
 
-from sqlalchemy import select, update, func
+from sqlalchemy import select, update, func, or_
+from app.identity.infrastructure.models import HouseholdSettings
 from app.finance.infrastructure.models import (
     Transaction,
     TransactionItem,
@@ -154,6 +155,29 @@ class SqlAlchemyInventoryRepository:
             .with_for_update()
             .execution_options(populate_existing=True)
         )
+        return [record(row) for row in (await self.session.scalars(statement)).all()]
+
+    async def household_timezone(self, hid):
+        """P04-OPEN-12 PROPOSAL: read only; never manufacture settings defaults."""
+        values = await self.session.scalar(select(HouseholdSettings.values).where(
+            HouseholdSettings.household_id == hid
+        ))
+        return values.get("timezone") if isinstance(values, dict) else None
+
+    async def stock_purchase_ids(self, hid, product_ids):
+        return list((await self.session.scalars(select(InventoryLot.purchase_item_id).where(
+            InventoryLot.household_id == hid, InventoryLot.product_id.in_(product_ids),
+            InventoryLot.purchase_item_id.is_not(None),
+        ).distinct())).all())
+
+    async def lock_fefo_lots(self, hid, product_ids, local_date):
+        """P04-OPEN-02/07/08 PROPOSAL: products already locked, no SKIP LOCKED."""
+        statement = select(InventoryLot).where(
+            InventoryLot.household_id == hid, InventoryLot.product_id.in_(product_ids),
+            InventoryLot.remaining_quantity > 0, InventoryLot.archived_at.is_(None),
+            or_(InventoryLot.expires_on.is_(None), InventoryLot.expires_on >= local_date),
+        ).order_by(InventoryLot.product_id, InventoryLot.expires_on.asc().nulls_last(),
+                   InventoryLot.received_at, InventoryLot.id).with_for_update().execution_options(populate_existing=True)
         return [record(row) for row in (await self.session.scalars(statement)).all()]
 
     async def has_history(self, hid, product_id):

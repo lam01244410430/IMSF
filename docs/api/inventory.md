@@ -123,3 +123,19 @@ FEFO selection, cooking, expiry job or new migration is enabled by Step 3.
 The broad Step 2 finance `_validate` archived-product check remains unchanged;
 P3-1 DECIDED 2026-11-11 (Lam: keep the Step 2 rule — archived product blocks DRAFT create/patch and settle-posting with 409 FINANCE_CONFLICT; not narrowed to receipt-only). P04-OPEN-16 archived-account reconciliation is also
 unchanged and open.
+
+
+## Step 4 checkout integration — PROPOSAL
+
+P04-OPEN-02/05/07/08/12/13 PROPOSALS now enable stock-only FEFO checkout via
+`POST H/checkout/deductions`. P04-OPEN-07/13/15 PROPOSALS enable atomic purchase
+checkout via `POST H/checkout/purchases`. See [the checkout contract](checkout.md)
+for DTOs, exact full receipt allocation, permission intersection, timezone
+requirements, lock order, rollback and replay semantics.
+
+P04-OPEN-07 PROPOSAL: `deduct_in_uow` and existing `receive_in_uow` participate
+in the caller's transaction and use the sole movement writer. Neither reserves
+keys nor commits. FEFO takes an explicit local date; settings stay read-only.
+P04-OPEN-09 PROPOSAL keeps cooking for Step 5 and expiry alerts/jobs for P05.
+P04-OPEN-11 PROPOSAL remains unresolved: Step 2/3 reversal behavior is unchanged.
+No migration or identity change is introduced by Step 4.

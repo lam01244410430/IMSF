@@ -1,6 +1,7 @@
 """Application ports. Infrastructure owns SQL; use cases own transactions."""
 from typing import Protocol
 from app.finance.domain import Actor, HouseholdContext
+from app.finance.dto import TransactionPost
 
 
 class HouseholdAccess(Protocol):
@@ -45,3 +46,9 @@ class ReversalEffectsSnapshot:
 
 class ReversalEffects(Protocol):
     async def load_locked(self, household_id: int, original_transaction_id: int) -> ReversalEffectsSnapshot: ...
+
+
+class FinancePosting(Protocol):
+    """P04-OPEN-07 PROPOSAL: application seam on the caller's shared session."""
+    async def post_in_uow(self, context: HouseholdContext, household_id: int,
+                          transaction_id: int, body: TransactionPost) -> dict: ...

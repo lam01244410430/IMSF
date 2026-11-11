@@ -508,7 +508,9 @@ def test_exact_route_scope_and_openapi(http):
         PREFIX + "/households/{household_id}/invitations/accept": {"post"},
         PREFIX + "/households/{household_id}/invitations/{invitation_id}": {"delete"},
         # P04 Step 2/3 compatibility: exact allow-list, adding only the
-        # explicit-lot Step 3 PROPOSAL commands; checkout/cooking stay absent.
+        # explicit-lot Step 3 PROPOSAL commands.
+        # P04 Step 4 compatibility: exact allow-list, adding only the two
+        # Step 4 PROPOSAL checkout commands; cooking stays absent.
         PREFIX + "/households/{household_id}/measurement-units": {"get"},
         PREFIX + "/households/{household_id}/unit-conversions": {"get"},
         PREFIX + "/households/{household_id}/product-categories": {"get", "post"},
@@ -526,6 +528,8 @@ def test_exact_route_scope_and_openapi(http):
         PREFIX + "/households/{household_id}/consumption": {"get", "post"},
         PREFIX + "/households/{household_id}/disposals": {"get", "post"},
         PREFIX + "/households/{household_id}/inventory-lots/{lot_id}/returns": {"post"},
+        PREFIX + "/households/{household_id}/checkout/deductions": {"post"},
+        PREFIX + "/households/{household_id}/checkout/purchases": {"post"},
         # Step 2 compatibility: keep the exact full /api/v1 route assertion.
         PREFIX + "/households/{household_id}/currencies": {"get"},
         PREFIX + "/households/{household_id}/accounts": {"post", "get"},

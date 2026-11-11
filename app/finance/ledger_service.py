@@ -12,7 +12,7 @@ from sqlalchemy.exc import DBAPIError
 from app.finance import authorization as policy
 from app.finance.domain import FinanceRequestError, require_full_reversal_eligible, validate_draft, validate_settlement
 from app.finance.dto import (AccountResponse, BalanceResponse, CategoryResponse, ItemResponse,
-    LedgerEntryResponse, PaymentBatchResponse, ReversalResponse, TransactionResponse)
+    LedgerEntryResponse, PaymentBatchResponse, ReversalResponse, TransactionResponse, TransactionPost)
 from app.finance.money import canonical_decimal
 from app.finance.ports import FinanceRepository, HouseholdAccess, ReversalEffects
 
@@ -247,48 +247,67 @@ class LedgerService:
                 payment["transaction_amount"] = payment["amount"]
 
         async def effect(context, transaction):
-            if transaction["status"] != ("DRAFT" if posting else "POSTED"):
-                raise FinanceRequestError(409, "FINANCE_DRAFT_REQUIRED" if posting else "FINANCE_POSTED_REQUIRED")
-            result = await self.repository.transaction_result(hid, identifier)
-            if result["is_reversed"]:
-                raise FinanceRequestError(409, "FINANCE_TRANSACTION_REVERSED")
-            if posting:
-                await self._validate(hid, transaction, result["items"])
-            scale = await self._currency(transaction["currency_code"])
-            validate_settlement(transaction, result["items"], values["payments"], result["settled_amount"], scale, posting=posting)
-            # Ordered account locks protect opening-first-entry and archive races;
-            # the transaction row protects duplicate posting and cumulative payment.
-            for account_id in sorted({p["account_id"] for p in values["payments"]}):
-                account = await self._object("accounts", hid, account_id, lock=True)
-                if account["archived_at"] is not None:
-                    raise FinanceRequestError(409, "FINANCE_ACCOUNT_ARCHIVED")
-                if account["currency_code"] != transaction["currency_code"]:
-                    raise FinanceRequestError(422, "FINANCE_FX_UNSUPPORTED")
-                if transaction["kind"] == "OPENING" and await self.repository.has_entries(hid, account_id):
-                    raise FinanceRequestError(409, "FINANCE_OPENING_NOT_FIRST")
-            # One posting instant for both transfer legs. occurred_at never drives
-            # ledger order. Negative balances are allowed (OPEN-11 PROPOSAL).
-            instant = datetime.now(timezone.utc)
-            if posting:
-                await self.repository.update("transactions", hid, identifier, {"status": "POSTED", "posted_at": instant})
-            payments = []
-            for payment in values["payments"]:
-                row = await self.repository.create("payments", payment | {"household_id": hid,
-                    "transaction_id": identifier, "created_by_member_id": context.member_id, "settled_at": payment["settled_at"] or instant})
-                payments.append(row)
-                await self.repository.create("ledger", {"household_id": hid, "transaction_id": identifier,
-                    "account_id": row["account_id"], "currency_code": row["currency_code"], "payment_id": row["id"],
-                    "signed_amount": row["amount"] if row["direction"] == "IN" else -row["amount"], "posted_at": instant})
-            await self._audit(hid, context, "FINANCE_POSTED" if posting else "FINANCE_PAYMENTS_CREATED", "transaction", transaction)
-            result = await self.repository.transaction_result(hid, identifier)
-            if posting:
-                return 200, TransactionResponse.model_validate(result).model_dump(mode="json")
-            return 201, PaymentBatchResponse.model_validate({"transaction_id": identifier, "payments": payments,
-                "settled_amount": result["settled_amount"], "remaining_amount": result["remaining_amount"]}).model_dump(mode="json")
+            return await self._settle_in_uow(context, hid, identifier, transaction, values, posting=posting)
 
         return await self._command(actor, hid, policy.ADMINISTER,
             f"POST /households/{hid}/transactions/{identifier}/{'post' if posting else 'payments'}",
             key, values, effect, transaction_id=identifier, draft_only=False)
+
+    async def post_in_uow(self, context, household_id, transaction_id, body: TransactionPost):
+        """P04-OPEN-07 PROPOSAL: caller owns authorization, key and transaction.
+
+        No nested command, reservation or commit. Acquire the same original and
+        ordered account locks and use precisely the public settlement engine.
+        """
+        transaction = await self._object("transactions", household_id, transaction_id, lock=True)
+        values = body.model_dump()
+        for payment in values["payments"]:
+            if payment["transaction_amount"] is None:
+                payment["transaction_amount"] = payment["amount"]
+        _, result = await self._settle_in_uow(
+            context, household_id, transaction_id, transaction, values, posting=True
+        )
+        return result
+
+    async def _settle_in_uow(self, context, hid, identifier, transaction, values, *, posting):
+        if transaction["status"] != ("DRAFT" if posting else "POSTED"):
+            raise FinanceRequestError(409, "FINANCE_DRAFT_REQUIRED" if posting else "FINANCE_POSTED_REQUIRED")
+        result = await self.repository.transaction_result(hid, identifier)
+        if result["is_reversed"]:
+            raise FinanceRequestError(409, "FINANCE_TRANSACTION_REVERSED")
+        if posting:
+            await self._validate(hid, transaction, result["items"])
+        scale = await self._currency(transaction["currency_code"])
+        validate_settlement(transaction, result["items"], values["payments"], result["settled_amount"], scale, posting=posting)
+        # Ordered account locks protect opening-first-entry and archive races;
+        # the transaction row protects duplicate posting and cumulative payment.
+        for account_id in sorted({p["account_id"] for p in values["payments"]}):
+            account = await self._object("accounts", hid, account_id, lock=True)
+            if account["archived_at"] is not None:
+                raise FinanceRequestError(409, "FINANCE_ACCOUNT_ARCHIVED")
+            if account["currency_code"] != transaction["currency_code"]:
+                raise FinanceRequestError(422, "FINANCE_FX_UNSUPPORTED")
+            if transaction["kind"] == "OPENING" and await self.repository.has_entries(hid, account_id):
+                raise FinanceRequestError(409, "FINANCE_OPENING_NOT_FIRST")
+        # One posting instant for both transfer legs. occurred_at never drives
+        # ledger order. Negative balances are allowed (OPEN-11 PROPOSAL).
+        instant = datetime.now(timezone.utc)
+        if posting:
+            await self.repository.update("transactions", hid, identifier, {"status": "POSTED", "posted_at": instant})
+        payments = []
+        for payment in values["payments"]:
+            row = await self.repository.create("payments", payment | {"household_id": hid,
+                "transaction_id": identifier, "created_by_member_id": context.member_id, "settled_at": payment["settled_at"] or instant})
+            payments.append(row)
+            await self.repository.create("ledger", {"household_id": hid, "transaction_id": identifier,
+                "account_id": row["account_id"], "currency_code": row["currency_code"], "payment_id": row["id"],
+                "signed_amount": row["amount"] if row["direction"] == "IN" else -row["amount"], "posted_at": instant})
+        await self._audit(hid, context, "FINANCE_POSTED" if posting else "FINANCE_PAYMENTS_CREATED", "transaction", transaction)
+        result = await self.repository.transaction_result(hid, identifier)
+        if posting:
+            return 200, TransactionResponse.model_validate(result).model_dump(mode="json")
+        return 201, PaymentBatchResponse.model_validate({"transaction_id": identifier, "payments": payments,
+            "settled_amount": result["settled_amount"], "remaining_amount": result["remaining_amount"]}).model_dump(mode="json")
 
     async def reverse(self, actor, hid, identifier, body, key):
         values = body.model_dump()

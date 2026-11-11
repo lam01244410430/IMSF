@@ -69,8 +69,6 @@ def test_every_route_uses_confirmed_explicit_role_matrix(f, role):
 
 def test_later_command_routes_are_absent(f):
     for path in [
-        "/checkout/deductions",
-        "/checkout/purchases",
         "/recipes",
         "/recipe-cooking-history",
     ]:
@@ -159,3 +157,94 @@ def test_pending_disabled_removed_revoked_and_archived_replays_denied(
 
     asyncio.run(change())
     assert f.request("PATCH", path, key="saved", json=body).status_code == status
+
+
+@pytest.mark.parametrize("role", ROLES)
+@pytest.mark.parametrize("route", ["deductions", "purchases"])
+def test_checkout_exact_role_intersection(f, role, route):
+    from test_inventory_checkout import configure_timezone, demand, purchase_body, snapshot
+    configure_timezone(f)
+    p = product(f)
+    receipt(f, p)
+    body = demand(p) if route == "deductions" else purchase_body(f, p)[1]
+    before = snapshot(f)
+    r = f.request("POST", "/checkout/" + route, role=role, json=body)
+    allowed = role in ({"OWNER", "INVENTORY_MANAGER"} if route == "deductions" else {"OWNER"})
+    assert r.status_code == (201 if allowed else 403), r.text
+    if not allowed:
+        assert snapshot(f) == before
+
+
+@pytest.mark.parametrize("route", ["deductions", "purchases"])
+@pytest.mark.parametrize("condition,status", [("pending",403),("disabled",401),("removed",404),("revoked",401),("archived",409),("role",403)])
+def test_checkout_replays_recheck_current_access(f, route, condition, status):
+    from test_inventory_checkout import configure_timezone, demand, purchase_body, snapshot
+    configure_timezone(f)
+    p = product(f)
+    receipt(f,p)
+    body = demand(p) if route == "deductions" else purchase_body(f,p)[1]
+    path = "/checkout/" + route
+    assert f.request("POST", path, key="saved-checkout", json=body).status_code == 201
+    sql = {
+        "pending": "UPDATE users SET state='PENDING' WHERE id=:uid",
+        "disabled": "UPDATE users SET state='DISABLED' WHERE id=:uid",
+        "removed": "UPDATE household_members SET removed_at=now() WHERE id=:mid",
+        "revoked": "UPDATE auth_sessions SET revoked_at=now() WHERE id=:sid",
+        "archived": "UPDATE households SET archived_at=now() WHERE id=:hid",
+        "role": "UPDATE household_members SET role_id=(SELECT id FROM roles WHERE code='FINANCE_MANAGER') WHERE id=:mid",
+    }[condition]
+    async def change():
+        async with f.db() as db, db.begin():
+            await db.execute(text(sql), {"uid": f.actors["OWNER"].id, "mid": f.actors["OWNER"].member_id,
+                                         "sid": f.actors["OWNER"].session_id, "hid": f.hid})
+    asyncio.run(change())
+    before = snapshot(f)
+    assert f.request("POST",path,key="saved-checkout",json=body).status_code == status
+    assert snapshot(f) == before
+
+
+@pytest.mark.parametrize("route", ["deductions", "purchases"])
+def test_checkout_cross_household_path_and_body_return_404_without_effects(f, route):
+    from test_inventory_checkout import configure_timezone, demand, purchase_body, snapshot
+    configure_timezone(f)
+    p = product(f)
+    receipt(f,p)
+    body = demand(p) if route == "deductions" else purchase_body(f,p)[1]
+    before = snapshot(f)
+    assert f.request("POST", "/checkout/"+route, role="OUTSIDER", json=body).status_code == 404
+    # IDs in the other household must not authorize local writes.
+    async def seed():
+        async with f.db() as db, db.begin():
+            return await db.scalar(text("INSERT INTO products(household_id,name,base_unit_id) VALUES (:hid,'Foreign',:unit) RETURNING id"), {"hid": f.other_hid,"unit":p["base_unit_id"]})
+    foreign = asyncio.run(seed())
+    if route == "deductions":
+        body["items"][0]["product_id"] = foreign
+    else:
+        from test_finance_transactions import DRAFT
+        r = f.client.post(f"/api/v1/households/{f.other_hid}/transactions",
+                          headers=f.actors["OUTSIDER"].headers | {"Idempotency-Key":"foreign-transaction"}, json=DRAFT)
+        assert r.status_code == 201
+        body["transaction_id"] = r.json()["id"]
+    assert f.request("POST", "/checkout/"+route, json=body).status_code == 404
+    assert snapshot(f) == before
+
+
+@pytest.mark.parametrize("reference", ["item", "account"])
+def test_purchase_checkout_foreign_body_references_have_no_effects(f, reference):
+    from test_inventory_checkout import purchase_body, snapshot
+    from test_finance_transactions import DRAFT, payment
+    p = product(f)
+    tx, body = purchase_body(f,p)
+    headers = f.actors["OUTSIDER"].headers | {"Idempotency-Key":"foreign-reference"}
+    base = f"/api/v1/households/{f.other_hid}"
+    if reference == "item":
+        r = f.client.post(base+"/transactions",headers=headers,json=DRAFT)
+        assert r.status_code == 201
+        body["lots"][0]["item_id"] = r.json()["items"][0]["id"]
+    else:
+        r = f.client.post(base+"/accounts",headers=headers,json={"name":"Foreign", "currency_code":"USD"})
+        assert r.status_code == 201
+        body["payments"] = [payment(r.json()["id"])]
+    before = snapshot(f)
+    assert f.request("POST","/checkout/purchases",json=body).status_code == 404
+    assert snapshot(f) == before

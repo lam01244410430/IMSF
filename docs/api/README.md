@@ -6,6 +6,8 @@ P03-01 implementation covers ledger posting, recorded payments, full reversal an
 |---|---|
 | [Finance posting](finance-posting.md) | Decimal strings, accounts/drafts, atomic settlement, ledger-derived balances and idempotency |
 | [Finance reversals](finance-reversals.md) | Retained full mirrors, original/account locks, single reversal and rollback |
+| [Inventory](inventory.md) | P04-OPEN PROPOSAL products, receipts and lifecycle commands |
+| [Checkout](checkout.md) | Step 4 P04-OPEN-02/07/08/09/11/12/13/15 PROPOSALS: FEFO deductions and atomic purchase checkout |
 | [Finance reconciliation](finance-reconciliation.md) | Payment/ledger integrity, manual statement/cash observations, cutoff, matching and zero-tolerance closure |
 
 The per-step contracts are retained. OPEN-07 HTTP-level refund/inventory evidence requires P04 persistence. FX, feeds/imports, automatic corrections and reopening CLOSED reconciliations are outside P03. See the [API design reference](../../memory-bank/5-api-contracts.md) for planned later modules.
