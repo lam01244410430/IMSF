@@ -5,7 +5,7 @@
 | P01-01 | ADRs, ERD, [PostgreSQL schema specification](../docs/database/schema-v1.md), contracts, and traceability | P00-01 | Scope and key decisions reviewed | Conditionally approved |
 | P02-01 | Toolchain, minimal service, Compose, Alembic, and CI | P01-01 | Python 3.14 dependencies, health checks, empty database migration, and CI verified | Delivered |
 | P02-02 | Identity, households, and RBAC | P02-01 | Registration, login, rotation, isolation, and authorization tests | Delivered |
-| P03-01 | Ledger, payments, reversals, and reconciliation | P02-02 | Decimal precision, concurrent idempotency, and balance verification | Planned |
+| P03-01 | Ledger, payments, reversals, and reconciliation | P02-02 | Decimal precision, concurrent idempotency, and balance verification | Delivered |
 | P04-01 | Products, lots, movements, and checkout | P03-01 | Atomic rollback, ownership constraints, and concurrent deductions | Planned |
 | P05-01 | FEFO, consumption, disposal, and expiry jobs | P04-01 | Time zone boundaries, partial deductions, and deduplication | Planned |
 | P06-01 | Waste and financial reports | P05-01 | Reconciled lot valuation and currency grouping | Planned |

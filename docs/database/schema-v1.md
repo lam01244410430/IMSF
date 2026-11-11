@@ -66,6 +66,57 @@ Serialize ownership changes by locking the household and require at least one ac
 
 Account balances are the sum of signed ledger entries by account and currency. Partial settlement is derived from the sum of applied payments. Lock the transaction and affected accounts in ascending ID order before creating payments and ledger entries. Validate line totals, direction, currency, category, transfer legs, and overpayment in the application transaction. Posted commercial fields are immutable. Transfers record two opposite account entries. Cross-currency legs retain both exact amounts and the rate used. Lock the original transaction for refunds and reversals. Cap cumulative refunds at the settled refundable amount and verify original account and currency rules. A full reversal mirrors each original entry, links it once, and is allowed only when prior refunds and stock effects can be resolved consistently. A purchase refund with a physical return records outbound movements in the same transaction. A cash-only refund records no stock movement. Closing reconciliation locks the account and session and checks the statement against the matched entry set and previously reconciled balance. Financial history is retained.
 
+> **Finance implementation note (P03-01, delivered 2026-11-11; branch
+> task/P03-01-reconciliation, HEAD 8859d05):** the finance tables in this
+> section are implemented as listed, with the following differences from the
+> table above, all verified in code and tests. (a) Ten relations are
+> implemented, not nine: `idempotency_requests` is an additional table
+> (actor_member_id, operation, request_key 1–128 visible ASCII, request_hash
+> sha256 hex, response_status 200/201/204, response_body JSONB) and is not
+> described in this document; see
+> app/finance/infrastructure/models.py and migration 000000000004.
+> (b) `transactions.kind` accepts INCOME, EXPENSE, TRANSFER, OPENING,
+> REVERSAL only — REFUND is not a kind in the implemented check; REFUND
+> input is rejected (OPEN-07 deferred). `transactions` adds
+> `reversal_reason` (1–1000 chars, mandatory for REVERSAL) and the partial
+> unique index `uq_transactions_reversal` (one POSTED full reversal per
+> original). (c) `transaction_items` has no `product_id` / `base_quantity`
+> columns in P03-01 (product links are P04); only transaction_id, line_no,
+> description, quantity, net_amount are implemented. (d)
+> `transaction_payments` adds `method_code` (nullable),
+> `external_reference` (nullable, ≤ 200), `reverses_payment_id`,
+> `created_at`, `created_by_member_id`; the `exchange_rate` column exists
+> (NUMERIC(30,12), nullable) but check `ck_payments_same_currency`
+> enforces `amount = transaction_amount AND exchange_rate IS NULL` —
+> the cross-currency legs/rates in the table above are NOT implemented
+> (OPEN-03 deferred). (e) `account_ledger_entries` enforces
+> `signed_amount <> 0` and the partial unique indexes
+> `uq_ledger_payment` and `uq_ledger_reversal` (one payment / one reversal
+> target). (f) `reconciliation_sessions` adds `statement_source`
+> (BANK_STATEMENT/CASH_COUNT), `statement_reference` (≤ 200),
+> `previous_session_id`, `closed_by_member_id`,
+> `cutoff_ledger_entry_id`, `created_at`, and the partial unique index
+> `uq_reconciliation_open` (one OPEN session per account);
+> `reconciliation_matches` adds `matched_by_member_id`,
+> `unmatched_at`, `unmatched_by_member_id` with the partial unique index
+> `uq_reconciliation_active_match` — withdrawn matches are retained, never
+> deleted. (g) History protection is enforced by DB triggers, not only by
+> the service: `finance_reject_history_change` (no DELETE/TRUNCATE on
+> history tables, no UPDATE on the ledger), `finance_guard_posted_header` /
+> `finance_guard_posted_child` (POSTED immutability),
+> `finance_guard_account_currency` and `finance_guard_currency`
+> (denomination immutability), `finance_guard_runtime_audit`, and the
+> idempotency update/commit guards plus the reconciliation session/match
+> guards. (h) Currency seed (migration 000000000004): VND(0), JPY(0),
+> USD(2), EUR(2), BHD(3); no XTS row is seeded. (i) Downgrade refuses
+> when financial history exists (SQLSTATE 55000) and succeeds only on an
+> empty DB; see the Step 5 verification. (j) The core ERD
+> (docs/diagrams/database-erd.mmd) remains an orientation diagram: it does
+> not show the finance tables as implemented (nor the identity tables).
+> The Finance prose above still describes cross-currency legs/rates, refund
+> caps, and physical-return integration — none of that is implemented in
+> P03-01 (deferred: FX OPEN-03, refunds OPEN-07, inventory P04).
+
 ## Inventory and lifecycle
 
 | Relation | Columns beyond the standard key and scope | Keys and checks |
