@@ -421,7 +421,7 @@ class InventoryService:
         return await self._response("inventory-lots", hid, lot)
 
 
-    async def deduct_in_uow(self, context, hid, values):
+    async def deduct_in_uow(self, context, hid, values, *, prepare_demands=None, before_write=None):
         """P04-OPEN-02/05/07/08/12 PROPOSAL: reusable stock-only FEFO seam.
 
         Caller owns authorization, reservation and transaction. Resolve the local
@@ -444,10 +444,13 @@ class InventoryService:
         except (ValueError, ZoneInfoNotFoundError):
             raise InventoryRequestError(422, "INVENTORY_TIMEZONE_REQUIRED") from None
         local_date = datetime.now(timezone.utc).astimezone(zone).date()
+        # P04-OPEN-06/07 PROPOSAL: cooking computes exact scaled demands from
+        # the locked products; checkout continues using its unchanged inputs.
+        lines = await prepare_demands(products) if prepare_demands else values["items"]
         amounts = {}
         with localcontext() as ctx:
             ctx.prec = 80
-            for line in values["items"]:
+            for line in lines:
                 pid = line["product_id"]
                 amounts[pid] = amounts.get(pid, Decimal(0)) + await self._base_quantity(line, products[pid])
         lots = await self.repository.lock_fefo_lots(hid, pids, local_date)
@@ -465,11 +468,19 @@ class InventoryService:
         plans = fefo.allocate(hid, amounts, products, lots, local_date=local_date)
         result = {"movement_ids": [], "consumption_record_ids": [], "disposal_record_ids": [],
                   "adjustment_ids": [], "allocations": [], "refund_inventory_link_ids": []}
-        for lot, amount in plans:
+        history_id = None
+        movement_ids = [None] * len(plans)
+        if before_write:
+            # Complete immutable snapshot before linked details: the history FK
+            # is immediate, and history UPDATE is deliberately forbidden.
+            movement_ids = await self.repository.movement_ids(len(plans))
+            history_id = await before_write(plans, movement_ids, local_date, name)
+        for (lot, amount), movement_id in zip(plans, movement_ids, strict=True):
             purchase = purchases.get(lot["purchase_item_id"])
             movement, detail, updated = await self._write_movement_in_uow(
                 context, hid, lot, "CONSUME", -amount, reason=values.get("reason"),
                 reason_code=values["reason_code"],
+                cooking_history_id=history_id, movement_id=movement_id,
                 transaction_id=purchase["original_transaction_id"] if purchase else None,
             )
             result["movement_ids"].append(movement["id"])
@@ -524,7 +535,7 @@ class InventoryService:
     async def _write_movement_in_uow(
         self, context, hid, lot, kind, delta, *, occurred_at=None, reason=None,
         transaction_id=None, reason_code=None, counted_quantity=None,
-        correction_of_movement_id=None,
+        correction_of_movement_id=None, cooking_history_id=None, movement_id=None,
     ):
         """Single stock writer, extended from Step 2 receipts.
 
@@ -532,7 +543,9 @@ class InventoryService:
         then projection/terminal in caller's UoW under original/product/lot locks.
         Receipt projection is initialized by lot creation, exactly once.
         """
-        movement = await self.repository.create("inventory-movements", {
+        movement = await self.repository.create("inventory-movements", (
+            {"id": movement_id} if movement_id is not None else {}
+        ) | {
             "household_id": hid, "lot_id": lot["id"], "kind": kind,
             "quantity_delta": delta,
             "occurred_at": occurred_at or datetime.now(timezone.utc),
@@ -547,6 +560,8 @@ class InventoryService:
             fields = ({"counted_quantity": counted_quantity, "reason": reason}
                       if detail_resource == "inventory-adjustments"
                       else {"reason_code": reason_code})
+            if detail_resource == "consumption" and cooking_history_id is not None:
+                fields["cooking_history_id"] = cooking_history_id
             detail = await self.repository.create(detail_resource, fields | {
                 "household_id": hid, "movement_id": movement["id"],
             })

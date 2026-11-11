@@ -167,3 +167,102 @@ def test_checkout_retry_exhaustion_rolls_back_whole_use_case(f, monkeypatch, rou
     else:
         assert r.status_code == 201
         assert len(query(f,"SELECT id FROM idempotency_requests WHERE household_id=:hid AND request_key='retry'")) == 1
+
+
+@pytest.mark.parametrize('operation', ['create','patch','ingredient-add','ingredient-patch','archive','cook'])
+def test_recipe_mutations_replay_identical_bytes_and_conflict(f, operation):
+    from test_inventory_cooking import recipe, ingredient, state
+    from test_inventory_checkout import configure_timezone
+    from test_inventory_lots import receipt
+    configure_timezone(f)
+    p = product(f)
+    receipt(f,p)
+    r = recipe(f,p)
+    prefix = f"/recipes/{r['id']}"
+    method,path,body,changed = {
+        'create': ('POST','/recipes',{'name':'New','servings':'1','ingredients':[ingredient(p)]},{'name':'Changed'}),
+        'patch': ('PATCH',prefix,{'name':'Renamed'},{'name':'Changed'}),
+        'ingredient-add': ('POST',prefix+'/ingredients',ingredient(p,'1',2),{'quantity':'2'}),
+        'ingredient-patch': ('PATCH',prefix+f"/ingredients/{r['ingredients'][0]['id']}",{'quantity':'1'},{'quantity':'2'}),
+        'archive': ('POST',prefix+'/archive',{},None),
+        'cook': ('POST',prefix+'/cook',{'servings':'1'},{'servings':'2'}),
+    }[operation]
+    first = f.request(method,path,key='recipe-replay',json=body)
+    assert first.status_code in {200,201}, first.text
+    before = state(f)
+    assert f.request(method,path,key='recipe-replay',json=body).content == first.content
+    if changed:
+        response = f.request(method,path,key='recipe-replay',json=body|changed)
+        assert response.status_code == 409 and response.json()['error_code'] == 'INVENTORY_IDEMPOTENCY_CONFLICT'
+    assert state(f) == before
+
+
+@pytest.mark.parametrize('key',[False,'','with space','x'*129,'tab\tkey'])
+def test_recipe_mutations_require_valid_key(f,key):
+    from test_inventory_cooking import recipe, ingredient
+    p=product(f)
+    r=recipe(f,p)
+    prefix=f"/recipes/{r['id']}"
+    for method,path,body in [
+        ('POST','/recipes',{'name':'New','servings':'1','ingredients':[ingredient(p)]}),
+        ('PATCH',prefix,{'name':'Edited'}),('POST',prefix+'/ingredients',ingredient(p,'1',2)),
+        ('PATCH',prefix+f"/ingredients/{r['ingredients'][0]['id']}",{'quantity':'1'}),
+        ('POST',prefix+'/archive',{}),('POST',prefix+'/cook',{'servings':'1'})]:
+        assert f.request(method,path,key=key,json=body).status_code==422
+
+
+@pytest.mark.parametrize('failures',[2,3])
+def test_cook_retry_restarts_entire_command_and_removes_provisional_keys(f,monkeypatch,failures):
+    from sqlalchemy.exc import DBAPIError
+    from app.finance.infrastructure.repositories import SqlAlchemyFinanceRepository
+    from test_inventory_cooking import recipe,cook,state
+    from test_inventory_checkout import configure_timezone
+    from test_inventory_lots import receipt
+    configure_timezone(f)
+    p=product(f)
+    receipt(f,p)
+    r=recipe(f,p)
+    before=state(f)
+    original=SqlAlchemyFinanceRepository.complete
+    attempts=[]
+    class SerializationFailure(Exception):
+        sqlstate='40001'
+    async def fail(self,*args):
+        await original(self,*args)
+        attempts.append(1)
+        if len(attempts)<=failures:
+            raise DBAPIError('injected',None,SerializationFailure())
+    with monkeypatch.context() as patch:
+        patch.setattr(SqlAlchemyFinanceRepository,'complete',fail)
+        response=cook(f,r,key='whole-cook-retry')
+    assert len(attempts)==3
+    if failures==3:
+        assert response.status_code==409 and response.json()['error_code']=='INVENTORY_RETRY_EXHAUSTED'
+        assert state(f)==before
+        assert cook(f,r,key='whole-cook-retry').status_code==201
+    else:
+        assert response.status_code==201,response.text
+        assert len(query(f,'SELECT id FROM recipe_cooking_history WHERE household_id=:hid'))==1
+        assert len(query(f,'SELECT id FROM consumption_records WHERE household_id=:hid'))==1
+
+
+def test_concurrent_cook_same_key_has_one_history_and_one_deduction(f):
+    from test_inventory_cooking import recipe
+    from test_inventory_checkout import configure_timezone
+    from test_inventory_lots import receipt
+    configure_timezone(f)
+    p=product(f)
+    receipt(f,p)
+    r=recipe(f,p)
+    async def run():
+        barrier=asyncio.Barrier(2)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=f.app),base_url='https://testserver') as client:
+            async def call():
+                await barrier.wait()
+                return await client.post(f"/api/v1/households/{f.hid}/recipes/{r['id']}/cook",headers=f.actors['OWNER'].headers|{'Idempotency-Key':'cook-race'},json={'servings':'2'})
+            a,b=await asyncio.gather(call(),call())
+            assert a.status_code==b.status_code==201 and a.content==b.content
+    asyncio.run(run())
+    assert len(query(f,'SELECT id FROM recipe_cooking_history WHERE household_id=:hid'))==1
+    assert len(query(f,'SELECT id FROM consumption_records WHERE household_id=:hid'))==1
+    assert query(f,'SELECT remaining_quantity FROM inventory_lots WHERE household_id=:hid')[0]['remaining_quantity']==3

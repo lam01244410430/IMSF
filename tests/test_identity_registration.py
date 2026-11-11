@@ -510,7 +510,8 @@ def test_exact_route_scope_and_openapi(http):
         # P04 Step 2/3 compatibility: exact allow-list, adding only the
         # explicit-lot Step 3 PROPOSAL commands.
         # P04 Step 4 compatibility: exact allow-list, adding only the two
-        # Step 4 PROPOSAL checkout commands; cooking stays absent.
+        # Step 4 PROPOSAL checkout commands.
+        # Step 5 PROPOSAL recipe definitions, add/patch ingredients and cooking.
         PREFIX + "/households/{household_id}/measurement-units": {"get"},
         PREFIX + "/households/{household_id}/unit-conversions": {"get"},
         PREFIX + "/households/{household_id}/product-categories": {"get", "post"},
@@ -530,6 +531,14 @@ def test_exact_route_scope_and_openapi(http):
         PREFIX + "/households/{household_id}/inventory-lots/{lot_id}/returns": {"post"},
         PREFIX + "/households/{household_id}/checkout/deductions": {"post"},
         PREFIX + "/households/{household_id}/checkout/purchases": {"post"},
+        PREFIX + "/households/{household_id}/recipes": {"get", "post"},
+        PREFIX + "/households/{household_id}/recipes/{recipe_id}": {"get", "patch"},
+        PREFIX + "/households/{household_id}/recipes/{recipe_id}/ingredients": {"post"},
+        PREFIX + "/households/{household_id}/recipes/{recipe_id}/ingredients/{ingredient_id}": {"patch"},
+        PREFIX + "/households/{household_id}/recipes/{recipe_id}/archive": {"post"},
+        PREFIX + "/households/{household_id}/recipes/{recipe_id}/cook": {"post"},
+        PREFIX + "/households/{household_id}/recipe-cooking-history": {"get"},
+        PREFIX + "/households/{household_id}/recipe-cooking-history/{history_id}": {"get"},
         # Step 2 compatibility: keep the exact full /api/v1 route assertion.
         PREFIX + "/households/{household_id}/currencies": {"get"},
         PREFIX + "/households/{household_id}/accounts": {"post", "get"},

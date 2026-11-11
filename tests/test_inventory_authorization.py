@@ -68,11 +68,8 @@ def test_every_route_uses_confirmed_explicit_role_matrix(f, role):
 
 
 def test_later_command_routes_are_absent(f):
-    for path in [
-        "/recipes",
-        "/recipe-cooking-history",
-    ]:
-        assert f.request("POST", path, json={}).status_code == 404
+    # Cooking history is server-created and has no direct POST route.
+    assert f.request("POST", "/recipe-cooking-history", json={}).status_code == 405
     assert f.request("POST", "/inventory-movements", json={}).status_code == 405
 
 
@@ -248,3 +245,66 @@ def test_purchase_checkout_foreign_body_references_have_no_effects(f, reference)
     before = snapshot(f)
     assert f.request("POST","/checkout/purchases",json=body).status_code == 404
     assert snapshot(f) == before
+
+
+@pytest.mark.parametrize('role', ROLES)
+def test_recipe_routes_use_exact_edit_and_cook_roles(f, role):
+    from test_inventory_cooking import recipe, ingredient, cook
+    from test_inventory_checkout import configure_timezone
+    configure_timezone(f)
+    p = product(f)
+    receipt(f, p, quantity='20')
+    r = recipe(f, p)
+    prefix = f"/recipes/{r['id']}"
+    can_edit = role in {'OWNER', 'FINANCE_MANAGER', 'MEMBER'}
+    cases = [
+        ('POST', '/recipes', {'name':'New','servings':'1','ingredients':[ingredient(p)]}, 201),
+        ('PATCH', prefix, {'name':'Edited'}, 200),
+        ('POST', prefix+'/ingredients', ingredient(p,'1',2), 201),
+        ('PATCH', prefix+f"/ingredients/{r['ingredients'][0]['id']}", {'essential':False}, 200),
+    ]
+    for method, path, body, success in cases:
+        result = f.request(method,path,role=role,json=body)
+        assert result.status_code == (success if can_edit else 403), (role,path,result.text)
+    cooked = cook(f,r,role=role)
+    assert cooked.status_code == (201 if role in {'OWNER','INVENTORY_MANAGER'} else 403)
+    for path in ('/recipes',prefix,'/recipe-cooking-history'):
+        assert f.request('GET',path,role=role).status_code == 200
+    result = f.request('POST',prefix+'/archive',role=role,json={})
+    assert result.status_code == (200 if can_edit else 403)
+
+
+@pytest.mark.parametrize('operation', ['create','patch','ingredient-add','ingredient-patch','archive','cook'])
+@pytest.mark.parametrize('condition,status', [('pending',403),('disabled',401),('removed',404),('revoked',401),('archived',409),('role',403)])
+def test_recipe_replays_recheck_current_access(f, operation, condition, status):
+    from test_inventory_cooking import recipe, ingredient
+    from test_inventory_checkout import configure_timezone
+    configure_timezone(f)
+    p = product(f)
+    receipt(f,p)
+    r = recipe(f,p)
+    prefix = f"/recipes/{r['id']}"
+    method,path,body = {
+        'create': ('POST','/recipes',{'name':'New','servings':'1','ingredients':[ingredient(p)]}),
+        'patch': ('PATCH',prefix,{'name':'Renamed'}),
+        'ingredient-add': ('POST',prefix+'/ingredients',ingredient(p,'1',2)),
+        'ingredient-patch': ('PATCH',prefix+f"/ingredients/{r['ingredients'][0]['id']}",{'essential':False}),
+        'archive': ('POST',prefix+'/archive',{}),
+        'cook': ('POST',prefix+'/cook',{'servings':'1'}),
+    }[operation]
+    first = f.request(method,path,key='access-recheck',json=body)
+    assert first.status_code in {200,201}, first.text
+    changes = {
+        'pending': "UPDATE users SET state='PENDING' WHERE id=:uid",
+        'disabled': "UPDATE users SET state='DISABLED' WHERE id=:uid",
+        'removed': "UPDATE household_members SET removed_at=now() WHERE id=:mid",
+        'revoked': "UPDATE auth_sessions SET revoked_at=now() WHERE id=:sid",
+        'archived': "UPDATE households SET archived_at=now() WHERE id=:hid",
+        'role': "UPDATE household_members SET role_id=(SELECT id FROM roles WHERE code='VIEWER') WHERE id=:mid",
+    }
+    async def change():
+        async with f.db() as db,db.begin():
+            await db.execute(text(changes[condition]),{'uid':f.actors['OWNER'].id,
+                'mid':f.actors['OWNER'].member_id,'sid':f.actors['OWNER'].session_id,'hid':f.hid})
+    asyncio.run(change())
+    assert f.request(method,path,key='access-recheck',json=body).status_code == status

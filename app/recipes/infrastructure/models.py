@@ -1,4 +1,4 @@
-"""P04-OPEN-06/09/14 proposed frozen prerequisites; no recipe commands enabled."""
+"""P04-OPEN-06/09/14 PROPOSAL retained definitions and immutable executed snapshots."""
 
 from datetime import datetime
 from decimal import Decimal

@@ -1,6 +1,6 @@
 """P04-OPEN-07/10 proposals: scoped persistence, original→account→item→product→lot."""
 
-from sqlalchemy import select, update, func, or_
+from sqlalchemy import select, update, func, or_, text
 from app.identity.infrastructure.models import HouseholdSettings
 from app.finance.infrastructure.models import (
     Transaction,
@@ -36,11 +36,13 @@ MODELS = {
 
 
 class SqlAlchemyInventoryRepository:
+    models = MODELS
+
     def __init__(self, session):
         self.session = session
 
     async def get(self, resource, hid, identifier, *, lock=False):
-        model = MODELS[resource]
+        model = self.models[resource]
         statement = (
             select(model)
             .where(model.household_id == hid, model.id == identifier)
@@ -52,14 +54,14 @@ class SqlAlchemyInventoryRepository:
         return record(row) if row else None
 
     async def create(self, resource, values):
-        row = MODELS[resource](**values)
+        row = self.models[resource](**values)
         self.session.add(row)
         await self.session.flush()
         await self.session.refresh(row)
         return record(row)
 
     async def update(self, resource, hid, identifier, values):
-        model = MODELS[resource]
+        model = self.models[resource]
         if values:
             await self.session.execute(
                 update(model)
@@ -70,7 +72,7 @@ class SqlAlchemyInventoryRepository:
         return await self.get(resource, hid, identifier)
 
     async def page(self, resource, hid, limit, position, filters):
-        model = MODELS[resource]
+        model = self.models[resource]
         statement = select(model)
         if resource not in {"measurement-units", "unit-conversions"}:
             statement = statement.where(model.household_id == hid)
@@ -337,3 +339,13 @@ class SqlAlchemyInventoryRepository:
             "kind": parents[item.transaction_id].kind,
             "is_reversed": item.transaction_id in reversed_ids,
         } for item in items}
+
+    async def movement_ids(self, count):
+        """P04-OPEN-06/07 PROPOSAL: reserve IDs for an INSERT-only snapshot.
+
+        Sequences may have gaps on rollback; no provisional business row commits.
+        """
+        return list((await self.session.scalars(text(
+            "SELECT nextval(pg_get_serial_sequence('inventory_movements','id')) "
+            "FROM generate_series(1,:count)"
+        ), {'count': count})).all())
