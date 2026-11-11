@@ -243,3 +243,70 @@ def test_refund_link_creation_racing_reversal_serializes_on_original(f):
         )
         == 1
     )
+
+
+@pytest.mark.parametrize("return_first", [True, False])
+def test_http_return_link_creation_racing_reversal_serializes_on_original(f, return_first):
+    """Both HTTP commands rendezvous on real original locks in either order.
+
+    P04-OPEN-07/10/11 PROPOSAL: existing stock blocks reversal even if it
+    holds the original first; a committed RETURN adds an unresolved link.
+    """
+    tx, lot = setup_purchase(f)
+    unit = query(f, "SELECT base_unit_id FROM products WHERE household_id=:hid")[0]["base_unit_id"]
+    before = snapshot(f, tx["id"])
+
+    async def run():
+        async with f.db() as blocker:
+            await blocker.begin()
+            pid = await blocker.scalar(text("SELECT pg_backend_pid()"))
+            await blocker.execute(text("SELECT id FROM transactions WHERE household_id=:hid AND id=:tid FOR UPDATE"), {"hid": f.hid, "tid": tx["id"]})
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=f.app), base_url="https://testserver") as client:
+                def command(is_return):
+                    path = f"inventory-lots/{lot['id']}/returns" if is_return else f"transactions/{tx['id']}/reversals"
+                    return asyncio.create_task(client.post(
+                        f"/api/v1/households/{f.hid}/{path}",
+                        headers=f.actors["INVENTORY_MANAGER" if is_return else "FINANCE_MANAGER"].headers | {"Idempotency-Key": "http-race-return" if is_return else "http-race-reverse"},
+                        json={"quantity": "1", "unit_id": unit, "reason": "Race return"} if is_return else {"reason": "Race reversal"}))
+
+                first = command(return_first)
+                try:
+                    async with asyncio.timeout(10):
+                        while True:
+                            if first.done():
+                                # Missing route must fail promptly in the red phase.
+                                assert first.result().status_code == (201 if return_first else 409), first.result().text
+                            async with f.db() as observer:
+                                blocked = await observer.scalar(text("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE :pid=ANY(pg_blocking_pids(pid)) AND query LIKE '%transactions%' AND query LIKE '%FOR UPDATE%')"), {"pid": pid})
+                            if blocked:
+                                break
+                            await asyncio.sleep(0)
+                    second = command(not return_first)
+                    # The second request contends on the household prefix held by first.
+                    async with asyncio.timeout(10):
+                        while True:
+                            if second.done():
+                                assert second.result().status_code == (409 if return_first else 201), second.result().text
+                            async with f.db() as observer:
+                                blocked = await observer.scalar(text("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE cardinality(pg_blocking_pids(pid))>0 AND query LIKE '%households%' AND query LIKE '%FOR UPDATE%')"))
+                            if blocked:
+                                break
+                            await asyncio.sleep(0)
+                    await blocker.commit()
+                    a, b = await asyncio.gather(first, second)
+                    returned, refused = (a, b) if return_first else (b, a)
+                    assert returned.status_code == 201, returned.text
+                    assert refused.status_code == 409
+                    assert refused.json()["error_code"] == ("FINANCE_UNRESOLVED_REFUND" if return_first else "FINANCE_STOCK_EFFECT_UNRESOLVED")
+                finally:
+                    await blocker.rollback()
+                    if not first.done():
+                        first.cancel()
+                    if "second" in locals() and not second.done():
+                        second.cancel()
+    asyncio.run(run())
+    assert snapshot(f, tx["id"]) == before
+    assert not any(reversal_counts(f).values())
+    links = query(f, "SELECT r.return_movement_id,m.kind,m.quantity_delta,l.remaining_quantity FROM refund_inventory_links r JOIN inventory_movements m ON (m.household_id,m.id)=(r.household_id,r.return_movement_id) JOIN inventory_lots l ON (l.household_id,l.id)=(r.household_id,r.lot_id) WHERE r.household_id=:hid")
+    assert len(links) == 1 and links[0]["kind"] == "RETURN" and links[0]["quantity_delta"] == -1 and links[0]["remaining_quantity"] == 4
+    assert not query(f, "SELECT id FROM idempotency_requests WHERE household_id=:hid AND request_key='http-race-reverse'")

@@ -1,4 +1,4 @@
-"""P04-OPEN-13 proposed Step 2 routes; application services own transactions."""
+"""P04-OPEN-13 proposed Step 2/3 routes; application services own transactions."""
 
 from datetime import date
 from typing import Annotated, Literal
@@ -34,6 +34,15 @@ from app.inventory.dto import (
     ProductPage,
     LotPage,
     MovementPage,
+    AdjustmentCreate,
+    AdjustmentResponse,
+    ConsumptionCreate,
+    DisposalCreate,
+    ReturnCreate,
+    StockCommandResponse,
+    AdjustmentPage,
+    ConsumptionPage,
+    DisposalPage,
 )
 from app.inventory.infrastructure.repositories import SqlAlchemyInventoryRepository
 from app.inventory.service import InventoryService
@@ -342,3 +351,68 @@ async def movement(
     service: Service,
 ):
     return await service.get(actor, household_id, "inventory-movements", movement_id)
+
+
+# P04-OPEN-04/05/08/10/11/13 PROPOSAL commands; fixed identity permissions.
+@router.post("/inventory-adjustments", response_model=AdjustmentResponse, status_code=201)
+async def create_adjustment(
+    household_id: Identifier, body: AdjustmentCreate, key: Key,
+    actor: Principal, service: Service,
+):
+    return saved_response(await service.stock_command(
+        actor, household_id, "inventory-adjustments", body, key
+    ))
+
+
+@router.get("/inventory-adjustments", response_model=AdjustmentPage)
+async def adjustments(
+    household_id: Identifier, actor: Principal, service: Service,
+    limit: Limit = 50, cursor: Cursor = None, lot_id: Identifier | None = None,
+):
+    return await service.page(actor, household_id, "inventory-adjustments", limit, cursor, lot_id=lot_id)
+
+
+@router.post("/consumption", response_model=StockCommandResponse, status_code=201)
+async def create_consumption(
+    household_id: Identifier, body: ConsumptionCreate, key: Key,
+    actor: Principal, service: Service,
+):
+    return saved_response(await service.stock_command(
+        actor, household_id, "consumption", body, key
+    ))
+
+
+@router.get("/consumption", response_model=ConsumptionPage)
+async def consumption(
+    household_id: Identifier, actor: Principal, service: Service,
+    limit: Limit = 50, cursor: Cursor = None, lot_id: Identifier | None = None,
+):
+    return await service.page(actor, household_id, "consumption", limit, cursor, lot_id=lot_id)
+
+
+@router.post("/disposals", response_model=StockCommandResponse, status_code=201)
+async def create_disposal(
+    household_id: Identifier, body: DisposalCreate, key: Key,
+    actor: Principal, service: Service,
+):
+    return saved_response(await service.stock_command(
+        actor, household_id, "disposals", body, key
+    ))
+
+
+@router.get("/disposals", response_model=DisposalPage)
+async def disposals(
+    household_id: Identifier, actor: Principal, service: Service,
+    limit: Limit = 50, cursor: Cursor = None, lot_id: Identifier | None = None,
+):
+    return await service.page(actor, household_id, "disposals", limit, cursor, lot_id=lot_id)
+
+
+@router.post("/inventory-lots/{lot_id}/returns", response_model=StockCommandResponse, status_code=201)
+async def create_return(
+    household_id: Identifier, lot_id: Identifier, body: ReturnCreate, key: Key,
+    actor: Principal, service: Service,
+):
+    return saved_response(await service.stock_command(
+        actor, household_id, "returns", body, key, lot_id=lot_id
+    ))

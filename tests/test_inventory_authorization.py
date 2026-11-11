@@ -69,14 +69,10 @@ def test_every_route_uses_confirmed_explicit_role_matrix(f, role):
 
 def test_later_command_routes_are_absent(f):
     for path in [
-        "/inventory-adjustments",
-        "/consumption",
-        "/disposals",
         "/checkout/deductions",
         "/checkout/purchases",
         "/recipes",
         "/recipe-cooking-history",
-        "/inventory-lots/1/returns",
     ]:
         assert f.request("POST", path, json={}).status_code == 404
     assert f.request("POST", "/inventory-movements", json={}).status_code == 405

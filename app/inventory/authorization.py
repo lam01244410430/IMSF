@@ -6,6 +6,7 @@ from app.inventory.domain import InventoryRequestError
 
 READ = PermissionCode.VIEW
 MANAGE = PermissionCode.INVENTORY_MANAGE
+RECORD = PermissionCode.MOVEMENT_RECORD
 
 
 class InventoryHouseholdAccess:

@@ -15,6 +15,9 @@ from app.inventory.infrastructure.models import (
     Product,
     InventoryLot,
     InventoryMovement,
+    InventoryAdjustment,
+    ConsumptionRecord,
+    DisposalRecord,
     RefundInventoryLink,
 )
 
@@ -23,6 +26,9 @@ MODELS = {
     "products": Product,
     "inventory-lots": InventoryLot,
     "inventory-movements": InventoryMovement,
+    "inventory-adjustments": InventoryAdjustment,
+    "consumption": ConsumptionRecord,
+    "disposals": DisposalRecord,
     "measurement-units": MeasurementUnit,
     "unit-conversions": UnitConversion,
 }
@@ -76,6 +82,15 @@ class SqlAlchemyInventoryRepository:
                     if value
                     else model.archived_at.is_(None)
                 )
+            elif key == "lot_id" and resource in {
+                "inventory-adjustments", "consumption", "disposals"
+            }:
+                statement = statement.where(model.movement_id.in_(
+                    select(InventoryMovement.id).where(
+                        InventoryMovement.household_id == hid,
+                        InventoryMovement.lot_id == value,
+                    )
+                ))
             elif key == "expires_from":
                 statement = statement.where(model.expires_on >= value)
             elif key == "expires_to":
@@ -235,3 +250,66 @@ class SqlAlchemyInventoryRepository:
         await self.session.flush()
         await self.session.refresh(row)
         return record(row)
+
+
+    async def negative_kinds(self, hid, lot_id):
+        return list((await self.session.scalars(
+            select(InventoryMovement.kind).where(
+                InventoryMovement.household_id == hid,
+                InventoryMovement.lot_id == lot_id,
+                InventoryMovement.quantity_delta < 0,
+            ).distinct()
+        )).all())
+
+    async def lock_purchases(self, hid, item_ids):
+        """P04-OPEN-07 PROPOSAL: batch the Step 2 original/account/item prefix.
+
+        Multiple explicit purchase lots must lock ALL originals ascending, then
+        ALL accounts ascending, then ALL items ascending before any product/lot.
+        Discovery is scoped; authoritative rows are refreshed under those locks.
+        """
+        item_ids = sorted(set(item_ids))
+        if not item_ids:
+            return {}
+        tids = (await self.session.scalars(
+            select(TransactionItem.transaction_id).where(
+                TransactionItem.household_id == hid,
+                TransactionItem.id.in_(item_ids),
+            ).distinct()
+        )).all()
+        parents = (await self.session.scalars(
+            select(Transaction).where(
+                Transaction.household_id == hid, Transaction.id.in_(tids)
+            ).order_by(Transaction.id).with_for_update()
+            .execution_options(populate_existing=True)
+        )).all()
+        accounts = select(TransactionPayment.account_id).where(
+            TransactionPayment.household_id == hid,
+            TransactionPayment.transaction_id.in_(tids),
+        )
+        await self.session.scalars(
+            select(Account).where(
+                Account.household_id == hid, Account.id.in_(accounts)
+            ).order_by(Account.id).with_for_update()
+        )
+        items = (await self.session.scalars(
+            select(TransactionItem).where(
+                TransactionItem.household_id == hid,
+                TransactionItem.id.in_(item_ids),
+            ).order_by(TransactionItem.id).with_for_update()
+            .execution_options(populate_existing=True)
+        )).all()
+        reversed_ids = set((await self.session.scalars(
+            select(Transaction.original_transaction_id).where(
+                Transaction.household_id == hid,
+                Transaction.original_transaction_id.in_(tids),
+                Transaction.kind == "REVERSAL", Transaction.status == "POSTED",
+            )
+        )).all())
+        parents = {row.id: row for row in parents}
+        return {item.id: record(item) | {
+            "original_transaction_id": item.transaction_id,
+            "status": parents[item.transaction_id].status,
+            "kind": parents[item.transaction_id].kind,
+            "is_reversed": item.transaction_id in reversed_ids,
+        } for item in items}

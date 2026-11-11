@@ -1,4 +1,4 @@
-"""P04-OPEN-01/08/13 proposals: Step 2 inventory request/response contracts."""
+"""P04-OPEN-01/08/13 proposals: Step 2/3 inventory request/response contracts."""
 
 from datetime import date, datetime, timezone
 from decimal import Decimal
@@ -18,7 +18,7 @@ from app.finance.dto import (
     SerializedDecimal,
     CurrencyCode,
 )
-from app.inventory.units import quantity, cost
+from app.inventory.units import quantity, cost, decimal_value
 
 
 def string_quantity(value):
@@ -195,4 +195,112 @@ class LotPage(ReadDTO):
 
 class MovementPage(ReadDTO):
     items: list[MovementResponse]
+    next_cursor: str | None
+
+
+# P04-OPEN-04/05/13 PROPOSAL: explicit commands, no arbitrary signed delta.
+def string_count(value):
+    if not isinstance(value, str):
+        raise ValueError("Decimal string required")
+    result = decimal_value(value)
+    if result < 0:
+        raise ValueError("Nonnegative count required")
+    return result
+
+
+CountedQuantity = Annotated[
+    Decimal,
+    BeforeValidator(string_count),
+    PlainSerializer(lambda v: format(v, "f"), return_type=str, when_used="json"),
+]
+
+
+class AdjustmentCreate(ReasonCommand):
+    lot_id: Identifier
+    counted_quantity: CountedQuantity
+    unit_id: Identifier
+    correction_of_movement_id: Identifier | None = None
+
+
+class LotAllocation(WriteDTO):
+    lot_id: Identifier
+    quantity: Quantity
+    unit_id: Identifier
+
+
+class ConsumptionCreate(WriteDTO):
+    allocations: Annotated[list[LotAllocation], Field(min_length=1, max_length=100)]
+    # P04-OPEN-05 PROPOSAL: COOKING is server-only, never a route input.
+    reason_code: Literal["DAILY_USE", "CHECKOUT"]
+    reason: Reason | None = None
+
+
+class DisposalCreate(WriteDTO):
+    allocations: Annotated[list[LotAllocation], Field(min_length=1, max_length=100)]
+    reason_code: Literal["EXPIRED", "SPOILED", "DAMAGED", "OTHER"]
+    reason: Reason | None = None
+
+    @model_validator(mode="after")
+    def other_requires_text(self):
+        if self.reason_code == "OTHER" and not self.reason:
+            raise ValueError("OTHER requires reason text")
+        return self
+
+
+class ReturnCreate(ReasonCommand):
+    quantity: Quantity
+    unit_id: Identifier
+
+
+class AdjustmentResponse(ReadDTO):
+    id: int
+    household_id: int
+    movement_id: int
+    counted_quantity: SerializedDecimal
+    reason: str
+
+
+class ConsumptionResponse(ReadDTO):
+    id: int
+    household_id: int
+    movement_id: int
+    reason_code: str
+    cooking_history_id: int | None
+
+
+class DisposalResponse(ReadDTO):
+    id: int
+    household_id: int
+    movement_id: int
+    reason_code: str
+
+
+class AllocationResponse(ReadDTO):
+    product_id: int
+    lot_id: int
+    base_quantity: SerializedDecimal
+    remaining_quantity: SerializedDecimal
+
+
+class StockCommandResponse(ReadDTO):
+    movement_ids: list[int]
+    consumption_record_ids: list[int]
+    disposal_record_ids: list[int]
+    adjustment_ids: list[int]
+    allocations: list[AllocationResponse]
+    refund_inventory_link_ids: list[int]
+
+
+class AdjustmentPage(ReadDTO):
+    items: list[AdjustmentResponse]
+    next_cursor: str | None
+
+
+class ConsumptionPage(ReadDTO):
+    items: list[ConsumptionResponse]
+    next_cursor: str | None
+
+
+class DisposalPage(ReadDTO):
+    items: list[DisposalResponse]
     next_cursor: str | None

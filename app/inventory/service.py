@@ -1,15 +1,15 @@
-"""P04-OPEN-07/08/13 proposals: transaction-owned Step 2 commands only."""
+"""P04-OPEN-07/08/13 proposals: transaction-owned Step 2/3 commands."""
 
 import base64
 from datetime import date, datetime, timezone
-from decimal import localcontext
+from decimal import Decimal, localcontext
 import hashlib
 import json
 import re
 from uuid import uuid4
 from sqlalchemy.exc import DBAPIError
 from app.inventory import authorization as policy
-from app.inventory.domain import InventoryRequestError
+from app.inventory.domain import InventoryRequestError, terminal_state
 from app.inventory.dto import (
     ProductCategoryResponse,
     ProductResponse,
@@ -17,8 +17,12 @@ from app.inventory.dto import (
     MovementResponse,
     UnitResponse,
     ConversionResponse,
+    AdjustmentResponse,
+    ConsumptionResponse,
+    DisposalResponse,
+    StockCommandResponse,
 )
-from app.inventory.units import convert
+from app.inventory.units import convert, quantity
 from app.inventory.ports import InventoryRepository, CommandRecords
 from app.finance.ledger_service import canonical as finance_canonical
 
@@ -29,6 +33,9 @@ RESPONSES = {
     "inventory-movements": MovementResponse,
     "measurement-units": UnitResponse,
     "unit-conversions": ConversionResponse,
+    "inventory-adjustments": AdjustmentResponse,
+    "consumption": ConsumptionResponse,
+    "disposals": DisposalResponse,
 }
 
 
@@ -81,7 +88,9 @@ class InventoryService:
             }
         )
 
-    async def _command(self, actor, hid, operation, key, values, effect):
+    async def _command(
+        self, actor, hid, operation, key, values, effect, *, permission=policy.MANAGE
+    ):
         if not isinstance(key, str) or not re.fullmatch(r"[\x21-\x7e]{1,128}", key):
             raise InventoryRequestError(422, "INVENTORY_INVALID_IDEMPOTENCY_KEY")
         operation = f"{operation}:v1"
@@ -97,7 +106,7 @@ class InventoryService:
             try:
                 async with self.session.begin():
                     context = await self.access.resolve(
-                        actor, hid, policy.MANAGE, write=True
+                        actor, hid, permission, write=True
                     )
                     reservation, saved = await self.commands.reserve(
                         {
@@ -320,10 +329,10 @@ class InventoryService:
         )
 
     async def receive_in_uow(self, context, hid, values):
-        """The single receipt writer. Caller owns authorization, key and transaction.
+        """Receipt command using the single movement writer and Step 2 locks.
 
-        P04-OPEN-07 proposal. Future checkout reuses this seam, never a nested
-        public command. No other stock command is enabled in Step 2.
+        Caller owns authorization, key and transaction. P04-OPEN-07 PROPOSAL:
+        future checkout reuses this seam, never a nested public command.
         """
         purchase = None
         if values["purchase_item_id"] is not None:
@@ -396,22 +405,192 @@ class InventoryService:
                 "remaining_quantity": amount,
             },
         )
-        await self.repository.create(
-            "inventory-movements",
-            {
-                "household_id": hid,
-                "lot_id": lot["id"],
-                "kind": "RECEIPT",
-                "quantity_delta": amount,
-                "occurred_at": values["received_at"],
-                "actor_member_id": context.member_id,
-                "transaction_id": purchase["original_transaction_id"]
-                if purchase
-                else None,
-                "reason": values["reason"],
-            },
+        await self._write_movement_in_uow(
+            context, hid, lot, "RECEIPT", amount,
+            occurred_at=values["received_at"], reason=values["reason"],
+            transaction_id=purchase["original_transaction_id"] if purchase else None,
         )
         await self._audit(
             hid, context, "inventory-lots", lot, "RECEIVED", values["reason"]
         )
         return await self._response("inventory-lots", hid, lot)
+
+
+    async def _locked_stock(self, hid, lot_ids):
+        """P04-OPEN-07 PROPOSAL: reuse Step 2 locks, refresh after waiting.
+
+        Movement SQL guards also lock purchases, even for consumption/disposal;
+        acquire their entire prefix before products to preserve the protocol.
+        """
+        discovered = [await self._object("inventory-lots", hid, lid)
+                      for lid in sorted(set(lot_ids))]
+        purchases = await self.repository.lock_purchases(hid, [
+            lot["purchase_item_id"] for lot in discovered
+            if lot["purchase_item_id"] is not None
+        ])
+        for lot in discovered:
+            iid = lot["purchase_item_id"]
+            if iid is not None:
+                purchase = purchases.get(iid)
+                if purchase is None or purchase["product_id"] != lot["product_id"]:
+                    raise InventoryRequestError(404, "INVENTORY_NOT_FOUND")
+                if (purchase["kind"] != "EXPENSE" or purchase["status"] != "POSTED"
+                        or purchase["is_reversed"]):
+                    raise InventoryRequestError(409, "INVENTORY_STATE_CONFLICT")
+        pids = sorted({lot["product_id"] for lot in discovered})
+        products = await self.repository.lock_products(hid, pids)
+        lots = await self.repository.lock_lots(hid, pids)
+        requested = set(lot_ids)
+        locked = [lot for lot in lots if lot["id"] in requested]
+        if len(locked) != len(requested) or len(products) != len(pids):
+            raise InventoryRequestError(404, "INVENTORY_NOT_FOUND")
+        return {p["id"]: p for p in products}, locked, purchases
+
+    async def _base_quantity(self, values, product, *, counted=False):
+        value = values["counted_quantity" if counted else "quantity"]
+        source, target = values["unit_id"], product["base_unit_id"]
+        factor = await self.repository.factor(source, target)
+        try:
+            # Validate units even for a zero count; convert() requires positive.
+            converted = convert(Decimal(1) if value == 0 else value,
+                                source, target, factor)
+            return Decimal(0) if value == 0 else converted
+        except ValueError:
+            raise InventoryRequestError(422, "INVENTORY_UNIT_CONVERSION_INVALID") from None
+
+    async def _write_movement_in_uow(
+        self, context, hid, lot, kind, delta, *, occurred_at=None, reason=None,
+        transaction_id=None, reason_code=None, counted_quantity=None,
+        correction_of_movement_id=None,
+    ):
+        """Single stock writer, extended from Step 2 receipts.
+
+        P04-OPEN-03/04/05/07 PROPOSAL: append event + exactly aligned detail,
+        then projection/terminal in caller's UoW under original/product/lot locks.
+        Receipt projection is initialized by lot creation, exactly once.
+        """
+        movement = await self.repository.create("inventory-movements", {
+            "household_id": hid, "lot_id": lot["id"], "kind": kind,
+            "quantity_delta": delta,
+            "occurred_at": occurred_at or datetime.now(timezone.utc),
+            "actor_member_id": context.member_id, "transaction_id": transaction_id,
+            "reason": reason, "correction_of_movement_id": correction_of_movement_id,
+        })
+        detail = None
+        detail_resource = {"CONSUME": "consumption", "DISPOSE": "disposals",
+                           "ADJUST_IN": "inventory-adjustments",
+                           "ADJUST_OUT": "inventory-adjustments"}.get(kind)
+        if detail_resource:
+            fields = ({"counted_quantity": counted_quantity, "reason": reason}
+                      if detail_resource == "inventory-adjustments"
+                      else {"reason_code": reason_code})
+            detail = await self.repository.create(detail_resource, fields | {
+                "household_id": hid, "movement_id": movement["id"],
+            })
+        if kind != "RECEIPT":
+            with localcontext() as ctx:
+                ctx.prec = 80
+                remaining = lot["remaining_quantity"] + delta
+            lot = await self.repository.update("inventory-lots", hid, lot["id"], {
+                "remaining_quantity": remaining,
+                "terminal_state": terminal_state(
+                    remaining, await self.repository.negative_kinds(hid, lot["id"])
+                ),
+            })
+        return movement, detail, lot
+
+    async def stock_command(self, actor, hid, resource, body, key, *, lot_id=None):
+        """P04-OPEN-03/04/05/08/10/11/13 PROPOSAL explicit-lot commands.
+
+        RETURN is stock-only and appends an unresolved association. It never
+        creates payments/ledger entries or resolves existing refund links.
+        """
+        values = body.model_dump()
+        path = (f"inventory-lots/{lot_id}/returns" if resource == "returns" else resource)
+        permission = policy.RECORD if resource in {"consumption", "disposals"} else policy.MANAGE
+
+        async def effect(context):
+            lines = (values["allocations"] if resource in {"consumption", "disposals"}
+                     else [values | {"lot_id": lot_id if resource == "returns" else values["lot_id"]}])
+            products, lots, purchases = await self._locked_stock(hid, [line["lot_id"] for line in lines])
+            by_id = {lot["id"]: lot for lot in lots}
+            amounts = {}
+            # Exact base conversion then normalize repeated lot demands BEFORE
+            # availability validation. One event/detail per normalized lot.
+            with localcontext() as ctx:
+                ctx.prec = 80
+                for line in lines:
+                    lot = by_id[line["lot_id"]]
+                    amount = await self._base_quantity(
+                        line, products[lot["product_id"]],
+                        counted=resource == "inventory-adjustments",
+                    )
+                    amounts[lot["id"]] = amounts.get(lot["id"], Decimal(0)) + amount
+            plans = []
+            for lot in lots:  # Same locked product/FEFO order for writes.
+                product = products[lot["product_id"]]
+                archived = lot["archived_at"] is not None or product["archived_at"] is not None
+                if archived and resource == "consumption":
+                    raise InventoryRequestError(409, "INVENTORY_STATE_CONFLICT")
+                if archived and not values.get("reason"):
+                    raise InventoryRequestError(422, "INVENTORY_INVALID_INPUT")
+                amount = amounts[lot["id"]]
+                if resource == "inventory-adjustments":
+                    if amount > lot["received_quantity"] or amount == lot["remaining_quantity"]:
+                        raise InventoryRequestError(409, "INVENTORY_STATE_CONFLICT")
+                    correction = values["correction_of_movement_id"]
+                    if correction is not None:
+                        old = await self._object("inventory-movements", hid, correction)
+                        if old["lot_id"] != lot["id"]:
+                            raise InventoryRequestError(404, "INVENTORY_NOT_FOUND")
+                    with localcontext() as ctx:
+                        ctx.prec = 80
+                        delta = amount - lot["remaining_quantity"]
+                    kind = "ADJUST_IN" if delta > 0 else "ADJUST_OUT"
+                else:
+                    # Aggregate bounds and availability checked once per lot.
+                    quantity(amount)
+                    if amount > lot["remaining_quantity"]:
+                        raise InventoryRequestError(409, "INVENTORY_STOCK_SHORTAGE")
+                    if resource == "returns" and lot["purchase_item_id"] is None:
+                        raise InventoryRequestError(409, "INVENTORY_STATE_CONFLICT")
+                    delta = -amount
+                    kind = {"consumption": "CONSUME", "disposals": "DISPOSE", "returns": "RETURN"}[resource]
+                plans.append((lot, kind, delta))
+            result = {"movement_ids": [], "consumption_record_ids": [],
+                      "disposal_record_ids": [], "adjustment_ids": [],
+                      "allocations": [], "refund_inventory_link_ids": []}
+            for lot, kind, delta in plans:
+                purchase = purchases.get(lot["purchase_item_id"])
+                movement, detail, updated = await self._write_movement_in_uow(
+                    context, hid, lot, kind, delta, reason=values.get("reason"),
+                    transaction_id=purchase["original_transaction_id"] if purchase else None,
+                    reason_code=values.get("reason_code"),
+                    counted_quantity=amounts[lot["id"]] if resource == "inventory-adjustments" else None,
+                    correction_of_movement_id=values.get("correction_of_movement_id"),
+                )
+                result["movement_ids"].append(movement["id"])
+                if detail:
+                    result[{"CONSUME": "consumption_record_ids", "DISPOSE": "disposal_record_ids",
+                            "ADJUST_IN": "adjustment_ids", "ADJUST_OUT": "adjustment_ids"}[kind]].append(detail["id"])
+                if kind == "RETURN":
+                    link = await self.repository.create_refund_link({
+                        "household_id": hid,
+                        "original_transaction_id": purchase["original_transaction_id"],
+                        "purchase_item_id": lot["purchase_item_id"], "lot_id": lot["id"],
+                        "return_movement_id": movement["id"],
+                        "created_by_member_id": context.member_id, "reason": values["reason"],
+                    })
+                    result["refund_inventory_link_ids"].append(link["id"])
+                result["allocations"].append({
+                    "product_id": lot["product_id"], "lot_id": lot["id"],
+                    "base_quantity": abs(delta), "remaining_quantity": updated["remaining_quantity"],
+                })
+                await self._audit(hid, context, "inventory-movements", movement,
+                                  kind, values.get("reason"))
+            if resource == "inventory-adjustments":
+                return 201, await self._response(resource, hid, detail)
+            return 201, StockCommandResponse.model_validate(result).model_dump(mode="json")
+
+        return await self._command(actor, hid, f"POST /households/{hid}/{path}",
+                                   key, values, effect, permission=permission)
