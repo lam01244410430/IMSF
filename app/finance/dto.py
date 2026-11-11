@@ -149,6 +149,17 @@ class TransactionResponse(ReadDTO):
     reversal_transaction_id: int | None
 
 
+class ReversalCreate(WriteDTO):
+    reason: Annotated[str, Field(min_length=1, max_length=1000)]
+
+
+class ReversalResponse(ReadDTO):
+    original_transaction_id: int
+    reversal_transaction: TransactionResponse
+    payment_ids: list[int]
+    ledger_entry_ids: list[int]
+
+
 class AccountPage(ReadDTO):
     items: list[AccountResponse]
     next_cursor: str | None

@@ -6,6 +6,7 @@ from app.identity.permissions import PermissionCode
 READ = PermissionCode.VIEW
 ADMINISTER = PermissionCode.FINANCE_POST
 DRAFT = PermissionCode.FINANCE_DRAFT
+REVERSE = PermissionCode.FINANCE_REVERSE
 
 
 def require_draft_editor(context: HouseholdContext, transaction: dict, *, check_status: bool = True) -> None:

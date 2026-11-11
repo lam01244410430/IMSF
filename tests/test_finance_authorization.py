@@ -113,11 +113,11 @@ def test_idempotency_header_cors_and_error_compatibility(f):
     assert error.status_code == 422 and set(error.json()) == {"error_code", "details", "request_id"}
 
 
-def test_step4_to_5_routes_are_absent(f):
+def test_step5_routes_are_absent(f):
     paths = f.app.openapi()["paths"]
     for path in paths:
         if "households/{household_id}" in path:
-            assert not any(word in path for word in ("/reversals", "/reconciliations"))
+            assert "/reconciliations" not in path
             if any(word in path for word in ("/accounts", "/categories", "/transactions", "/currencies")):
                 assert "delete" not in paths[path]
 
@@ -254,3 +254,61 @@ def test_finance_errors_have_stable_codes_without_changing_identity(f):
     assert response.status_code == 401 and response.json()["error_code"] == "FINANCE_UNAUTHENTICATED"
     response = f.client.get("/api/v1/users/me")
     assert response.status_code == 401 and response.json()["error_code"] == "IDENTITY_REQUEST_FAILED"
+
+
+STEP4_ROUTES = [("POST", "/transactions/{tid}/reversals", 201)]
+STEP4_EXPECTED = {
+    "OWNER": {0}, "FINANCE_MANAGER": {0}, "ADMIN": set(),
+    "INVENTORY_MANAGER": set(), "MEMBER": set(), "VIEWER": set(),
+}
+
+
+@pytest.mark.parametrize("role", STEP4_EXPECTED)
+@pytest.mark.parametrize("index", range(len(STEP4_ROUTES)))
+def test_every_step4_route_role_matrix(f, role, index):
+    from test_finance_transactions import post
+    draft = create_draft(f, role="MEMBER")
+    assert post(f, draft).status_code == 200
+    method, path, expected = STEP4_ROUTES[index]
+    response = f.request(method, path.format(tid=draft["id"]), role=role, json={"reason": "Role matrix correction"})
+    assert response.status_code == (expected if index in STEP4_EXPECTED[role] else 403), response.text
+
+
+@pytest.mark.parametrize("key", [False, "", "a" * 129, "has space", "tab\there"])
+def test_step4_idempotency_key_required(f, key):
+    from test_finance_transactions import post
+    draft = create_draft(f)
+    assert post(f, draft).status_code == 200
+    response = f.request("POST", f"/transactions/{draft['id']}/reversals", key=key, json={"reason": "Correction"})
+    assert response.status_code == 422
+    assert set(response.json()) == {"error_code", "details", "request_id"}
+    assert response.json()["error_code"] == "FINANCE_INVALID_INPUT"
+
+
+def test_step4_archived_household_rejects_writes_and_replays(f):
+    from test_finance_transactions import post
+    draft = create_draft(f)
+    assert post(f, draft).status_code == 200
+    path, body = f"/transactions/{draft['id']}/reversals", {"reason": "Correction"}
+    assert f.request("POST", path, key="saved-rev", json=body).status_code == 201
+    assert f.client.post(f"/api/v1/households/{f.hid}/archive", headers=f.actors["OWNER"].headers).status_code == 204
+    for key in ("saved-rev", "new-rev"):
+        assert f.request("POST", path, key=key, json=body).status_code == 409
+    for path in ("/transactions", f"/transactions/{draft['id']}", "/ledger"):
+        assert f.request("GET", path).status_code == 200
+
+
+def test_step4_cross_household_ids_are_404(f):
+    from test_finance_transactions import post
+    base = f"/api/v1/households/{f.other_hid}"
+    headers = f.actors["OUTSIDER"].headers
+    foreign = f.client.post(base + "/transactions", headers=headers | {"Idempotency-Key": "foreign-draft"}, json=DRAFT).json()
+    body = {"reason": "Correction"}  # No body IDs exist; ownership comes from the path.
+    path = f"/transactions/{foreign['id']}/reversals"
+    assert f.request("POST", path, json=body).status_code == 404  # Foreign DRAFT, not 409.
+    assert f.client.post(base + f"/transactions/{foreign['id']}/post", headers=headers | {"Idempotency-Key": "foreign-post"}, json={"payments": []}).status_code == 200
+    assert f.request("POST", path, json=body).status_code == 404  # Foreign POSTED.
+    own = create_draft(f)
+    assert post(f, own).status_code == 200
+    assert f.request("POST", f"/transactions/{own['id']}/reversals", role="OUTSIDER", json=body).status_code == 404
+    assert f.request("POST", f"/transactions/{own['id']}/reversals", json=body).status_code == 201

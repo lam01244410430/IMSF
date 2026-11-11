@@ -10,9 +10,9 @@ from uuid import uuid4
 from sqlalchemy.exc import DBAPIError
 
 from app.finance import authorization as policy
-from app.finance.domain import FinanceRequestError, validate_draft, validate_settlement
+from app.finance.domain import FinanceRequestError, require_full_reversal_eligible, validate_draft, validate_settlement
 from app.finance.dto import (AccountResponse, BalanceResponse, CategoryResponse, ItemResponse,
-    LedgerEntryResponse, PaymentBatchResponse, TransactionResponse)
+    LedgerEntryResponse, PaymentBatchResponse, ReversalResponse, TransactionResponse)
 from app.finance.money import canonical_decimal
 from app.finance.ports import FinanceRepository, HouseholdAccess
 
@@ -60,7 +60,8 @@ class LedgerService:
                 raise FinanceRequestError(422, "FINANCE_CATEGORY_KIND")
 
     async def _audit(self, hid, context, action, resource, row):
-        details = {key: canonical(row[key]) for key in ("currency_code", "total_amount", "transaction_id") if key in row}
+        details = {key: canonical(row[key]) for key in ("currency_code", "total_amount", "transaction_id",
+            "original_transaction_id", "reversal_reason") if key in row}
         await self.repository.audit({"household_id": hid, "actor_member_id": context.member_id,
             "request_id": str(uuid4()), "action": action, "target_type": resource,
             "target_id": str(row["id"]), "details": details})
@@ -275,6 +276,67 @@ class LedgerService:
         return await self._command(actor, hid, policy.ADMINISTER,
             f"POST /households/{hid}/transactions/{identifier}/{'post' if posting else 'payments'}",
             key, values, effect, transaction_id=identifier, draft_only=False)
+
+    async def reverse(self, actor, hid, identifier, body, key):
+        values = body.model_dump()
+
+        async def effect(context, transaction):
+            # _command already holds the original row lock: settlement cannot
+            # append a payment between this snapshot and the committed reversal.
+            result = await self.repository.transaction_result(hid, identifier)
+            original_payments = await self.repository.payments(hid, identifier)
+            original_entries = await self.repository.ledger_entries(hid, identifier)
+            account_ids = {row["account_id"] for row in original_payments + original_entries}
+            for account_id in sorted(account_ids):
+                await self._object("accounts", hid, account_id, lock=True)
+                # OPEN-11 PROPOSAL reversal exception: archived accounts allow
+                # audited correction of history, without new external execution.
+            # OPEN-07 PROPOSAL: P03 has no refund/inventory persistence or input
+            # endpoints, so the available linked set is explicitly empty. Future
+            # adapters must load those links under these locks before this guard.
+            require_full_reversal_eligible(result, [])
+            instant = datetime.now(timezone.utc)
+            reversal = await self.repository.create("transactions", {
+                "household_id": hid, "kind": "REVERSAL", "status": "POSTED",
+                "currency_code": result["currency_code"], "total_amount": result["total_amount"],
+                "category_id": None, "original_transaction_id": identifier,
+                "reversal_reason": values["reason"], "created_by_member_id": context.member_id,
+                "occurred_at": instant, "posted_at": instant})
+            payment_map = {}
+            for payment in original_payments:
+                mirror = await self.repository.create("payments", {
+                    name: payment[name] for name in ("account_id", "currency_code", "amount", "transaction_amount", "method_code")
+                } | {"household_id": hid, "transaction_id": reversal["id"],
+                    "direction": "IN" if payment["direction"] == "OUT" else "OUT",
+                    "reverses_payment_id": payment["id"], "settled_at": instant,
+                    "created_by_member_id": context.member_id, "exchange_rate": None, "external_reference": None})
+                payment_map[payment["id"]] = mirror["id"]
+            entry_ids = []
+            for entry in original_entries:
+                mirror = await self.repository.create("ledger", {
+                    "household_id": hid, "transaction_id": reversal["id"],
+                    "account_id": entry["account_id"], "currency_code": entry["currency_code"],
+                    "signed_amount": -entry["signed_amount"], "posted_at": instant,
+                    "reverses_entry_id": entry["id"],
+                    "payment_id": payment_map[entry["payment_id"]] if entry["payment_id"] is not None else None})
+                entry_ids.append(mirror["id"])
+            # OPEN-08 PROPOSAL: unpaid bills produce only a reversal header.
+            # Assert exact cancellation from persisted rows, never planned mirrors.
+            persisted = await self.repository.ledger_entries(hid, reversal["id"])
+            totals = {}
+            for entry in original_entries + persisted:
+                scope = (entry["account_id"], entry["currency_code"])
+                totals[scope] = totals.get(scope, Decimal(0)) + entry["signed_amount"]
+            if any(amount != 0 for amount in totals.values()):
+                raise FinanceRequestError(409, "FINANCE_REVERSAL_INCOMPLETE")
+            await self._audit(hid, context, "FINANCE_REVERSED", "transaction", reversal)
+            return 201, ReversalResponse.model_validate({"original_transaction_id": identifier,
+                "reversal_transaction": await self.repository.transaction_result(hid, reversal["id"]),
+                "payment_ids": list(payment_map.values()), "ledger_entry_ids": entry_ids}).model_dump(mode="json")
+
+        return await self._command(actor, hid, policy.REVERSE,
+            f"POST /households/{hid}/transactions/{identifier}/reversals", key, values,
+            effect, transaction_id=identifier, draft_only=False)
 
     async def payments(self, actor, hid, identifier):
         async with self.session.begin():

@@ -519,6 +519,7 @@ def test_exact_route_scope_and_openapi(http):
         PREFIX + "/households/{household_id}/transactions/{transaction_id}/items": {"post"},
         PREFIX + "/households/{household_id}/transactions/{transaction_id}/post": {"post"},
         PREFIX + "/households/{household_id}/transactions/{transaction_id}/payments": {"post", "get"},
+        PREFIX + "/households/{household_id}/transactions/{transaction_id}/reversals": {"post"},
         PREFIX + "/households/{household_id}/ledger": {"get"},
         PREFIX + "/households/{household_id}/accounts/{account_id}/balance": {"get"},
         PREFIX + "/households/{household_id}/transactions/{transaction_id}/items/{item_id}": {"patch"},

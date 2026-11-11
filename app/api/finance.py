@@ -19,6 +19,7 @@ from app.finance.dto import (
     AccountCreate, AccountPage, AccountResponse, CategoryCreate, CategoryPage,
     CategoryResponse, CurrencyResponse, Identifier, ItemCreate, ItemPatch,
     BalanceResponse, LedgerPage, PaymentBatchCreate, PaymentBatchResponse, TransactionPost,
+    ReversalCreate, ReversalResponse,
     ItemResponse, TransactionDraftCreate, TransactionDraftPatch, TransactionPage, TransactionResponse,
 )
 from app.finance.infrastructure.household_access import SqlAlchemyHouseholdAccess
@@ -174,6 +175,12 @@ async def add_payments(household_id: Identifier, transaction_id: Identifier, bod
 @router.get("/transactions/{transaction_id}/payments", response_model=PaymentBatchResponse)
 async def transaction_payments(household_id: Identifier, transaction_id: Identifier, actor: Principal, service: Service):
     return await service.payments(actor, household_id, transaction_id)
+
+
+@router.post("/transactions/{transaction_id}/reversals", response_model=ReversalResponse, status_code=201)
+async def reverse_transaction(household_id: Identifier, transaction_id: Identifier, body: ReversalCreate,
+                              key: Key, actor: Principal, service: Service):
+    return saved_response(await service.reverse(actor, household_id, transaction_id, body, key))
 
 
 @router.get("/ledger", response_model=LedgerPage)

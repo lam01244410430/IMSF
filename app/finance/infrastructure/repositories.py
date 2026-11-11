@@ -113,6 +113,11 @@ class SqlAlchemyFinanceRepository:
         return await self.session.scalar(select(AccountLedgerEntry.id).where(
             AccountLedgerEntry.household_id == household_id, AccountLedgerEntry.account_id == account_id).limit(1)) is not None
 
+    async def ledger_entries(self, household_id, transaction_id):
+        return [record(row) for row in (await self.session.scalars(select(AccountLedgerEntry).where(
+            AccountLedgerEntry.household_id == household_id, AccountLedgerEntry.transaction_id == transaction_id
+        ).order_by(AccountLedgerEntry.id).execution_options(populate_existing=True))).all()]
+
     def _ledger_query(self, household_id, account_id=None, date_from=None, date_to=None):
         model = AccountLedgerEntry
         statement = select(model).where(model.household_id == household_id)

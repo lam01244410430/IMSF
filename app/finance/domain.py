@@ -85,7 +85,7 @@ def validate_settlement(header: dict, items: list[dict], payments: list[dict],
 
 
 def require_full_reversal_eligible(original: dict, prior_refunds: list[dict]) -> None:
-    """OPEN-07 PROPOSAL groundwork only; Step 4 must load links under locks.
+    """OPEN-07 PROPOSAL: Step 4 loads available links under locks and calls this guard.
 
     Refund creation remains unsupported. A future refund adapter must pass every
     linked refund; unresolved (including draft) refunds block full reversal.
