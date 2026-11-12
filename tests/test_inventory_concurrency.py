@@ -1,11 +1,238 @@
 """Step 2 product/FEFO locks and split receipt races on independent connections."""
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 import httpx
+import pytest
 from sqlalchemy import text
 from test_inventory_lots import product, purchase, receipt
 from test_finance_transactions import query
+
+
+@pytest.mark.parametrize("writer", ["receipt", "expiry", "archive", "adjustment-zero", "adjustment-partial"])
+@pytest.mark.parametrize("schedule", ["http-writers", "product-wait"])
+def test_receipt_expiry_archive_and_adjustment_races_recheck_fefo(f, writer, schedule):
+    """Catch stale candidates, phantom receipts and stale quantities after waiting.
+
+    Public commands serialize at the household prefix. Exercise that HTTP race
+    AND an independent runtime SQL writer holding product/FEFO lot locks, so the
+    shared allocator must wait on the product and then reload candidates.
+    All rows commit under the frozen guards; no guard or allocator is replaced.
+    """
+    from test_inventory_checkout import configure_timezone, demand
+
+    # Frozen household FKs on new receipt/movement/detail rows require KEY SHARE.
+    # After an HTTP deduction holds household FOR UPDATE, inserting those rows
+    # behind its product wait would introduce a lock inversion/deadlock. For
+    # these three product-wait cases use the real shared application UoW API
+    # (also used by checkout/cooking), without the outer identity/key locks.
+    # HTTP writer races above that seam remain covered for every writer below.
+    application_wait = schedule == "product-wait" and writer not in {"expiry", "archive"}
+
+    configure_timezone(f, "UTC")
+    p = product(f)
+    today = datetime.now(timezone.utc).date()
+    early_expiry = (today + timedelta(days=10)).isoformat()
+    later_expiry = (today + timedelta(days=20)).isoformat()
+    expired = (today - timedelta(days=30)).isoformat()
+    new_expiry = (today + timedelta(days=5)).isoformat()
+    lots = []
+    for expiry in (early_expiry, later_expiry, None):
+        r = receipt(f, p, quantity="3", expires_on=expiry)
+        assert r.status_code == 201, r.text
+        lots.append(r.json())
+    first, fallback, undated = lots
+    prefix = f"/api/v1/households/{f.hid}"
+    writer_key, deduction_key = "fefo-race-writer", "fefo-race-deduction"
+
+    async def run():
+        tasks = []
+        async with f.db() as locker:
+            await locker.begin()
+            backend = await locker.scalar(text("SELECT pg_backend_pid()"))
+            await locker.execute(text(
+                "SELECT id FROM products WHERE household_id=:hid AND id=:pid "
+                "ORDER BY id FOR UPDATE"
+            ), {"hid": f.hid, "pid": p["id"]})
+
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=f.app), base_url="https://testserver"
+            ) as client:
+                def command(method, path, body, key):
+                    role = "INVENTORY_MANAGER" if key == writer_key else "OWNER"
+                    task = asyncio.create_task(client.request(
+                        method, prefix + path,
+                        headers=f.actors[role].headers | {"Idempotency-Key": key},
+                        json=body,
+                    ))
+                    tasks.append(task)
+                    return task
+
+                async def wait_for_lock(task, blocker, table):
+                    async with asyncio.timeout(10):
+                        while True:
+                            if task.done():
+                                pytest.fail(f"Command finished before {table} lock: {task.result()}")
+                            async with f.db() as observer:
+                                waiter = await observer.scalar(text(
+                                    "SELECT pid FROM pg_stat_activity "
+                                    "WHERE :blocker=ANY(pg_blocking_pids(pid)) "
+                                    "AND wait_event_type='Lock' "
+                                    "AND query LIKE :table AND query LIKE '%FOR UPDATE%'"
+                                ), {"blocker": blocker, "table": f"%{table}%"})
+                            if waiter is not None:
+                                return waiter
+                            await asyncio.sleep(0)
+
+                try:
+                    writer_response = None
+                    if schedule == "http-writers":
+                        if writer == "receipt":
+                            writer_task = command("POST", "/inventory-lots", {
+                                "product_id": p["id"], "source_kind": "GIFT",
+                                "quantity": "2", "unit_id": p["base_unit_id"],
+                                "received_at": "2026-11-11T10:00:00Z", "expires_on": new_expiry,
+                            }, writer_key)
+                        elif writer == "expiry":
+                            writer_task = command("PATCH", f"/inventory-lots/{first['id']}", {
+                                "expires_on": expired, "reason": "Correct expiry during FEFO race",
+                            }, writer_key)
+                        elif writer == "archive":
+                            writer_task = command("POST", f"/inventory-lots/{first['id']}/archive", {
+                                "reason": "Archive during FEFO race",
+                            }, writer_key)
+                        else:
+                            writer_task = command("POST", "/inventory-adjustments", {
+                                "lot_id": first["id"], "counted_quantity": "0" if writer == "adjustment-zero" else "1",
+                                "unit_id": p["base_unit_id"], "reason": "Count during FEFO race",
+                            }, writer_key)
+                        writer_backend = await wait_for_lock(writer_task, backend, "products")
+                        deduction = command("POST", "/checkout/deductions", demand(p), deduction_key)
+                        # Prove overlap rather than relying on task scheduling or sleeps.
+                        await wait_for_lock(deduction, writer_backend, "households")
+                    else:
+                        # SQL writer uses the same product -> FEFO lot order, with
+                        # no household lock, to expose the allocator's own wait.
+                        await locker.execute(text(
+                            "SELECT id FROM inventory_lots WHERE household_id=:hid AND product_id=:pid "
+                            "ORDER BY product_id,expires_on NULLS LAST,received_at,id FOR UPDATE"
+                        ), {"hid": f.hid, "pid": p["id"]})
+                        if application_wait:
+                            from app.finance.domain import HouseholdContext
+                            from app.finance.infrastructure.repositories import SqlAlchemyFinanceRepository
+                            from app.inventory.infrastructure.repositories import SqlAlchemyInventoryRepository
+                            from app.inventory.service import InventoryService
+
+                            async def allocate():
+                                async with f.db() as db, db.begin():
+                                    service = InventoryService(db, SqlAlchemyInventoryRepository(db), None,
+                                                               SqlAlchemyFinanceRepository(db))
+                                    return await service.deduct_in_uow(
+                                        HouseholdContext(member_id=f.actors["OWNER"].member_id, role="OWNER"),
+                                        f.hid, demand(p),
+                                    )
+                            deduction = asyncio.create_task(allocate())
+                            tasks.append(deduction)
+                        else:
+                            deduction = command("POST", "/checkout/deductions", demand(p), deduction_key)
+                        await wait_for_lock(deduction, backend, "products")
+                        if writer == "receipt":
+                            new_id = await locker.scalar(text(
+                                "INSERT INTO inventory_lots(household_id,product_id,source_kind,"
+                                "received_at,expires_on,received_quantity,remaining_quantity) "
+                                "VALUES (:hid,:pid,'GIFT','2026-11-11T10:00:00Z',CAST(:expiry AS date),2,2) RETURNING id"
+                            ), {"hid": f.hid, "pid": p["id"], "expiry": new_expiry})
+                            await locker.execute(text(
+                                "INSERT INTO inventory_movements(household_id,lot_id,kind,quantity_delta,occurred_at,actor_member_id) "
+                                "VALUES (:hid,:lid,'RECEIPT',2,'2026-11-11T10:00:00Z',:actor)"
+                            ), {"hid": f.hid, "lid": new_id, "actor": f.actors["OWNER"].member_id})
+                        elif writer in {"expiry", "archive"}:
+                            statement = (
+                                "UPDATE inventory_lots SET expires_on=CAST(:expiry AS date) "
+                                if writer == "expiry" else "UPDATE inventory_lots SET archived_at=now() "
+                            ) + "WHERE household_id=:hid AND id=:lid"
+                            await locker.execute(text(statement), {
+                                "hid": f.hid, "lid": first["id"], "expiry": expired,
+                            })
+                        else:
+                            count = 0 if writer == "adjustment-zero" else 1
+                            mid = await locker.scalar(text(
+                                "INSERT INTO inventory_movements(household_id,lot_id,kind,quantity_delta,occurred_at,actor_member_id,reason) "
+                                "VALUES (:hid,:lid,'ADJUST_OUT',:delta,now(),:actor,'Count during FEFO race') RETURNING id"
+                            ), {"hid": f.hid, "lid": first["id"], "delta": count - 3,
+                                "actor": f.actors["OWNER"].member_id})
+                            await locker.execute(text(
+                                "INSERT INTO inventory_adjustments(household_id,movement_id,counted_quantity,reason) "
+                                "VALUES (:hid,:mid,:count,'Count during FEFO race')"
+                            ), {"hid": f.hid, "mid": mid, "count": count})
+                            await locker.execute(text(
+                                "UPDATE inventory_lots SET remaining_quantity=:count,terminal_state=:terminal "
+                                "WHERE household_id=:hid AND id=:lid"
+                            ), {"hid": f.hid, "lid": first["id"], "count": count,
+                                "terminal": "ADJUSTED_OUT" if count == 0 else None})
+                    await locker.commit()
+                    async with asyncio.timeout(10):
+                        if writer_response is None and schedule == "http-writers":
+                            writer_response = await writer_task
+                            assert writer_response.status_code == (200 if writer in {"expiry", "archive"} else 201), writer_response.text
+                        response = await deduction
+                    if application_wait:
+                        return response
+                    assert response.status_code == 201, response.text
+                    return response.json()
+                finally:
+                    await locker.rollback()
+                    for task in tasks:
+                        if not task.done():
+                            task.cancel()
+                    await asyncio.gather(*tasks, return_exceptions=True)
+
+    result = asyncio.run(run())
+    if writer == "receipt":
+        new_lot, = query(f, "SELECT id FROM inventory_lots WHERE household_id=:hid AND received_quantity=2")
+        expected = [(new_lot["id"], Decimal(2)), (first["id"], Decimal(2))]
+        remaining = {new_lot["id"]: 0, first["id"]: 1, fallback["id"]: 3, undated["id"]: 3}
+    elif writer == "adjustment-partial":
+        # A reduced but still eligible lot can supply only its new count of one.
+        expected = [(first["id"], Decimal(1)), (fallback["id"], Decimal(3))]
+        remaining = {first["id"]: 0, fallback["id"]: 0, undated["id"]: 3}
+    else:
+        expected = [(fallback["id"], Decimal(3)), (undated["id"], Decimal(1))]
+        remaining = {first["id"]: 0 if writer == "adjustment-zero" else 3,
+                     fallback["id"]: 0, undated["id"]: 2}
+    assert [(a["lot_id"], Decimal(a["base_quantity"])) for a in result["allocations"]] == expected
+    movements = query(f, "SELECT id,lot_id,quantity_delta FROM inventory_movements WHERE household_id=:hid AND kind='CONSUME' ORDER BY id")
+    assert [(m["lot_id"], -m["quantity_delta"]) for m in movements] == expected
+    assert [m["id"] for m in movements] == result["movement_ids"]
+    details = query(f, "SELECT movement_id,reason_code FROM consumption_records WHERE household_id=:hid ORDER BY movement_id")
+    assert [d["movement_id"] for d in details] == result["movement_ids"]
+    assert all(d["reason_code"] == "CHECKOUT" for d in details)
+    persisted = query(f, """
+        SELECT l.id,l.remaining_quantity,l.received_quantity,l.expires_on,l.archived_at,
+               SUM(m.quantity_delta) AS movement_sum
+        FROM inventory_lots l JOIN inventory_movements m
+          ON (m.household_id,m.lot_id)=(l.household_id,l.id)
+        WHERE l.household_id=:hid GROUP BY l.household_id,l.id
+    """)
+    assert {l["id"]: l["remaining_quantity"] for l in persisted} == remaining
+    assert all(0 <= l["remaining_quantity"] <= l["received_quantity"]
+               and l["movement_sum"] == l["remaining_quantity"] for l in persisted)
+    changed = next(l for l in persisted if l["id"] == first["id"])
+    if writer == "expiry":
+        assert changed["expires_on"].isoformat() == expired
+    elif writer == "archive":
+        assert changed["archived_at"] is not None
+    elif writer.startswith("adjustment"):
+        adjustment, = query(f, "SELECT m.lot_id,m.quantity_delta,a.counted_quantity FROM inventory_movements m JOIN inventory_adjustments a ON (a.household_id,a.movement_id)=(m.household_id,m.id) WHERE m.household_id=:hid")
+        count = 0 if writer == "adjustment-zero" else 1
+        assert (adjustment["lot_id"], adjustment["quantity_delta"], adjustment["counted_quantity"]) == (first["id"], count - 3, count)
+    keys = query(f, "SELECT request_key FROM idempotency_requests WHERE household_id=:hid AND request_key IN (:writer,:deduction)",
+                 writer=writer_key, deduction=deduction_key)
+    expected_keys = {writer_key, deduction_key} if schedule == "http-writers" else (
+        set() if application_wait else {deduction_key}
+    )
+    assert {k["request_key"] for k in keys} == expected_keys
 
 
 def test_concurrent_split_purchase_receipts_have_one_capacity_winner(f):
