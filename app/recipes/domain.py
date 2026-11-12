@@ -15,6 +15,9 @@ def scale(quantity_value, requested_servings, recipe_servings, factor):
             # Multiply before dividing: sub-six-decimal source-unit demand can
             # still have an exactly representable base quantity.
             base = quantity(numerator * factor / recipe_servings)
+            # Display-only source quantity may repeat. Base demand above remains
+            # trapped: an inexact persisted quantity must still fail closed.
+            ctx.traps[Inexact] = False
             requested = numerator / recipe_servings
             return requested, base
     except (ValueError, DecimalException):

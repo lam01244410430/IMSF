@@ -374,3 +374,20 @@ def test_recipe_ingredient_cap_applies_to_add(f):
     before=state(f)
     response=f.request('POST',f"/recipes/{r['id']}/ingredients",json=ingredient(p,'1',101))
     assert response.status_code==422 and state(f)==before
+
+
+def test_add_ingredient_duplicate_line_no_returns_409(f):
+    p = product(f)
+    r = recipe(f, p)
+    before = state(f)
+    response = f.request('POST', f"/recipes/{r['id']}/ingredients", json=ingredient(p))
+    assert response.status_code == 409, response.text
+    assert state(f) == before
+
+
+def test_scale_allows_inexact_display_when_base_is_exact():
+    from app.recipes.domain import scale
+    # Hypothetical explicit factor only: the current catalog is unchanged.
+    requested, base = scale(Decimal(1), Decimal(1), Decimal(3), Decimal(3))
+    assert abs(requested * 3 - 1) < Decimal('1e-27')
+    assert base == 1

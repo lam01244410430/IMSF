@@ -41,6 +41,15 @@ class SqlAlchemyInventoryRepository:
     def __init__(self, session):
         self.session = session
 
+    async def integrity(self, hid, product_id=None, lot_id=None):
+        from app.inventory.infrastructure.integrity import INTEGRITY_QUERY
+
+        rows = (await self.session.execute(INTEGRITY_QUERY, {
+            "hid": hid, "product_id": product_id, "lot_id": lot_id,
+        })).mappings().all()
+        return {row["category"]: {"count": row["count"], "items": row["items"]}
+                for row in rows}
+
     async def get(self, resource, hid, identifier, *, lock=False):
         model = self.models[resource]
         statement = (

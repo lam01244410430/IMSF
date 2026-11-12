@@ -65,6 +65,8 @@ product_id/quantity/unit_id/essential; supplied fields cannot be null. Creation,
 addition and ingredient patch validate scoped products and exact explicit unit
 conversion under product locks. Archived products cannot be newly assigned.
 Archived recipes remain readable and reject further editing and cooking.
+Adding an ingredient with an existing recipe line number returns 409
+INVENTORY_STATE_CONFLICT, preserving the recipe, history and command key state.
 
 RecipeResponse includes id, household_id, name, servings, instructions, archived_at,
 created_by_member_id and ingredients ordered by line_no/id. IngredientResponse
@@ -93,8 +95,10 @@ Every ingredient is scaled by requested servings / recipe servings using Decimal
 with multiplication before division for exact base-unit conversion. Input-unit
 scaling may require more than six decimal places if base demand remains exact.
 Inexact six-decimal base demands and absent/incompatible conversions are rejected;
-there is no silent rounding. Duplicate products are aggregated before FEFO so a
-lot cannot be allocated twice for duplicate ingredient lines. Every listed
+base demand is never silently rounded. The snapshot
+requested_quantity is display-only and may repeat at the calculation context
+precision; only the exact base-demand computation traps Inexact. Duplicate
+products are aggregated before FEFO so a lot cannot be allocated twice for duplicate ingredient lines. Every listed
 ingredient is required, including essential=false. No optional shortage omission
 or implicit substitution is allowed.
 

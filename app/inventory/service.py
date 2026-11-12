@@ -23,6 +23,7 @@ from app.inventory.dto import (
     ConsumptionResponse,
     DisposalResponse,
     StockCommandResponse,
+    StockIntegrityReport,
 )
 from app.inventory.units import convert, quantity
 from app.inventory.ports import InventoryRepository, CommandRecords
@@ -157,6 +158,18 @@ class InventoryService:
                         422, "INVENTORY_INVALID_INPUT"
                     ) from None
                 raise
+
+    async def integrity(self, actor, hid, product_id=None, lot_id=None):
+        """P04-OPEN-13 PROPOSAL: VIEW diagnostics without repairs or audit access."""
+        async with self.session.begin():
+            await self.access.resolve(actor, hid, policy.READ, write=False)
+            for resource, identifier in (("products", product_id), ("inventory-lots", lot_id)):
+                if identifier is not None:
+                    await self._object(resource, hid, identifier)
+            categories = await self.repository.integrity(hid, product_id, lot_id)
+            result = {name: categories.get(name, {"count": 0, "items": []})
+                      for name in StockIntegrityReport.model_fields if name != "limit_per_category"}
+            return StockIntegrityReport.model_validate(result).model_dump(mode="json")
 
     async def get(self, actor, hid, resource, identifier):
         async with self.session.begin():

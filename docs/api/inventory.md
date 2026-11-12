@@ -1,6 +1,6 @@
-# Inventory Step 2/3 API
+# Inventory API — Steps 2/3/6
 
-Step 2 contracts are fixed as implemented in `97f40c6`. Step 3 implements **P04-OPEN-03/04/05/07/08/10/11/13 PROPOSALS** for review; these Step 3 aspects remain PROPOSAL, not user-confirmed decisions. P02 authorization and P03 finance decisions remain fixed. This document does not declare P04 delivered.
+Steps 2/3/6 implement inventory contracts as **P04-OPEN PROPOSALS** for review, including OPEN-01/03/04/05/07/08/09/10/11/13/14/15. Implementation and test results do not decide these policies. Revision 7 remains frozen. P02 authorization and P03 finance decisions remain fixed. This document does not declare P04 delivered.
 
 All paths below use `/api/v1/households/{household_id}`. Bearer authentication requires an ACTIVE user, a live session and current membership. Reads use `household.view` (all six roles). Reference/lot mutations, adjustments and returns require `inventory.manage` (OWNER and INVENTORY_MANAGER). Consumption/disposal require `inventory.consumption_disposal` (OWNER, INVENTORY_MANAGER and MEMBER). ADMIN, FINANCE_MANAGER and VIEWER cannot write inventory. There is no role inheritance.
 
@@ -12,9 +12,10 @@ All paths below use `/api/v1/households/{household_id}`. Bearer authentication r
 | Products | POST/GET `/products`; GET/PATCH `/products/{product_id}`; POST `/products/{product_id}/archive` |
 | Receipt lots | POST/GET `/inventory-lots`; GET/PATCH `/inventory-lots/{lot_id}`; POST `/inventory-lots/{lot_id}/archive` |
 | Immutable movement history | GET `/inventory-movements`; GET `/inventory-movements/{movement_id}` |
+| Stock integrity (Step 6 PROPOSAL) | GET `/inventory/integrity` |
 | Explicit lifecycle commands (Step 3 PROPOSAL) | POST/GET `/inventory-adjustments`, `/consumption`, `/disposals`; POST `/inventory-lots/{lot_id}/returns` |
 
-Create returns 201; reads, patches and archives return 200. There is no DELETE, unarchive, unit administration or arbitrary movement write endpoint. Checkout, cooking and recipe routes remain absent. A single stock writer appends receipts and Step 3 movement/detail rows; each command owns one transaction. No `expiration_alerts` table is created; alerts remain P05-owned (P04-OPEN-09 proposal).
+Create returns 201; reads, patches and archives return 200. There is no DELETE, unarchive, unit administration or arbitrary movement write endpoint. Checkout and cooking/recipe routes are documented in [checkout](checkout.md) and [recipes and cooking](recipes-cooking.md). A single stock writer appends receipts and Step 3 movement/detail rows; each command owns one transaction. No `expiration_alerts` table is created; alerts remain P05-owned (P04-OPEN-09 proposal).
 
 ## Requests and reads
 
@@ -139,3 +140,63 @@ keys nor commits. FEFO takes an explicit local date; settings stay read-only.
 P04-OPEN-09 PROPOSAL keeps cooking for Step 5 and expiry alerts/jobs for P05.
 P04-OPEN-11 PROPOSAL remains unresolved: Step 2/3 reversal behavior is unchanged.
 No migration or identity change is introduced by Step 4.
+
+
+## Stock integrity read — Step 6 P04-OPEN-13 PROPOSAL
+
+GET `/inventory/integrity` returns 200 `StockIntegrityReport`. It requires VIEW
+(`household.view`), available to all six roles including VIEWER. This permission
+exposes operational stock facts, with no audit-log access. Optional `product_id`
+and `lot_id` are positive BIGINT filters; supplied together they intersect. Each
+ID is checked within the household first; foreign or missing filter IDs return
+404 `INVENTORY_NOT_FOUND`. Missing authentication returns 401; malformed filters
+return 422. Archived products/lots and archived-household reads remain included.
+
+The report is strictly read-only: SELECT queries never correct data, append
+movements, change projections, write audits/keys, or resolve financial links.
+All categories use one SQL statement snapshot, so committed movements, details
+and finance links are observed together. No writer locks are acquired.
+
+The response contains `limit_per_category: 100` and these category objects:
+
+| Field | Counted entity and rule |
+|---|---|
+| `projection_mismatches` | Lots whose remaining quantity differs from sum of movement deltas |
+| `receipt_anomalies` | Lots without exactly one RECEIPT or with receipt quantity differing from received quantity |
+| `detail_misalignments` | Movements whose consumption/disposal/adjustment counts differ from their required kind; RECEIPT/RETURN require no such details |
+| `source_cap_violations` | Purchase items whose total split received quantity exceeds base quantity; totals include all splits even with a lot filter |
+| `terminal_state_inconsistencies` | Lots violating zero iff terminal label present, or whose label differs from historical negative-kind derivation |
+| `purchase_link_inconsistencies` | PURCHASE lots not tracing to an unreversed POSTED EXPENSE item with matching product and positive base quantity |
+| `receipt_posting_mismatches` | PURCHASE receipts whose transaction pointer is missing or differs from their purchase item's transaction |
+| `unresolved_refund_inventory_links` | Unresolved association facts, counted by link; this is separate from mismatch categories |
+
+Each category has `{count, items}`. `count` is the complete filtered count;
+`items` contains at most the first 100 records in ascending entity ID. A count
+greater than the item length means results were truncated. There is no repair
+or pagination command. Every category is present, including empty
+`{"count":0,"items":[]}` categories. Source-cap findings count items rather than
+individual splits; all other mismatch groups count lots or movements as above.
+
+Each finding has `code` and applicable `product_id`, `lot_id`, `movement_id`,
+`purchase_item_id`, `transaction_id`, `actual_transaction_id`, `link_id` or
+`return_movement_id`. Unused fields are null. Projection/receipt/cap findings
+include decimal-string `expected_quantity` and `actual_quantity` (cap expected
+means maximum allowed); receipt findings include `expected_count`/`actual_count`.
+Detail findings include `kind`, `consumption_count`, `disposal_count` and
+`adjustment_count`. Terminal findings include `expected_state`/`actual_state`;
+purchase-link findings include `transaction_status`/`transaction_kind`.
+
+A matching finance posting means a POSTED EXPENSE and the receipt's transaction
+reference. Unpaid and partially paid POSTED purchases remain valid under delivered
+P03 settlement rules; payment/ledger integrity remains the existing
+`/finance/integrity` responsibility. No full-payment requirement is introduced.
+Unresolved links use code `UNRESOLVED_REFUND_INVENTORY_LINK`; a RETURN does not
+resolve them. Their presence can coexist with zero mismatches in every other
+category. P04-OPEN-10/11 remain PROPOSALS; no financial refund policy is decided.
+
+Verification: `tests/test_inventory_integrity.py` covers real purchase checkout,
+deduction, cooking, return, terminal kinds, replenishment, exact receipt links,
+read-only snapshots, bounded findings/counts, filters and all-six-role access.
+Revision 7 prevents persisted projection/receipt/detail/cap/terminal corruption
+and DRAFT-linked purchase insertion even for owner SQL. Tests preserve those
+guards; clean reports and existing guard-rejection tests cover those classes.

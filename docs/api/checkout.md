@@ -113,7 +113,8 @@ validation is 422 `INVENTORY_INVALID_INPUT` or
 
 ## Scope and reversal gate — P04-OPEN-09/11 PROPOSAL
 
-Step 4 adds checkout only. Cooking remains Step 5; expiration alerts/jobs remain
+Checkout composes the existing finance and stock writers. Cooking is documented
+in [recipes and cooking](recipes-cooking.md); expiration alerts/jobs remain
 P05-owned. No migration, DELETE, REFUND, cash execution or FX is added.
 P04-OPEN-11 remains a PROPOSAL: the existing Step 2/3 stock-effect reversal refusal
 and persisted unresolved-refund guard are unchanged; checkout does not resolve

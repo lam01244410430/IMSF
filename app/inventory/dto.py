@@ -304,3 +304,48 @@ class ConsumptionPage(ReadDTO):
 class DisposalPage(ReadDTO):
     items: list[DisposalResponse]
     next_cursor: str | None
+
+
+class StockIntegrityFinding(ReadDTO):
+    """P04-OPEN-13 PROPOSAL: identifiers and exact facts, never corrective commands."""
+
+    code: str
+    lot_id: Identifier | None = None
+    product_id: Identifier | None = None
+    movement_id: Identifier | None = None
+    purchase_item_id: Identifier | None = None
+    transaction_id: Identifier | None = None
+    actual_transaction_id: Identifier | None = None
+    link_id: Identifier | None = None
+    return_movement_id: Identifier | None = None
+    expected_quantity: SerializedDecimal | None = None
+    actual_quantity: SerializedDecimal | None = None
+    expected_count: int | None = None
+    actual_count: int | None = None
+    expected_state: str | None = None
+    actual_state: str | None = None
+    kind: str | None = None
+    consumption_count: int | None = None
+    disposal_count: int | None = None
+    adjustment_count: int | None = None
+    transaction_status: str | None = None
+    transaction_kind: str | None = None
+
+
+class StockIntegrityCategory(ReadDTO):
+    count: int = Field(ge=0)
+    items: list[StockIntegrityFinding] = Field(max_length=100)
+
+
+class StockIntegrityReport(ReadDTO):
+    """P04-OPEN-13 PROPOSAL: bounded read; unresolved links are separate facts."""
+
+    limit_per_category: Literal[100] = 100
+    projection_mismatches: StockIntegrityCategory
+    receipt_anomalies: StockIntegrityCategory
+    detail_misalignments: StockIntegrityCategory
+    source_cap_violations: StockIntegrityCategory
+    terminal_state_inconsistencies: StockIntegrityCategory
+    purchase_link_inconsistencies: StockIntegrityCategory
+    receipt_posting_mismatches: StockIntegrityCategory
+    unresolved_refund_inventory_links: StockIntegrityCategory

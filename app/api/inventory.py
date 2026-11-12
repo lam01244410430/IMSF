@@ -40,6 +40,7 @@ from app.inventory.dto import (
     DisposalCreate,
     ReturnCreate,
     StockCommandResponse,
+    StockIntegrityReport,
     AdjustmentPage,
     ConsumptionPage,
     DisposalPage,
@@ -416,3 +417,11 @@ async def create_return(
     return saved_response(await service.stock_command(
         actor, household_id, "returns", body, key, lot_id=lot_id
     ))
+
+
+@router.get("/inventory/integrity", response_model=StockIntegrityReport)
+async def inventory_integrity(
+    household_id: Identifier, actor: Principal, service: Service,
+    product_id: Identifier | None = None, lot_id: Identifier | None = None,
+):
+    return await service.integrity(actor, household_id, product_id, lot_id)

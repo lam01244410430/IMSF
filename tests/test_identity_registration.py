@@ -523,6 +523,8 @@ def test_exact_route_scope_and_openapi(http):
         PREFIX + "/households/{household_id}/inventory-lots": {"get", "post"},
         PREFIX + "/households/{household_id}/inventory-lots/{lot_id}": {"get", "patch"},
         PREFIX + "/households/{household_id}/inventory-lots/{lot_id}/archive": {"post"},
+        # Step 6 compatibility: additive VIEW integrity route.
+        PREFIX + "/households/{household_id}/inventory/integrity": {"get"},
         PREFIX + "/households/{household_id}/inventory-movements": {"get"},
         PREFIX + "/households/{household_id}/inventory-movements/{movement_id}": {"get"},
         PREFIX + "/households/{household_id}/inventory-adjustments": {"get", "post"},
