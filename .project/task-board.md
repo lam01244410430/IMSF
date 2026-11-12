@@ -6,7 +6,7 @@
 | P02-01 | Toolchain, minimal service, Compose, Alembic, and CI | P01-01 | Python 3.14 dependencies, health checks, empty database migration, and CI verified | Delivered |
 | P02-02 | Identity, households, and RBAC | P02-01 | Registration, login, rotation, isolation, and authorization tests | Delivered |
 | P03-01 | Ledger, payments, reversals, and reconciliation | P02-02 | Decimal precision, concurrent idempotency, and balance verification | Delivered |
-| P04-01 | Products, lots, movements, and checkout | P03-01 | Atomic rollback, ownership constraints, and concurrent deductions | Planned |
+| P04-01 | Products, lots, movements, and checkout | P03-01 | Atomic rollback, ownership constraints, and concurrent deductions | Delivered |
 | P05-01 | FEFO, consumption, disposal, and expiry jobs | P04-01 | Time zone boundaries, partial deductions, and deduplication | Planned |
 | P06-01 | Waste and financial reports | P05-01 | Reconciled lot valuation and currency grouping | Planned |
 | P07-01 | Recipe matching and ranking | P05-01 | Stable order and expired lot exclusion | Planned |

@@ -134,6 +134,92 @@ Account balances are the sum of signed ledger entries by account and currency. P
 
 Create the lot and its receipt movement atomically. Validate purchase quantity across split lots under the purchase item lock. Stock commands lock product rows in ascending ID order, then eligible lot rows, recalculate against current quantities and write events and the lot projection in the same transaction. All commands that can affect FEFO eligibility use this protocol. Require SUM(quantity_delta) = remaining_quantity in reconciliation. Enforce event-kind alignment with lifecycle details in the service and use a single write path for each command. Excess found above the lot cap uses a separately sourced lot under the proposed baseline. Corrections preserve prior events. Terminal state design proposal uses CONSUMED, DISCARDED, RETURNED, ADJUSTED_OUT or MIXED based on the recorded depletion paths when stock reaches zero. Active state is derived from positive quantity. Undated lots are eligible after dated lots in the proposed baseline and report UNKNOWN freshness. Expiry day remains eligible. Sort by expires_on NULLS LAST, received_at, id. Cost remains fixed on the lot. Waste uses DISPOSE deltas times known lot cost grouped by currency, with unknown-cost quantities reported separately.
 
+> **Inventory implementation note (P04-01, delivered 2026-11-12; branch
+> task/P04-01-closure-review, HEAD 1512cbb):** the inventory tables in this section are implemented as
+> listed, with the following differences from the tables above, all
+> verified in code and tests. (a) Thirteen relations are implemented in
+> revision 000000000007 (down-revision 000000000006): `measurement_units`,
+> `unit_conversions`, `product_categories`, `products`,
+> `inventory_lots`, `inventory_movements`, `inventory_adjustments`,
+> `consumption_records`, `disposal_records`, `refund_inventory_links`,
+> `recipes`, `recipe_ingredients`, `recipe_cooking_history`. (b)
+> `expiration_alerts` is NOT created in P04-01 (P05-owned, per
+> P04-OPEN-09); the `notifications` / `scheduled_jobs` rows in the
+> Recipes section are likewise not implemented in P04, and
+> `idempotency_requests` in that section already exists from P03-01
+> finance. (c) `refund_inventory_links` is an extension beyond
+> schema-v1 (original_transaction_id, purchase_item_id, lot_id,
+> created_by_member_id, created_at, reason, return_movement_id,
+> original_payment_id, original_ledger_entry_id, plus an implemented
+> `return_kind` column defaulting to "RETURN" that the plan did not
+> list); it is append-only and unresolved — no resolution endpoint, no
+> REFUND transaction. (d) `inventory_lots` adds `archived_at` (not in
+> the table above); `inventory_movements` adds `recorded_at` and
+> `correction_of_movement_id`; `consumption_records` adds `reason_code`.
+> (e) `transaction_items` (finance) gains the paired `product_id` /
+> `base_quantity` columns with the pair-presence check and UNIQUE
+> (household_id, id, product_id) — this SUPERSEDES item (c) of the
+> finance implementation note above, which recorded their absence in
+> P03-01; the pair exists only on new or editable DRAFT items, never as
+> a backfill of posted rows. (f) History protection is enforced by DB
+> deferred guards, not only by the service: projection
+> `SUM(quantity_delta) = remaining_quantity`, one RECEIPT per lot,
+> detail cardinality by kind, purchase-link aggregate checks (a
+> DRAFT-linked lot INSERT is refused with SQLSTATE 55000), and the
+> append-only history guards. (g) Currency seeds are unchanged from
+> P03-01; lot costs are fixed explicitly supplied base-unit costs in
+> the purchase currency, or a null pair when unknown. (h) Downgrade
+> refuses when inventory history exists (SQLSTATE 55000) and succeeds
+> only on an empty DB; see the Step 6 verification. (i) The core ERD
+> (docs/diagrams/database-erd.mmd) remains an orientation diagram: it
+> does not show the inventory tables as implemented (nor the identity
+> or finance tables). The Inventory prose above still describes
+> expiration alerts and waste valuation — neither is implemented in
+> P04-01 (deferred: alerts/jobs P05, valuation P06).
+
+> **Inventory implementation note (P04-01, delivered 2026-11-12; branch
+> task/P04-01-closure-review, HEAD 1512cbb):** the inventory tables in this section are implemented as
+> listed, with the following differences from the tables above, all
+> verified in code and tests. (a) Thirteen relations are implemented in
+> revision 000000000007 (down-revision 000000000006): `measurement_units`,
+> `unit_conversions`, `product_categories`, `products`,
+> `inventory_lots`, `inventory_movements`, `inventory_adjustments`,
+> `consumption_records`, `disposal_records`, `refund_inventory_links`,
+> `recipes`, `recipe_ingredients`, `recipe_cooking_history`. (b)
+> `expiration_alerts` is NOT created in P04-01 (P05-owned, per
+> P04-OPEN-09); the `notifications` / `scheduled_jobs` rows in the
+> Recipes section are likewise not implemented in P04, and
+> `idempotency_requests` in that section already exists from P03-01
+> finance. (c) `refund_inventory_links` is an extension beyond
+> schema-v1 (original_transaction_id, purchase_item_id, lot_id,
+> created_by_member_id, created_at, reason, return_movement_id,
+> original_payment_id, original_ledger_entry_id, plus an implemented
+> `return_kind` column defaulting to "RETURN" that the plan did not
+> list); it is append-only and unresolved — no resolution endpoint, no
+> REFUND transaction. (d) `inventory_lots` adds `archived_at` (not in
+> the table above); `inventory_movements` adds `recorded_at` and
+> `correction_of_movement_id`; `consumption_records` adds `reason_code`.
+> (e) `transaction_items` (finance) gains the paired `product_id` /
+> `base_quantity` columns with the pair-presence check and UNIQUE
+> (household_id, id, product_id) — this SUPERSEDES item (c) of the
+> finance implementation note above, which recorded their absence in
+> P03-01; the pair exists only on new or editable DRAFT items, never as
+> a backfill of posted rows. (f) History protection is enforced by DB
+> deferred guards, not only by the service: projection
+> `SUM(quantity_delta) = remaining_quantity`, one RECEIPT per lot,
+> detail cardinality by kind, purchase-link aggregate checks (a
+> DRAFT-linked lot INSERT is refused with SQLSTATE 55000), and the
+> append-only history guards. (g) Currency seeds are unchanged from
+> P03-01; lot costs are fixed explicitly supplied base-unit costs in
+> the purchase currency, or a null pair when unknown. (h) Downgrade
+> refuses when inventory history exists (SQLSTATE 55000) and succeeds
+> only on an empty DB; see the Step 6 verification. (i) The core ERD
+> (docs/diagrams/database-erd.mmd) remains an orientation diagram: it
+> does not show the inventory tables as implemented (nor the identity
+> or finance tables). The Inventory prose above still describes
+> expiration alerts and waste valuation — neither is implemented in
+> P04-01 (deferred: alerts/jobs P05, valuation P06).
+
 ## Recipes and operations
 
 | Relation | Columns beyond the standard key and scope | Keys and checks |
