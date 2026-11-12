@@ -337,6 +337,9 @@ def test_history_triggers_backstop_accidentally_broadened_runtime_grants(
                 "consumption_records",
                 "disposal_records",
                 "refund_inventory_links",
+                # Revision 8 adds a dependent alert FK to inventory_lots.
+                # This grant exists only in the rolled-back owner probe.
+                "expiration_alerts",
             ]:
                 await db.execute(text(f"GRANT TRUNCATE ON {table} TO {role}"))
             await db.execute(text(f"SET LOCAL ROLE {role}"))

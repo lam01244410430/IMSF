@@ -1,0 +1,68 @@
+"""Step 2 read-only route matrix and isolation, real JWT/session/runtime DB."""
+import asyncio
+import base64
+import json
+import pytest
+from sqlalchemy import text
+from test_inventory_lots import product, receipt
+from test_inventory_checkout import configure_timezone
+from test_inventory_expiry import persist_alert, freeze_clock
+
+ROLES = ["OWNER", "ADMIN", "FINANCE_MANAGER", "INVENTORY_MANAGER", "MEMBER", "VIEWER"]
+
+
+@pytest.mark.parametrize("role", ROLES)
+@pytest.mark.parametrize("route", ["/inventory/lifecycle", "/expiration-alerts", "/expiration-alerts/{id}"])
+def test_expiry_route_matrix_matches_all_six_confirmed_roles(f, role, route):
+    configure_timezone(f)
+    lot = receipt(f, product(f), expires_on="2026-11-12").json()
+    alert = persist_alert(f, lot)
+    r = f.request("GET", route.format(id=alert["id"]), role=role)
+    assert r.status_code == 200, r.text
+    assert "lease_token" not in r.text and "payload" not in r.text
+    assert "checkpoint" not in r.text
+
+
+def test_expiry_path_filter_cursor_and_job_ids_are_household_scoped(f, monkeypatch):
+    configure_timezone(f)
+    lot = receipt(f, product(f), expires_on="2026-11-12").json()
+    a = persist_alert(f, lot)
+    persist_alert(f, lot, local_date="2026-11-12")
+    freeze_clock(monkeypatch)
+    receipt(f, {"id": lot["product_id"], "base_unit_id": product(f)["base_unit_id"]})
+    for route, foreign_params in [("/inventory/lifecycle", {"lot_id": lot["id"]}),
+                                  ("/inventory/lifecycle", {"product_id": lot["product_id"]}),
+                                  ("/expiration-alerts", {"lot_id": lot["id"]})]:
+        headers = f.actors["OUTSIDER"].headers
+        url = f"/api/v1/households/{f.other_hid}{route}"
+        assert f.client.get(url, headers=headers, params=foreign_params).status_code == 404
+        cursor = f.request("GET", route, params={"limit": 1}).json()["next_cursor"]
+        assert cursor
+        assert f.client.get(url, headers=headers, params={"cursor": cursor}).status_code == 404
+        # Tampering with scope does not make a foreign position readable.
+        data = json.loads(base64.urlsafe_b64decode(cursor))
+        data["scope"][0] = f.other_hid
+        forged = base64.urlsafe_b64encode(json.dumps(data).encode()).decode()
+        assert f.client.get(url, headers=headers, params={"cursor": forged}).status_code == 404
+    assert f.client.get(f"/api/v1/households/{f.other_hid}/expiration-alerts/{a['id']}", headers=headers).status_code == 404
+    # Step 3 job status and enqueue routes do not exist in Step 2.
+    assert f.request("GET", f"/inventory/expiry-runs/{a['job_id']}").status_code == 404
+    assert f.request("POST", "/inventory/expiry-runs", json={}).status_code == 404
+
+
+@pytest.mark.parametrize("state,status", [("PENDING", 403), ("DISABLED", 401), ("REMOVED", 404), ("REVOKED", 401)])
+@pytest.mark.parametrize("route", ["/inventory/lifecycle", "/expiration-alerts", "/expiration-alerts/{id}"])
+def test_expiry_reads_recheck_current_identity_session_membership(f, state, status, route):
+    configure_timezone(f)
+    alert = persist_alert(f, receipt(f, product(f), expires_on="2026-11-12").json())
+    async def change():
+        async with f.db() as db, db.begin():
+            actor = f.actors["VIEWER"]
+            if state in {"PENDING", "DISABLED"}:
+                await db.execute(text("UPDATE users SET state=:state WHERE id=:id"), {"state": state, "id": actor.id})
+            elif state == "REMOVED":
+                await db.execute(text("UPDATE household_members SET removed_at=now() WHERE household_id=:hid AND id=:id"), {"hid": f.hid, "id": actor.member_id})
+            else:
+                await db.execute(text("UPDATE auth_sessions SET revoked_at=now() WHERE id=:id"), {"id": actor.session_id})
+    asyncio.run(change())
+    assert f.request("GET", route.format(id=alert["id"]), role="VIEWER").status_code == status

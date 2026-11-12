@@ -13,6 +13,7 @@ from app.api.finance import router as finance_router
 from app.api.inventory import router as inventory_router
 from app.api.checkout import router as checkout_router
 from app.api.recipes import router as recipes_router
+from app.api.lifecycle import router as lifecycle_router
 from app.inventory.domain import InventoryRequestError
 from app.finance.domain import FinanceRequestError
 from app.api.dependencies import jwt_secret
@@ -45,6 +46,7 @@ def create_app() -> FastAPI:
     app.include_router(inventory_router)
     app.include_router(checkout_router)
     app.include_router(recipes_router)
+    app.include_router(lifecycle_router)
 
     async def identity_error(request: Request, exc: Exception):
         status = exc.status_code if isinstance(exc, (HTTPException, HouseholdRequestError)) else (

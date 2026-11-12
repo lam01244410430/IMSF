@@ -25,6 +25,7 @@ from app.identity.infrastructure import models  # noqa: F401
 from app.finance.infrastructure import models as finance_models  # noqa: F401
 from app.inventory.infrastructure import models as inventory_models  # noqa: F401
 from app.recipes.infrastructure import models as recipe_models  # noqa: F401
+from app.lifecycle.infrastructure import models as lifecycle_models  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:
