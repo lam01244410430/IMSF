@@ -1,4 +1,4 @@
-# Inventory lifecycle and expiry jobs — P05-01 Steps 2–4
+# Inventory lifecycle and expiry jobs — P05-01 Steps 2–5
 
 All new P05 contracts and policies below are **PROPOSALS**, implemented for merge review under the approved Steps 2–4 scope. Passing tests do not decide OPEN items. P04 inventory writers, terminal states, FEFO ordering and the confirmed role matrix remain authoritative.
 
@@ -175,3 +175,50 @@ part of a lot or splitting a fully satisfied demand across lots; shortage still
 rolls back the whole request. No partial-fulfillment success is introduced.
 OPEN-02 remains the PROPOSAL persistence base at frozen revision 8, with no edit
 to revisions 1–8. All OPEN policies still require merge-gate confirmation.
+
+## Step 5 compatibility and closure review
+
+Step 5 changes no production code, test, migration, feature, FEFO/expiry-filter
+rule, job-execution behaviour, email/inbox, ADR-0005 or P01-01 label. It re-verifies
+the Step 4 tree (branch `task/P05-01-closure-review`, HEAD 9d81253) on fresh
+guarded disposable PostgreSQL databases and records the real Step 5 state:
+
+- Full suite: **1157 passed, 0 failed, 0 skipped, 1 warning in 1398.98s (0:23:18)**
+  (pytest; driver 1766.79s; pytest process exit -15 — see the host
+  limitation below; the printed summary is the evidence). Targeted P05 files:
+  **343 passed, 0 failed, 1 warning in 372.67s** (driver
+  392.41s), exit 0. CLOSED P2-1 race regression: 10/10 passed inside
+  the full run.
+- Health on a fresh DB: alembic `upgrade head` exit 0; `/health` 200 and
+  `/health/ready` 200, both `{"status":"ok"}`.
+- Migration/downgrade rehearsals (standalone, fresh disposable DBs): 15/15 PASS —
+  populated rev-7 upgrade 7→8 preserves every row; downgrade 8→7 with retained
+  alert/job history refuses SQLSTATE 55000 with schema, grants and rows intact;
+  empty downgrade 8→7 preserves rev-7 history. Revisions 1–8 SHA256-frozen vs
+  9d81253 (8/8 MATCH).
+- OpenAPI compatibility (recomputed vs 9d81253): 77 paths / 118 schemas on both
+  sides — no path or schema added, removed or changed. The Step 4 contract change
+  stands: two lot GETs changed response models (LotPage → LotReadPage,
+  LotResponse → LotReadResponse); added schemas LotReadPage, LotReadResponse,
+  StandingAlertSummary; removed from the emitted OpenAPI: LotPage (source class
+  retained in `app/inventory/dto.py`, no route references it); changed existing
+  schema: LifecycleResponse (adds required `standing_alerts`, maxItems 5). The
+  correct Step 4 base schema count is **116** (the Step 4 tester report's "115"
+  prose number was a typo).
+- Runtime security rechecks: fail-closed grants (worker NOINHERIT/SET ROLE
+  preflight in revision 8), worker preflight, and a re-grep of `app/lifecycle/`
+  for stock/finance writer calls (`deduct_in_uow`, `_write_movement_in_uow`,
+  `stock_command`, finance writes) finds none — jobs only read inventory and
+  write alert/job records.
+- Known host limitation: the full-suite pytest process does not exit cleanly on
+  the 1 GB EC2 host. After printing the complete passing summary it sticks in
+  swap-bound interpreter shutdown; the coder sends SIGTERM after a documented
+  wait and the process exits -15. Sixth occurrence of the same artifact (Step 2
+  tester, Step 3 coder, Step 3 tester, Step 4 coder, Step 4 tester, this run)
+  with zero test failures in any of them; targeted (exit 0) and health (exit 0)
+  runs exit cleanly. A literal "exit 0" claim for the full-suite process remains
+  unobtained by anyone; record as a known host limitation in the closure note.
+- OPEN-09 stays UNRESOLVED; OPEN-01 threshold, OPEN-03 delivery, OPEN-04/05/06/08
+  execution behaviour and OPEN-10 provisioning stay open. P05-01 becomes Delivered
+  only when Lam accepts the closure evidence; Step 5 does not close P05-01 by
+  itself.

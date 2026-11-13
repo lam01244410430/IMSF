@@ -8,3 +8,5 @@
 - 2026-11-06 Generated the local Graphify knowledge graph (414 nodes, 515 edges, 56 communities). Structural export checks passed with extraction-quality warnings. See [graph verification](graphify-verification-2026-11-06.md).
 
 - 2026-11-06 Prepared the user-authorized IMSF GitHub upload. All 18 tests and dependency/syntax checks passed; synchronized CI disposable database configuration. See [publication evidence](github-publication-2026-11-06.md).
+
+- 2026-11-13 P05-01 Step 5 closure review on `task/P05-01-closure-review` (HEAD 9d81253): full suite 1157 passed, 0 failed, 0 skipped, 1 warning on a fresh disposable PostgreSQL database (pytest process exit -15 — known host limitation, printed summary is the evidence); targeted P05 files 343 passed; /health and /health/ready 200; migration chain base → 000000000008 verified with standalone rehearsals 15/15 PASS; OpenAPI unchanged vs 9d81253 (77 paths / 118 schemas). Documentation and project records only; no production code, test or migration change. See /tmp/p0501-step5-result.md.
