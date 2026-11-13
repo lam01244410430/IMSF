@@ -183,6 +183,8 @@ def test_step3_explicit_permission_matrix_and_reads(f, role):
 
 @pytest.mark.parametrize("archive", ["product", "lot"])
 def test_archive_proposal_blocks_consumption_allows_reasoned_disposal_adjustment_return(f, archive):
+    from test_inventory_checkout import configure_timezone
+    configure_timezone(f)  # Step 4 lot GET requires explicit household timezone.
     tx, lot = setup_purchase(f)
     p = {"id": lot["product_id"], "base_unit_id": query(f, "SELECT base_unit_id FROM products WHERE household_id=:hid")[0]["base_unit_id"]}
     path, body = (f"/products/{p['id']}/archive", {}) if archive == "product" else (f"/inventory-lots/{lot['id']}/archive", {"reason": "Retain"})
@@ -547,3 +549,33 @@ def test_batch_command_locks_originals_and_accounts_ascending_before_products(f,
                         task.cancel()
     asyncio.run(run())
     assert [row["remaining_quantity"] for row in invariant(f)] == [4, 4]
+
+
+def test_partial_consumption_then_partial_disposal_preserves_remaining_and_mixed_terminal(f):
+    from app.inventory.domain import terminal_state
+    from test_inventory_checkout import configure_timezone
+    configure_timezone(f)
+    p = product(f)
+    lot = receipt(f, p, quantity='5').json()
+    for path, amount, remaining, kinds in [
+        ('consumption', '2', 3, ['CONSUME']),
+        ('disposals', '1', 2, ['CONSUME', 'DISPOSE']),
+        ('disposals', '2', 0, ['CONSUME', 'DISPOSE']),
+    ]:
+        key = f'partial-{path}-{amount}'
+        r = deduction(f, p, lot, path, amount, key=key)
+        assert r.status_code == 201, r.text
+        assert len(r.json()['movement_ids']) == 1
+        persisted = invariant(f)[0]
+        assert persisted['remaining_quantity'] == remaining
+        assert persisted['terminal_state'] == terminal_state(Decimal(remaining), kinds)
+        detail = f.request('GET', f"/inventory-lots/{lot['id']}")
+        lifecycle = f.request('GET', '/inventory/lifecycle', params={'lot_id': lot['id']})
+        assert detail.status_code == lifecycle.status_code == 200
+        assert detail.json()['terminal_state'] == lifecycle.json()['items'][0]['terminal_state'] == persisted['terminal_state']
+        before = effects(f)
+        assert deduction(f, p, lot, path, amount, key=key).content == r.content
+        assert effects(f) == before
+    assert persisted['terminal_state'] == 'MIXED'
+    assert len(query(f, 'SELECT id FROM consumption_records WHERE household_id=:hid')) == 1
+    assert len(query(f, 'SELECT id FROM disposal_records WHERE household_id=:hid')) == 2

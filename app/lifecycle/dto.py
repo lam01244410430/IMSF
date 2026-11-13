@@ -1,10 +1,23 @@
 """P05-OPEN-07 PROPOSAL: sanitized bounded read contracts, no worker secrets."""
 from datetime import date, datetime
 from typing import Literal
+from pydantic import Field
 from app.finance.dto import ReadDTO, SerializedDecimal
 
 Freshness = Literal["FRESH", "WARNING", "EXPIRED", "UNKNOWN"]
 AlertKind = Literal["WARNING", "EXPIRED"]
+
+
+# OPEN-03/07 PROPOSAL: newest five by alert ID per lot; retained provenance.
+STANDING_ALERT_LIMIT = 5
+
+
+class StandingAlertSummary(ReadDTO):
+    id: int
+    alert_kind: AlertKind
+    local_date: date
+    job_id: int
+    created_at: datetime
 
 
 class LifecycleResponse(ReadDTO):
@@ -20,6 +33,7 @@ class LifecycleResponse(ReadDTO):
     household_archived_at: datetime | None
     activity_state: Literal["ACTIVE", "TERMINAL"]
     terminal_state: str | None
+    standing_alerts: list[StandingAlertSummary] = Field(max_length=STANDING_ALERT_LIMIT)
     freshness: Freshness
     days_left: int | None
     local_date: date
@@ -48,9 +62,6 @@ class ExpirationAlertResponse(ReadDTO):
 class ExpirationAlertPage(ReadDTO):
     items: list[ExpirationAlertResponse]
     next_cursor: str | None
-
-
-from pydantic import Field
 
 
 class ExpiryRunResponse(ReadDTO):

@@ -35,6 +35,26 @@ class SqlAlchemyLifecycleRepository:
         return [record(row) | {"product_archived_at": pa, "household_archived_at": ha}
                 for row, pa, ha in rows]
 
+    async def standing_alerts(self, hid, lot_ids):
+        # OPEN-03/07 PROPOSAL: SQL LIMIT per lot bounds fetched history, not
+        # merely the serialized response. At most 200 lots * 5 summaries.
+        from app.lifecycle.dto import STANDING_ALERT_LIMIT
+        from sqlalchemy import true
+        lots = select(InventoryLot.id.label("lot_id")).where(
+            InventoryLot.household_id == hid, InventoryLot.id.in_(lot_ids)
+        ).subquery()
+        alert = ExpirationAlert
+        latest = select(alert.id, alert.alert_kind, alert.local_date,
+            alert.job_id, alert.created_at).where(
+                alert.household_id == hid, alert.lot_id == lots.c.lot_id
+            ).order_by(alert.id.desc()).limit(STANDING_ALERT_LIMIT).lateral()
+        rows = (await self.session.execute(select(lots.c.lot_id, latest)
+            .join(latest, true()).order_by(lots.c.lot_id, latest.c.id.desc()))).mappings()
+        result = {}
+        for row in rows:
+            result.setdefault(row["lot_id"], []).append(dict(row))
+        return result
+
     async def alert(self, hid, identifier):
         row = await self.session.scalar(select(ExpirationAlert).where(
             ExpirationAlert.household_id == hid, ExpirationAlert.id == identifier))

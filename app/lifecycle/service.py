@@ -92,10 +92,12 @@ class LifecycleService:
                 if decoded.get("evaluation") != evaluation:
                     raise InventoryRequestError(409, "INVENTORY_STATE_CONFLICT")
             rows = await self.repository.lot_page(hid, limit + 1, position, filters, local_date)
+            alerts = await self.repository.standing_alerts(hid, [row["id"] for row in rows[:limit]])
             items = []
             for row in rows[:limit]:
                 kind, days = freshness(row["expires_on"], local_date)
                 items.append(row | {"lot_id": row["id"], "lot_archived_at": row["archived_at"],
+                    "standing_alerts": alerts.get(row["id"], []),
                     "activity_state": "ACTIVE" if row["remaining_quantity"] > 0 else "TERMINAL",
                     "freshness": kind, "days_left": days, "local_date": local_date, "timezone": name})
             return LifecyclePage.model_validate({"items": items, "next_cursor": self._next(rows, limit, scope, evaluation),

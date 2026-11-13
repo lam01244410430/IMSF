@@ -108,6 +108,8 @@ def test_split_purchase_receipts_cannot_exceed_item_base_quantity(f):
 
 
 def test_archived_product_and_lot_policy_and_expiry_correction(f):
+    from test_inventory_checkout import configure_timezone
+    configure_timezone(f)  # Step 4 lot GET requires explicit household timezone.
     p = product(f)
     lot = receipt(f, p).json()
     r = f.request(

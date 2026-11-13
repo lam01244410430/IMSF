@@ -16,6 +16,7 @@ from app.inventory.dto import (
     ProductCategoryResponse,
     ProductResponse,
     LotResponse,
+    LotReadResponse,
     MovementResponse,
     UnitResponse,
     ConversionResponse,
@@ -77,6 +78,28 @@ class InventoryService:
                 "receipt_movement_id": await self.repository.receipt_id(hid, row["id"])
             }
         return RESPONSES[resource].model_validate(row).model_dump(mode="json")
+
+    async def _lot_evaluation(self, hid):
+        # OPEN-01/07 PROPOSAL: shared lifecycle domain/clock, once per GET
+        # attempt. Keep _response and every write/replay independent of timezone.
+        from app.lifecycle.domain import household_zone
+        from app.lifecycle.service import utc_now
+        name = await self.repository.household_timezone(hid)
+        return utc_now().astimezone(household_zone(name)).date(), name
+
+    async def _read_response(self, resource, hid, row, evaluation):
+        response = await self._response(resource, hid, row)
+        if evaluation is None:
+            return response
+        from app.lifecycle.domain import freshness
+        day, name = evaluation
+        kind, days = freshness(row["expires_on"], day)
+        # Retain terminal_state from the single movement writer's domain
+        # derivation; a calendar read must never derive or persist it again.
+        return LotReadResponse.model_validate(response | {
+            "freshness": kind, "days_left": days, "local_date": day,
+            "timezone": name,
+        }).model_dump(mode="json")
 
     async def _audit(self, hid, context, resource, row, action, reason=None):
         await self.commands.audit(
@@ -174,9 +197,9 @@ class InventoryService:
     async def get(self, actor, hid, resource, identifier):
         async with self.session.begin():
             await self.access.resolve(actor, hid, policy.READ, write=False)
-            return await self._response(
-                resource, hid, await self._object(resource, hid, identifier)
-            )
+            row = await self._object(resource, hid, identifier)
+            evaluation = await self._lot_evaluation(hid) if resource == "inventory-lots" else None
+            return await self._read_response(resource, hid, row, evaluation)
 
     async def page(self, actor, hid, resource, limit=50, cursor=None, **filters):
         async with self.session.begin():
@@ -211,6 +234,7 @@ class InventoryService:
                     raise InventoryRequestError(
                         422, "INVENTORY_INVALID_INPUT"
                     ) from None
+            evaluation = await self._lot_evaluation(hid) if resource == "inventory-lots" else None
             rows = await self.repository.page(
                 resource, hid, limit + 1, position, filters
             )
@@ -231,7 +255,7 @@ class InventoryService:
                     ).encode()
                 ).decode()
             return {
-                "items": [await self._response(resource, hid, row) for row in rows],
+                "items": [await self._read_response(resource, hid, row, evaluation) for row in rows],
                 "next_cursor": next_cursor,
             }
 
@@ -592,6 +616,12 @@ class InventoryService:
 
     async def stock_command(self, actor, hid, resource, body, key, *, lot_id=None):
         """P04-OPEN-03/04/05/08/10/11/13 PROPOSAL explicit-lot commands.
+
+        OPEN-09 UNRESOLVED: current explicit route has no date filter;
+        recommend preserving it pending an explicit choice. Alternative
+        exclusion/override needs reviewed errors, timezone semantics and MEMBER
+        boundaries. FEFO/cooking already exclude yesterday; partial-fulfillment
+        success would be new behavior, not required by partial-deduction acceptance.
 
         RETURN is stock-only and appends an unresolved association. It never
         creates payments/ledger entries or resolves existing refund links.

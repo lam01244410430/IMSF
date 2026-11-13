@@ -1,6 +1,6 @@
-# Inventory lifecycle and expiry jobs — P05-01 Steps 2–3
+# Inventory lifecycle and expiry jobs — P05-01 Steps 2–4
 
-All new P05 contracts and policies below are **PROPOSALS**, implemented for merge review under the approved Steps 2–3 scope. Passing tests do not decide OPEN items. P04 inventory writers, terminal states, FEFO ordering and the confirmed role matrix remain authoritative.
+All new P05 contracts and policies below are **PROPOSALS**, implemented for merge review under the approved Steps 2–4 scope. Passing tests do not decide OPEN items. P04 inventory writers, terminal states, FEFO ordering and the confirmed role matrix remain authoritative.
 
 With `H = /api/v1/households/{household_id}`, Step 2 adds:
 
@@ -92,3 +92,86 @@ Operators inspect sanitized GET status and dispatcher diagnostics, correct inval
 Migration grants SELECT/INSERT and sequence USAGE/SELECT on new relations, controlled job UPDATE columns to both roles, and household/settings/product/lot SELECT to the worker. Validation functions have PUBLIC execution revoked and only the required roles receive EXECUTE. Household SELECT alone does not grant FOR UPDATE. Exact production provisioning and a narrow household-lock capability remain OPEN-10; Step 3 application invocation and recovery semantics are above. The dedicated SELECT-only worker remains unable to run effects safely until this is separately resolved.
 
 Disposable verification uses the existing p02_test_* / p03_finance_test_* guarded fixtures, separate migrator/runtime credentials, and explicit INVENTORY_EXPIRY_WORKER_DATABASE_URL for the actual worker-credential grant probe on that same disposable finance DB. Revision-8 rehearsals require a separate fresh p05_rehearsal_test_* database with EXPIRY_REHEARSAL_DATABASE_URL and matching P05_REHEARSAL_DATABASE. Source-schema USAGE is an operator prerequisite for the configured roles. No history DELETE cleanup or development/production database is used. Remote CI is not established by local tests.
+
+
+## Step 4 integrated inventory reads — PROPOSAL OPEN-01/07
+
+GET `H/inventory-lots` now returns `LotReadPage`; GET
+`H/inventory-lots/{lot_id}` returns `LotReadResponse`. The read DTO extends the
+existing `LotResponse` with REQUIRED `freshness`, nullable `days_left`,
+`local_date` and `timezone`. Every returned lot includes all four fields, using
+exactly `app.lifecycle.domain.freshness()` and the PROPOSAL three-day WARNING
+threshold above. UNKNOWN has null days_left. Each GET samples the shared
+lifecycle clock once after authorization and referenced-object scope checks,
+using the configured household timezone; missing/empty/invalid/non-string
+settings return 422 `INVENTORY_TIMEZONE_REQUIRED` without fallback or writes.
+An empty list also requires valid timezone. Existing list filters, ID ordering,
+limits and cursors remain unchanged; the existing lot cursor is a live ID cursor,
+not a frozen evaluation. Each page has one evaluation, and a later request may
+show a later date. Lifecycle-specific cursors retain their stricter date binding.
+
+**PROPOSAL DTO boundary:** receive, metadata patch and archive still use
+`LotResponse`, with no new fields or timezone requirement. Saved write responses
+and replay remain unchanged. The persisted terminal_state comes from the existing
+single movement writer and its `app.inventory.domain.terminal_state()` function;
+reads retain it, never compute a second terminal label or overwrite it with EXPIRED.
+
+Blast-radius audit before implementation found five existing test functions
+(17 parameterized cases) expecting successful lot GETs without timezone setup:
+`test_every_route_uses_confirmed_explicit_role_matrix` (6),
+`test_archived_product_and_lot_policy_and_expiry_correction` (1),
+`test_archive_proposal_blocks_consumption_allows_reasoned_disposal_adjustment_return` (2),
+`test_purchase_checkout_preserves_unpaid_and_partial_settlement` (3), and
+`test_integrity_read_clean_for_terminal_details_and_replenishment` (5).
+Each gains only opt-in `configure_timezone(f)` setup; all existing assertions stay
+unchanged. Foreign-scope failures still precede timezone validation. No fixture
+acquires a default timezone.
+
+## Step 4 standing-alert presentation — PROPOSAL OPEN-03/07
+
+Every `LifecycleResponse` now includes required `standing_alerts`, an array with
+at most **5** summaries per lot, ordered by alert ID descending (latest inserted
+first, not sorted by observed date). Each summary exposes only `id`, `alert_kind`,
+`local_date`, `job_id`, `created_at`. No events yields `[]`. SQL applies the per-lot
+limit before fetching history, within the existing household scope and at most
+200 returned lots. The bound of 5 is a PROPOSAL for merge confirmation.
+The existing expiration-alert list/detail remains the full paginated provenance
+surface. Summary truncation never removes history. Expiry correction, complete
+or partial disposal and archive do not resolve, erase or rewrite old alerts.
+There is no inbox, recipient/read state, email, new endpoint or alert DELETE.
+
+Inventory/lifecycle reads perform no stock, finance, history or operational
+writes, even across household midnight. Jobs retain the Step 3 claim/fence/batch
+protocol unchanged and write only alert/job records. User commands still use
+`_write_movement_in_uow` / `deduct_in_uow`; no second stock writer is introduced.
+
+## Step 4 finance and checkout read audit
+
+Audited `app/api/finance.py`, `app/finance/ledger_service.py`,
+`app/finance/reconciliation_service.py`, `app/finance/dto.py`,
+`app/finance/infrastructure/repositories.py`, `app/finance/ports.py`,
+`app/inventory/infrastructure/reversal_effects.py`, and
+`app/checkout/{service,dto}.py` (plus checkout routing in `app/api/checkout.py`).
+Finance reads expose transactions/items/products, payments, ledger, balances and
+reconciliation/integrity facts, with no current per-lot state. Reversal refusal
+uses stock-lot references internally, not a per-lot read representation.
+Checkout has POST command results only: allocation IDs/quantities are the saved
+command outcome, and purchase returns lot/movement IDs; no checkout GET surfaces
+current lot state. Therefore no finance/checkout lifecycle field or timezone
+requirement is added. Cooking history remains an immutable execution snapshot,
+not current per-lot lifecycle state. Finance, checkout and cooking integration
+is verified through the existing compatibility tests.
+
+## OPEN-09 — UNRESOLVED; current explicit-lot behavior retained
+
+The plan recommendation is retained verbatim:
+
+> current explicit route has no date filter; recommend preserving it pending an explicit choice. Alternative exclusion/override needs reviewed errors, timezone semantics and MEMBER boundaries. FEFO/cooking already exclude yesterday; partial-fulfillment success would be new behavior, not required by partial-deduction acceptance.
+
+The explicit-lot route can still consume expired stock, including for MEMBER;
+the integration test names this UNRESOLVED policy explicitly. FEFO/cooking keep
+yesterday exclusion and expiry-day eligibility. Partial deduction means taking
+part of a lot or splitting a fully satisfied demand across lots; shortage still
+rolls back the whole request. No partial-fulfillment success is introduced.
+OPEN-02 remains the PROPOSAL persistence base at frozen revision 8, with no edit
+to revisions 1–8. All OPEN policies still require merge-gate confirmation.

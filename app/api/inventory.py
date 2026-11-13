@@ -32,7 +32,8 @@ from app.inventory.dto import (
     ConversionPage,
     CategoryPage,
     ProductPage,
-    LotPage,
+    LotReadPage,
+    LotReadResponse,
     MovementPage,
     AdjustmentCreate,
     AdjustmentResponse,
@@ -268,7 +269,7 @@ async def receive(
     return saved_response(await service.receive(actor, household_id, body, key))
 
 
-@router.get("/inventory-lots", response_model=LotPage)
+@router.get("/inventory-lots", response_model=LotReadPage)
 async def lots(
     household_id: Identifier,
     actor: Principal,
@@ -295,7 +296,7 @@ async def lots(
     )
 
 
-@router.get("/inventory-lots/{lot_id}", response_model=LotResponse)
+@router.get("/inventory-lots/{lot_id}", response_model=LotReadResponse)
 async def lot(
     household_id: Identifier, lot_id: Identifier, actor: Principal, service: Service
 ):

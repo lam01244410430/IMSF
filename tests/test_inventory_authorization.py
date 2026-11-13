@@ -11,6 +11,8 @@ ROLES = ["OWNER", "ADMIN", "FINANCE_MANAGER", "INVENTORY_MANAGER", "MEMBER", "VI
 
 @pytest.mark.parametrize("role", ROLES)
 def test_every_route_uses_confirmed_explicit_role_matrix(f, role):
+    from test_inventory_checkout import configure_timezone
+    configure_timezone(f)  # Step 4 lot GET requires explicit household timezone.
     p = product(f)
     lot = receipt(f, p).json()
     c = f.request("POST", "/product-categories", json={"name": "Dry food"}).json()

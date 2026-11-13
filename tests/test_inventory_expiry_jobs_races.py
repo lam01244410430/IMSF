@@ -133,6 +133,10 @@ def race_user(f, monkeypatch, action, user_first):
                     return await client.post(f"/api/v1/households/{f.hid}/disposals",
                         headers=f.actors["INVENTORY_MANAGER"].headers | {"Idempotency-Key": "race-dispose"},
                         json={"allocations": [{"lot_id": lot["id"], "quantity": "1", "unit_id": p["base_unit_id"]}], "reason_code": "EXPIRED"})
+                if action == "archive":
+                    return await client.post(f"/api/v1/households/{f.hid}/inventory-lots/{lot['id']}/archive",
+                        headers=f.actors["INVENTORY_MANAGER"].headers | {"Idempotency-Key": "race-archive"},
+                        json={"reason": "Retain stock history"})
                 return await client.patch(f"/api/v1/households/{f.hid}/inventory-lots/{lot['id']}",
                     headers=f.actors["INVENTORY_MANAGER"].headers | {"Idempotency-Key": "race-expiry"},
                     json={"expires_on": "2026-10-01", "reason": "Correct expiry"})
@@ -151,6 +155,17 @@ def race_user(f, monkeypatch, action, user_first):
             response = results[0 if user_first else 1]
             assert response.status_code == (201 if action == "dispose" else 200), response.text
     asyncio.run(run())
+    if action == "archive":
+        alerts = effects(f)
+        assert len(alerts) == (0 if user_first else 1)
+        if alerts:
+            assert alerts[0]["lot_id"] == lot["id"] and alerts[0]["alert_kind"] == "WARNING"
+        row = query(f, "SELECT archived_at,remaining_quantity FROM inventory_lots WHERE household_id=:hid")[0]
+        assert row["archived_at"] is not None and row["remaining_quantity"] == 5
+        after = business_snapshot(f)
+        for name in before.keys() - {"inventory_lots", "audit_logs"}:
+            assert after[name] == before[name], name
+        return
     alert, = effects(f)
     assert alert["lot_id"] == lot["id"]
     if action == "expiry":
@@ -246,3 +261,64 @@ def test_concurrent_enqueue_and_dispatch_reuse_the_current_daily_job(f, monkeypa
     asyncio.run(run())
     assert len(query(f, "SELECT id FROM scheduled_jobs WHERE household_id=:hid")) == 1
     assert not effects(f)
+
+
+@pytest.mark.parametrize("user_first", [True, False])
+def test_expiry_run_racing_archive_retains_committed_observation_without_stock_writes(f, monkeypatch, user_first):
+    race_user(f, monkeypatch, "archive", user_first)
+
+
+def test_expiry_run_crossing_midnight_mid_batch_retains_first_date_then_skips_remaining(f, monkeypatch):
+    from datetime import datetime
+    from app.lifecycle import service
+    from app.lifecycle.infrastructure.repositories import SqlAlchemyExpiryJobRepository
+    configure_timezone(f)
+    p = product(f)
+    for _ in range(101):
+        assert receipt(f, p, expires_on="2026-11-11", quantity="1").status_code == 201
+    freeze_clock(monkeypatch, "2026-11-11T16:59:59+00:00")
+    job = enqueue(f)
+    claim = asyncio.run(jobs(f).claim(job_id=job["id"]))
+    before = business_snapshot(f)
+    original = SqlAlchemyExpiryJobRepository.source_page
+    current = ["2026-11-11T16:59:59+00:00"]
+    sampled = []
+    def clock():
+        sampled.append(current[0])
+        return datetime.fromisoformat(current[0])
+    monkeypatch.setattr(service, "utc_now", clock)
+    async def run():
+        observed, release = asyncio.Event(), asyncio.Event()
+        worker_pid = []
+        async def hold(self, *args):
+            rows = await original(self, *args)
+            worker_pid.append(await self.session.scalar(text("SELECT pg_backend_pid()")))
+            observed.set()
+            await release.wait()
+            return rows
+        with monkeypatch.context() as patch:
+            patch.setattr(SqlAlchemyExpiryJobRepository, "source_page", hold)
+            async with asyncio.timeout(30):
+                task = asyncio.create_task(jobs(f).batch(claim))
+                try:
+                    await observed.wait()
+                    # Independent observer sees no uncommitted alert/checkpoint.
+                    async with f.db() as observer:
+                        assert await observer.scalar(text("SELECT pg_backend_pid()")) != worker_pid[0]
+                        assert not await observer.scalar(text("SELECT count(*) FROM expiration_alerts WHERE household_id=:hid"), {"hid": f.hid})
+                    current[0] = "2026-11-11T17:00:00+00:00"
+                finally:
+                    release.set()
+                first = await task
+        assert first["state"] == "RUNNING" and first["scanned_count"] == first["warning_count"] == 100
+        second = await jobs(f).batch(claim)
+        assert second["state"] == "SUCCEEDED" and second["outcome_code"] == "SKIPPED_STALE"
+        assert second["scanned_count"] == 100
+    asyncio.run(run())
+    assert sampled == ["2026-11-11T16:59:59+00:00", "2026-11-11T17:00:00+00:00"]
+    alerts = effects(f)
+    assert len(alerts) == 100 and {str(a["local_date"]) for a in alerts} == {"2026-11-11"}
+    assert {a["alert_kind"] for a in alerts} == {"WARNING"}
+    assert business_snapshot(f) == before
+    rows = query(f, "SELECT payload,state FROM scheduled_jobs WHERE household_id=:hid ORDER BY id")
+    assert [(r["payload"]["local_date"], r["state"]) for r in rows] == [("2026-11-11", "SUCCEEDED"), ("2026-11-12", "READY")]

@@ -55,7 +55,7 @@ def test_expiry_path_filter_cursor_and_job_ids_are_household_scoped(f, monkeypat
 
 
 @pytest.mark.parametrize("state,status", [("PENDING", 403), ("DISABLED", 401), ("REMOVED", 404), ("REVOKED", 401)])
-@pytest.mark.parametrize("route", ["/inventory/lifecycle", "/expiration-alerts", "/expiration-alerts/{id}"])
+@pytest.mark.parametrize("route", ["/inventory/lifecycle", "/expiration-alerts", "/expiration-alerts/{id}", "/inventory/expiry-runs/{job_id}"])
 def test_expiry_reads_recheck_current_identity_session_membership(f, state, status, route):
     configure_timezone(f)
     alert = persist_alert(f, receipt(f, product(f), expires_on="2026-11-12").json())
@@ -69,7 +69,7 @@ def test_expiry_reads_recheck_current_identity_session_membership(f, state, stat
             else:
                 await db.execute(text("UPDATE auth_sessions SET revoked_at=now() WHERE id=:id"), {"id": actor.session_id})
     asyncio.run(change())
-    assert f.request("GET", route.format(id=alert["id"]), role="VIEWER").status_code == status
+    assert f.request("GET", route.format(id=alert["id"], job_id=alert["job_id"]), role="VIEWER").status_code == status
 
 
 @pytest.mark.parametrize("change,status", [("PENDING",403),("DISABLED",401),("REMOVED",404),("REVOKED",401),("ROLE",403),("ARCHIVED",409)])

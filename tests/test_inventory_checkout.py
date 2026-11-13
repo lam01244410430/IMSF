@@ -131,6 +131,8 @@ def test_purchase_checkout_failure_after_payment_and_receipt_rolls_back_all_modu
 
 @pytest.mark.parametrize('paid', ['0', '4.00', '12.30'])
 def test_purchase_checkout_preserves_unpaid_and_partial_settlement(f, paid):
+    from test_inventory_checkout import configure_timezone
+    configure_timezone(f)  # Step 4 lot GET requires explicit household timezone.
     p = product(f)
     existing = receipt(f, p).json()
     payments = [] if paid == '0' else [payment(account(f), paid)]
@@ -286,3 +288,26 @@ def test_purchase_full_receipt_is_per_item_with_shuffled_products(f):
     received = query(f,'SELECT product_id,purchase_item_id,received_quantity FROM inventory_lots WHERE household_id=:hid ORDER BY id')
     assert [(l['product_id'],l['purchase_item_id'],l['received_quantity']) for l in received] == [
         (other['id'],tx['items'][2]['id'],Decimal(7)),(p['id'],tx['items'][1]['id'],Decimal(3)),(p['id'],tx['items'][0]['id'],Decimal(2))]
+
+
+def test_fefo_partial_lot_split_fulfills_whole_demand_or_rolls_back(f, monkeypatch):
+    from datetime import datetime, timezone
+    from test_inventory_fefo import freeze_inventory_clock
+    configure_timezone(f)
+    freeze_inventory_clock(monkeypatch, datetime(2026, 11, 11, tzinfo=timezone.utc))
+    p = product(f)
+    a = receipt(f, p, quantity='2', expires_on='2026-11-11').json()
+    b = receipt(f, p, quantity='3', expires_on='2026-11-12').json()
+    before = snapshot(f)
+    r = f.request('POST', '/checkout/deductions', key='partial-six', json=demand(p, '6'))
+    assert r.status_code == 409 and r.json()['error_code'] == 'INVENTORY_STOCK_SHORTAGE'
+    assert snapshot(f) == before
+    r = f.request('POST', '/checkout/deductions', key='partial-four', json=demand(p, '4'))
+    assert r.status_code == 201, r.text
+    assert [(x['lot_id'], Decimal(x['base_quantity']), Decimal(x['remaining_quantity'])) for x in r.json()['allocations']] == [(a['id'], Decimal(2), Decimal(0)), (b['id'], Decimal(2), Decimal(1))]
+    rows = query(f, "SELECT lot_id,quantity_delta FROM inventory_movements WHERE household_id=:hid AND kind='CONSUME' ORDER BY id")
+    assert [(x['lot_id'], x['quantity_delta']) for x in rows] == [(a['id'], -2), (b['id'], -2)]
+    assert len(r.json()['movement_ids']) == len(r.json()['consumption_record_ids']) == 2
+    after = snapshot(f)
+    assert f.request('POST', '/checkout/deductions', key='partial-four', json=demand(p, '4')).content == r.content
+    assert snapshot(f) == after

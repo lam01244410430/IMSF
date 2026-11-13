@@ -259,6 +259,8 @@ def test_integrity_read_scope_and_permissions(f):
     ],
 )
 def test_integrity_read_clean_for_terminal_details_and_replenishment(f, kind, terminal):
+    from test_inventory_checkout import configure_timezone
+    configure_timezone(f)  # Step 4 lot GET requires explicit household timezone.
     from test_inventory_lots import receipt
 
     p = product(f)

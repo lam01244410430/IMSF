@@ -154,6 +154,19 @@ class LotResponse(ReadDTO):
     receipt_movement_id: int
 
 
+class LotReadResponse(LotResponse):
+    """OPEN-01/07 PROPOSAL: required evaluation only on GET, never writes."""
+    freshness: Literal["FRESH", "WARNING", "EXPIRED", "UNKNOWN"]
+    days_left: int | None
+    local_date: date
+    timezone: str
+
+
+class LotReadPage(ReadDTO):
+    items: list[LotReadResponse]
+    next_cursor: str | None
+
+
 class MovementResponse(ReadDTO):
     id: int
     household_id: int
