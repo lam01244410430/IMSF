@@ -15,3 +15,12 @@ For frontend design, select an Awesome DESIGN.md reference before starting. See 
 2026-11-12 P05-01 Step 2 handoff: working tree on `task/P05-01-lifecycle-reads`, base/HEAD c22ea83, no commit/push/deploy/PR. Review [the Step 2 contract](../docs/api/inventory-lifecycle.md) and [verification record](p0501-step2-coder-evidence.md). Revisions 1–7 and all carried policy items remain frozen. OPEN-04/05/08 DDL-only choices are PROPOSALS; the contract explicitly lists deferred execution choices. Exact production worker credentials/provisioning and restricted household-lock helper remain OPEN-10. Do not start a worker or add a producer before Step 3 lease/dedup contracts and tests. Independent tester reproduction/merge approval belong to the coordinator's next gate.
 
 2026-11-13 P05-01 Step 5 handoff: working tree on `task/P05-01-closure-review`, base/HEAD 9d81253, no commit/push/deploy/PR. Compatibility, documentation and closure review only — no production code, test or migration change. Full suite 1157 passed on a fresh disposable DB (pytest process exit -15 — known host limitation); targeted P05 files 343 passed; health 200/200; OpenAPI unchanged vs 9d81253 (77 paths / 118 schemas); migration rehearsals 15/15 PASS. Closure drafts (NOT applied) are in /tmp/p0501-closure/ on the EC2 with copies under ~/workspace/goals/lampro-multi-agent-coding-group/files/p0501-closure/; the closure application is a SEPARATE step after Lam approves the draft text + closure. OPEN-09 stays UNRESOLVED; all other OPEN items stay open as listed in the drafts. P01-01 remains Conditionally approved, ADR-0004 accepted, ADR-0005 proposed. Independent tester reproduction/merge approval belong to the coordinator's next gate.
+
+2026-11-13 P06-01 Step 2 handoff: `task/P06-01-valuation-reads`, base/HEAD
+`3d4587e`. Two lot valuation GETs only; [contract](../docs/api/inventory-reports.md)
+and [worker evidence](p0601-step2-coder-evidence.md). All P06 OPEN decisions
+remain OPEN, defaults implemented as PROPOSALS. No commit/push/PR/deployment;
+no finance files/migrations/waste/summary/P07/P08 changes. Step 3 and Step 4 are
+not authorized by this handoff. Read the P3 correction-overcompensation and
+uncapped-scan notes before closure. Final EC2 report is
+`/tmp/p0601-step2-result.md`; coordinator approval remains separate.

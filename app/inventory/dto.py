@@ -362,3 +362,95 @@ class StockIntegrityReport(ReadDTO):
     purchase_link_inconsistencies: StockIntegrityCategory
     receipt_posting_mismatches: StockIntegrityCategory
     unresolved_refund_inventory_links: StockIntegrityCategory
+
+
+# P06-OPEN-01/03/04/05/06/08 PROPOSALS: computed reads, not closure decisions.
+class ValuationQuantities(ReadDTO):
+    received_quantity: SerializedDecimal
+    remaining_quantity: SerializedDecimal
+    consumed_quantity: SerializedDecimal
+    disposed_quantity: SerializedDecimal
+    returned_quantity: SerializedDecimal
+    adjusted_out_quantity: SerializedDecimal
+
+
+class ValuationValues(ReadDTO):
+    received_value: SerializedDecimal | None
+    remaining_value: SerializedDecimal | None
+    consumed_value: SerializedDecimal | None
+    disposed_value: SerializedDecimal | None
+    returned_value: SerializedDecimal | None
+    adjusted_out_value: SerializedDecimal | None
+
+
+class ValuationPurchase(ReadDTO):
+    item_id: int
+    transaction_id: int
+    currency: str
+    net_amount: SerializedDecimal
+    reversed_original: bool
+    status: Literal["AGREEMENT", "PURCHASE_MISMATCH", "UNKNOWN_COST"]
+
+
+class LotValuationResponse(ValuationQuantities, ValuationValues):
+    lot_id: int
+    product_id: int
+    base_unit_id: int
+    source_kind: str
+    received_at: datetime
+    expires_on: date | None
+    cost_currency: str | None
+    unit_cost: SerializedDecimal | None
+    terminal_state: str | None
+    archived_at: datetime | None
+    product_archived_at: datetime | None
+    unknown_cost: bool
+    quantity_tied_out: bool
+    value_tied_out: bool | None
+    reconciliation_status: Literal["TIED_OUT", "UNKNOWN_COST", "PURCHASE_MISMATCH", "TIE_OUT_MISMATCH"]
+    purchase: ValuationPurchase | None
+    issues: list[Literal["TIE_OUT_MISMATCH", "PURCHASE_MISMATCH", "REVERSED_ORIGINAL"]]
+
+
+class ValuationCurrencyTotal(ValuationValues):
+    currency: str
+
+
+class UnknownCostLot(ValuationQuantities):
+    lot_id: int
+    product_id: int
+    base_unit_id: int
+
+
+class UnknownCostSection(ReadDTO):
+    count: int
+    items: list[UnknownCostLot]
+
+
+class ValuationIssue(ReadDTO):
+    lot_id: int
+    code: Literal["TIE_OUT_MISMATCH", "PURCHASE_MISMATCH", "REVERSED_ORIGINAL"]
+
+
+class ValuationIssues(ReadDTO):
+    count: int
+    items: list[ValuationIssue]
+
+
+class ValuationReconciliation(ReadDTO):
+    checked_lots: int
+    quantity_tied_out_count: int
+    value_tied_out_count: int
+    unknown_cost_count: int
+    purchase_agreement_count: int
+    purchase_mismatch_count: int
+    purchase_unknown_cost_count: int
+    issues: ValuationIssues
+
+
+class LotValuationPage(ReadDTO):
+    items: list[LotValuationResponse]
+    next_cursor: str | None
+    totals_by_currency: list[ValuationCurrencyTotal] | None
+    unknown_cost: UnknownCostSection
+    reconciliation: ValuationReconciliation

@@ -342,3 +342,24 @@ retained consumption/cooking contracts for its matching/ranking/
 substitution decisions. P08 receives stable localization codes and
 read DTOs for later UI, without assuming email or an implemented
 notification center.
+
+## P06-01 Step 2 valuation implementation note (PROPOSAL, 2026-11-13)
+
+Read-only valuation uses the existing lot, movement, product, transaction-item
+and transaction relations at migration head `000000000008`. There is no new
+relation, snapshot, migration, grant or writer. The application owns one
+REPEATABLE READ, READ ONLY transaction per report request; the repository
+SELECTs household-scoped rows with composite ownership joins.
+
+Fixed lot cost times correction-netted per-kind quantities yields exact Decimal
+strings. ADJUST_IN offsets adjusted-out. Unknown costs keep quantities and null
+values, with explicit lot IDs; no estimate, zero substitution or FX is used.
+Known values sum only within their observed currency. Archived lots/products/
+households remain readable and archived lots are included by default, flagged.
+Purchase mismatches and reversed originals are reported without blocking reads.
+See [the valuation API proposal](../api/inventory-reports.md) for tie-out,
+correction, split-receipt, pagination and unknown-cost semantics. An
+underlying correction can overcompensate its source; absolute netting then
+reports a tie-out issue (P3 input to P06-OPEN-01). Q1–Q8 defaults are authorized
+for implementation as proposals; P06 OPEN decisions remain OPEN until closure.
+All P05 and carried open items remain unchanged.

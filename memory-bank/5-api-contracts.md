@@ -12,3 +12,15 @@ Use /api/v1. Resolve explicit household context and enforce membership and permi
 | /analytics /notifications /system | GET reports, notifications, and health. PATCH notification state. Expose only minimal health status publicly. |
 
 Use 200/201/204 on success. Error fields are error_code, details, and request_id. Use 401 for invalid authentication, 403 for insufficient permission, 404 for invisible objects, 409 for state or idempotency conflicts, 422 for invalid input, and 429 for rate limits. Clients localize stable error codes. Endpoint fields and permission matrices await phase review.
+
+## P06-01 Step 2 (PROPOSAL implementation)
+
+GET household `/inventory/valuation` and `/inventory/valuation/{lot_id}` use
+existing all-six-role VIEW authorization and a REPEATABLE READ, READ ONLY
+report transaction. See [the valuation contract](../docs/api/inventory-reports.md).
+Rows tie out fixed lot cost against net movement quantities; totals group only
+observed known-cost currencies. Unknown-cost lots expose quantities and null
+values, never estimates. Purchase mismatches/reversed originals return issues
+with 200. Archived rows remain visible. No finance writer/contract, migration,
+waste report, currency-summary route, P07 or P08 work is included. New report
+limits beyond reused list bounds remain Step 4 proposals.

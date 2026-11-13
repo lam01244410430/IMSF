@@ -45,9 +45,12 @@ from app.inventory.dto import (
     AdjustmentPage,
     ConsumptionPage,
     DisposalPage,
+    LotValuationPage,
+    LotValuationResponse,
 )
 from app.inventory.infrastructure.repositories import SqlAlchemyInventoryRepository
 from app.inventory.service import InventoryService
+from app.inventory.report_service import InventoryReportService
 
 
 class InventoryRoute(APIRoute):
@@ -426,3 +429,34 @@ async def inventory_integrity(
     product_id: Identifier | None = None, lot_id: Identifier | None = None,
 ):
     return await service.integrity(actor, household_id, product_id, lot_id)
+
+
+# P06 Step 2 PROPOSAL: VIEW reads only; OPEN decisions remain open until closure.
+def get_inventory_report_service(session: Annotated[AsyncSession, Depends(get_db)]):
+    from app.inventory.infrastructure.report_repository import SqlAlchemyInventoryReportRepository
+
+    return InventoryReportService(
+        session, SqlAlchemyInventoryReportRepository(session),
+        InventoryHouseholdAccess(SqlAlchemyHouseholdAccess(session)),
+    )
+
+
+ReportService = Annotated[InventoryReportService, Depends(get_inventory_report_service)]
+
+
+@router.get("/inventory/valuation", response_model=LotValuationPage)
+async def inventory_valuation(
+    household_id: Identifier, actor: Principal, service: ReportService,
+    product_id: Identifier | None = None, lot_id: Identifier | None = None,
+    currency: Literal["VND", "JPY", "USD", "EUR", "BHD"] | None = None,
+    archived: bool | None = None, limit: Limit = 50, cursor: Cursor = None,
+):
+    return await service.valuation(actor, household_id, product_id=product_id, lot_id=lot_id,
+        currency=currency, archived=archived, limit=limit, cursor=cursor)
+
+
+@router.get("/inventory/valuation/{lot_id}", response_model=LotValuationResponse)
+async def lot_valuation(
+    household_id: Identifier, lot_id: Identifier, actor: Principal, service: ReportService,
+):
+    return await service.valuation(actor, household_id, lot_id=lot_id, single=True)
