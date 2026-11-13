@@ -250,12 +250,95 @@ Required evidence includes FK rejection for cross-household writes, scoped query
 Proposed mixed depletion, undated stock, and adjustment handling require Phase 04–05 review. The [open decisions](../../memory-bank/15-open-questions.md) remain policy gates for retention, authentication, currency rounding and rates, valuation, and recipe substitutions. Transport, provider selection, and retention values are configurable policy decisions. No PostgreSQL migration or runtime acceptance evidence exists for this design revision.
 
 
-## P05 Step 2 implementation note — PROPOSAL
+## P05 lifecycle implementation note
 
-Revision 8 adds immutable scoped expiration_alerts with observed expiry/timezone/job provenance and scheduled_jobs storage with frozen scheduling payload, controlled state/progress columns and versioned bounded JSONB. Both preserve history with database guards; empty-only downgrade locks new relations before refusing SQLSTATE 55000 on any retained row. Existing revision-7 FEFO indexing remains; a separate household/date expiry scan index covers positive dated lots. New role provisioning fails closed for explicit separate runtime/worker roles; exact production provisioning remains open. See [the Step 2 contract](../api/inventory-lifecycle.md) for proposed payload bounds, permissions and explicitly deferred OPEN-04/05/08 execution choices. No producer, backfill, claim/fencing implementation, stock writer, recipient inbox or email is added in Step 2. Revisions 1–7 remain unchanged.
+Revision 8 (down-revision 000000000007) adds immutable scoped
+expiration_alerts with observed expiry/timezone/job provenance and
+scheduled_jobs storage with frozen scheduling payload, controlled
+state/progress columns and versioned bounded JSONB. Both preserve history
+with database guards; empty-only downgrade locks new relations before
+refusing SQLSTATE 55000 on any retained row. Existing revision-7 FEFO
+indexing remains; a separate household/date expiry scan index covers
+positive dated lots. New role provisioning fails closed for explicit
+separate runtime/worker roles; exact production provisioning remains open
+(OPEN-10). Revisions 1–7 remain unchanged; revision 8 is frozen
+(SHA256 d06bce727db50a5ef6a602580897335e674b64e2e828d619bffb43d3b27671ca,
+verified 8/8 vs 9d81253 at the Step 5 closure review).
 
-Step 3 adds the expiry-job execution protocol and standing in-app alert records (PROPOSALS OPEN-03/04/05/06/07/08): a bounded dispatcher enqueuing one canonical household/local-day job, jobs-only SKIP LOCKED claims with fresh random lease tokens, household-first fenced effect batches of at most 100 lots with checkpoint/high-water resume, INSERT ON CONFLICT deduplication on the alert natural key, three claims total with lease-based retry delays, explicit stale/archived skip outcomes, and no backfill or completed-day rerun. A job never writes stock or finance and never deletes history.
+Step 2 (commit f595e26) adds the lifecycle/alert read paths and the
+revision-8 persistence above: three VIEW reads (lifecycle list,
+expiration-alert list/detail), one local date per request from the
+household's configured IANA timezone (missing/invalid → 422
+INVENTORY_TIMEZONE_REQUIRED, no fallback), freshness derived per read
+(three-day WARNING threshold, UNKNOWN for undated lots — PROPOSAL
+OPEN-01), and alert/job storage with the frozen DDL choices (PROPOSAL
+OPEN-02/04/05/08, DDL only). No producer, backfill, claim/fencing
+implementation, stock writer, recipient inbox or email is added in
+Step 2.
 
-Step 4 integrates lifecycle state into the existing lot GETs (PROPOSALS OPEN-01/03/07): LotReadPage/LotReadResponse with REQUIRED freshness/days_left/local_date/timezone, and required standing_alerts (at most 5 latest summaries per lot) on every LifecycleResponse. Reads perform no stock, finance, history or operational writes. The exact partial-deduction examples are proven (consume 2 of 5, dispose 1, dispose 2 → 3/2/0, terminal MIXED; FEFO demand 4 splits -2/-2 leaving 0/1, demand 6 fails whole with zero effects). OPEN-09 stays UNRESOLVED: the explicit-lot route has no date filter and keeps its current behavior, including MEMBER consumption of expired stock.
+Step 3 (commit 6eb9bbb) adds the expiry-job execution protocol and the
+standing in-app alert records (PROPOSALS OPEN-03/04/05/06/07/08): a
+bounded dispatcher enqueuing one canonical household/local-day job
+(`inventory-expiry:v1:{local_date}`), jobs-only SKIP LOCKED claims with
+a fresh random lease token, household-first fenced effect batches of at
+most 100 lots with checkpoint/high-water resume, INSERT ON CONFLICT
+deduplication on the alert natural key, three claims total with
+lease-based retry delays, explicit stale/archived skip outcomes, and no
+backfill or completed-day rerun. The enqueue/status routes (POST
+expiry-runs → 202, GET expiry-runs/{job_id}) reuse the existing
+idempotency/replay protocol; the persisted success status is encoded as
+200 internally (frozen revision 4 permits 200/201/204 only) and mapped
+to HTTP 202 — a literal stored 202 would require a separately approved
+migration. A job never deducts, disposes, returns, adjusts or archives
+stock, never writes finance/movement/cooking rows, and never deletes
+history; it only reads inventory and writes alert/job records.
 
-Step 5 (closure review, branch task/P05-01-closure-review, HEAD 9d81253) changes no production code, test or migration. Full suite 1157 passed on a fresh disposable DB; targeted P05 files 343 passed; health 200/200; OpenAPI unchanged vs 9d81253 (77 paths / 118 schemas); migration rehearsals 15/15 PASS (populated rev-7 upgrade preserves all rows; downgrade refuses 55000 with history; empty downgrade preserves rev-7 history). Revisions 1–8 SHA256-frozen vs 9d81253 (8/8 MATCH). Known host limitation: the full-suite pytest process does not exit cleanly on the 1 GB EC2 host (printed summary is the evidence; process exit -15). P05-01 becomes Delivered only when Lam accepts the closure evidence.
+Step 4 (commit 9d81253) integrates lifecycle state into the existing lot
+GETs and the lifecycle presentation (PROPOSALS OPEN-01/03/07): GET
+inventory-lots returns LotReadPage and GET inventory-lots/{lot_id}
+returns LotReadResponse, each with REQUIRED freshness/days_left/
+local_date/timezone from the shared domain function; every
+LifecycleResponse carries required standing_alerts (at most 5 latest
+summaries per lot, by alert ID descending; the bound of 5 is a PROPOSAL).
+Reads perform no stock, finance, history or operational writes, even
+across household midnight. The two exact partial-deduction examples are
+proven: consume 2 of 5 then dispose 1 then dispose 2 leaves 3/2/0 with
+terminal MIXED, and a FEFO demand of 4 splits -2/-2 across two lots
+while a demand of 6 fails whole with zero effects. FEFO ordering,
+yesterday exclusion and expiry-day eligibility are unchanged.
+OPEN-09 is UNRESOLVED: the explicit-lot route has no date filter and
+keeps its current behavior, including MEMBER consumption of expired
+stock; FEFO/cooking already exclude yesterday, and
+partial-fulfillment success would be new behavior, not required by
+partial-deduction acceptance.
+
+Step 5 (commit 2e24a7d) is compatibility,
+documentation and closure review only: no production code, test or
+migration change. Full suite 1157 passed on a fresh
+disposable DB; targeted P05 files 343 passed;
+health 200/200; OpenAPI unchanged vs 9d81253 (77 paths / 118 schemas);
+migration rehearsals 15/15 PASS (populated rev-7 upgrade preserves all
+rows; downgrade refuses 55000 with history; empty downgrade preserves
+rev-7 history). Known host limitation: the full-suite pytest process
+does not exit cleanly on the 1 GB EC2 host (printed summary is the
+evidence; process exit -15 after a documented SIGTERM following the
+complete summary — seventh occurrence, zero test failures in any of them).
+
+Still open after P05-01 (see .project/open-decisions.md at closure):
+OPEN-01 freshness threshold/kinds and alert eligibility; OPEN-02
+revision-8 persistence base as a decided policy (implemented as a
+PROPOSAL); OPEN-03 notification delivery (inbox/read state/email);
+OPEN-04 scheduling/cadence; OPEN-05 claim/fence/retry budgets;
+OPEN-06 late edits, same-day rescan and backfill; OPEN-07 route/DTO
+surface; OPEN-08 work bounds and source snapshot; OPEN-09 explicit-lot
+expired consumption (UNRESOLVED); OPEN-10 worker provisioning and the
+restricted household-lock helper; carried P3-2 (lots min_length),
+P04-OPEN-11 resolution policy, P04-OPEN-16 archived-account
+reconciliation, report/payload limits, and the P02 identity/deployment
+follow-ups. P06 receives immutable lot costs/currency, movements/
+disposals and unknown-cost facts for its valuation/denominator
+decisions. P07 receives freshness/local-date/FEFO eligibility and the
+retained consumption/cooking contracts for its matching/ranking/
+substitution decisions. P08 receives stable localization codes and
+read DTOs for later UI, without assuming email or an implemented
+notification center.

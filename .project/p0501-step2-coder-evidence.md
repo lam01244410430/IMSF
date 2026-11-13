@@ -1,4 +1,4 @@
-# P05-01 Step 2 — verification record (coder)
+# P05-01 Step 2 — coder evidence
 
 Branch: `task/P05-01-lifecycle-reads`. Base/HEAD: `c22ea83ae1415149c16d3e74d4fe608be2852caf`.
 All changes uncommitted. No commit, push, deployment, PR, or production credential creation.
@@ -101,4 +101,4 @@ approved; ADR-0004 accepted; ADR-0005 proposed; P04-01 and P2-1 CLOSED.
   the fixture-grant failure fixed before the final re-runs), `p0501-step2-review-*.log`,
   `p0501-step2-independent-review.md`, `p0501-step2-static.json`,
   `p0501-step2-frozen-migrations.diff` (0 bytes), `p0501-step2-openapi.json`
-- This record: `.project/p0501-step2-verification.md`; coder result: `/tmp/p0501-step2-result.md`
+- This record: `.project/p0501-step2-coder-evidence.md`; coder result: `/tmp/p0501-step2-result.md`
