@@ -30,6 +30,23 @@ jobs:
           python-version: "3.14"
       - name: Install
         run: pip install -e .[test]
+      # Revisions 7-8 fail closed without two named non-owner roles
+      # (FINANCE_RUNTIME_ROLE, INVENTORY_EXPIRY_WORKER_ROLE); the CI
+      # database has only the postgres superuser, so create NOLOGIN
+      # roles here. They are never used to connect in this workflow.
+      - name: Prepare CI roles
+        run: |
+          python - <<'PY'
+          import os
+          from sqlalchemy import create_engine, text
+          engine = create_engine(os.environ["DATABASE_URL"])
+          with engine.begin() as conn:
+              conn.execute(text("CREATE ROLE ci_runtime NOLOGIN"))
+              conn.execute(text("CREATE ROLE ci_expiry_worker NOLOGIN"))
+          with open(os.environ["GITHUB_ENV"], "a") as env:
+              env.write("FINANCE_RUNTIME_ROLE=ci_runtime\n")
+              env.write("INVENTORY_EXPIRY_WORKER_ROLE=ci_expiry_worker\n")
+          PY
       - name: Health tests
         run: python -m pytest tests/test_health.py -v
       - name: Fresh-DB Alembic test
