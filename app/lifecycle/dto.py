@@ -48,3 +48,23 @@ class ExpirationAlertResponse(ReadDTO):
 class ExpirationAlertPage(ReadDTO):
     items: list[ExpirationAlertResponse]
     next_cursor: str | None
+
+
+from pydantic import Field
+
+
+class ExpiryRunResponse(ReadDTO):
+    """PROPOSAL OPEN-07: explicit allow-list; no generic payload or lease data."""
+    id: int
+    kind: Literal["INVENTORY_EXPIRY"]
+    local_date: date
+    timezone: str
+    state: Literal["READY", "RUNNING", "SUCCEEDED", "FAILED"]
+    attempt_count: int = Field(ge=0, le=2147483647)
+    run_after: datetime
+    completed_at: datetime | None
+    scanned_count: int = Field(ge=0, le=9223372036854775807)
+    warning_count: int = Field(ge=0, le=9223372036854775807)
+    expired_count: int = Field(ge=0, le=9223372036854775807)
+    error_code: str | None = Field(max_length=64)
+    outcome_code: str | None = Field(max_length=64)

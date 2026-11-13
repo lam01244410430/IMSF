@@ -22,8 +22,9 @@ def invalid():
 
 class LifecycleService:
     def __init__(self, session, repository: LifecycleRepository,
-                 inventory: InventoryRepository, access):
+                 inventory: InventoryRepository, access, commands=None):
         self.session, self.repository, self.inventory, self.access = session, repository, inventory, access
+        self.commands = commands
 
     async def _object(self, hid, resource, identifier):
         row = await self.inventory.get(resource, hid, identifier)
@@ -119,3 +120,34 @@ class LifecycleService:
             if row is None:
                 raise InventoryRequestError(404, "INVENTORY_NOT_FOUND")
             return ExpirationAlertResponse.model_validate(row).model_dump(mode="json")
+
+
+    async def enqueue(self, actor, hid, body, key):
+        """PROPOSAL OPEN-07: reuse inventory's complete command/replay protocol."""
+        from app.inventory.service import InventoryService
+        from app.lifecycle.jobs import evaluation, summary
+        from app.lifecycle.infrastructure.repositories import SqlAlchemyExpiryJobRepository
+        repository = SqlAlchemyExpiryJobRepository(self.session)
+        async def effect(context):
+            # InventoryService._command has authorized current MANAGE access and
+            # locked the household before reserving the transport key.
+            day, zone = await evaluation(repository, hid)
+            # PROPOSAL: frozen revision 4 permits saved status 200/201/204 only.
+            # Encode this endpoint's success as 200 internally; both first and
+            # replayed responses map to HTTP 202 below, preserving the exact body.
+            # A literal stored 202 would require a separately approved migration.
+            return 200, summary(await repository.enqueue(hid, day, zone))
+        _, result = await InventoryService(self.session, self.inventory, self.access, self.commands)._command(
+            actor, hid, f"POST /households/{hid}/inventory/expiry-runs", key,
+            body.model_dump(mode="python"), effect)
+        return 202, result
+
+    async def expiry_run(self, actor, hid, identifier):
+        from app.lifecycle.jobs import summary
+        from app.lifecycle.infrastructure.repositories import SqlAlchemyExpiryJobRepository
+        async with self.session.begin():
+            await self.access.resolve(actor, hid, policy.READ, write=False)
+            row = await SqlAlchemyExpiryJobRepository(self.session).job(hid, identifier)
+            if row is None:
+                raise InventoryRequestError(404, "INVENTORY_NOT_FOUND")
+            return summary(row)
