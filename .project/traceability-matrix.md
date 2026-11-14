@@ -34,3 +34,20 @@ REPEATABLE READ, READ ONLY observation during a concurrent committed disposal.
 OpenAPI compatibility adds exactly one GET to the exact-route test allow-list.
 See [actual Step 3 evidence](p0601-step3-coder-evidence.md); proposal implementation
 is not a policy decision or P06 closure. Step 4 owns date/row/scan bounds.
+
+2026-11-14 P06 Step 4 PROPOSAL: WASTE-01/FIN-01 exact per-currency purchase,
+lot-value and ledger reconciliation map to `test_currency_summary_*` in
+`tests/test_p06_01_reports.py`; ID-01 maps six VIEW roles/isolation/cursor scope;
+INV-01/FIN-01 map household row snapshots and concurrent committed movement
+checks in all three reports' REPEATABLE READ, READ ONLY transactions.
+`test_report_bounds_*` verifies limits/date spans; the two `*_bounded_at_1000`
+tests verify complete >1000-row totals/counts and direct bounded repository
+fetches. OpenAPI comparison and unchanged finance regressions verify additive
+compatibility. See [Step 4 evidence](p0601-step4-coder-evidence.md); tests and
+proposal implementation do not close P06 or decide its OPEN items.
+
+Step 4 final worker checks: targeted 9 / scale 2 / regression 516 passed (exit 0),
+full 1210 passed (pytest -15 after complete summary, known shutdown hang);
+OpenAPI 80/140 to 81/149 adds only one GET and nine schemas. Static independent
+review no new P1/P2/P3; no migration or existing finance-contract change.
+This verifies worker implementation, not the separate coordinator/closure gates.

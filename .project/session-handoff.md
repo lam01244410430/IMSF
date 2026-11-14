@@ -35,3 +35,20 @@ bounds product output only. Overcorrection can return 200/TIE_OUT_MISMATCH;
 no correction policy or P05 OPEN-09 UNRESOLVED is re-decided. Unchanged migration
 head 000000000008 and all prior carried decisions remain intact. Independent
 coordinator test/review and closure approval remain separate from worker evidence.
+
+2026-11-14 P06 Step 4 PROPOSAL handoff: branch `task/P06-01-currency-summary`,
+base/HEAD `5deea4f`; uncommitted currency-summary GET plus full-scope SQL
+aggregates/bounded pages for valuation and waste. Read
+[Step 4 evidence](p0601-step4-coder-evidence.md),
+[summary contract](../docs/api/finance-currency-summary.md) and
+[inventory bounds](../docs/api/inventory-reports.md#bounds--p06-step-4-proposal).
+Worker verification: targeted 9 / scale 2 / regression 516 passed, exit 0;
+full 1210 passed in 3439.84s, pytest -15 after summary, runner 3569.91s,
+container stop/remove 0/0. No existing OpenAPI path/schema changed (80/140 to
+81/149). Static independent review found no new P1/P2/P3. Final EC2 result is
+`/tmp/p0601-step4-result.md`; coordinator gates remain separate.
+Step 2 P3-2/Step 3 P3-1 materialization is replaced; Step 3 P3-2 opposite-signed
+roots and P3-3 NOT NULL reason finding remain closure inputs with recommendations.
+All P06 OPEN decisions remain OPEN. No existing finance limit/contract, identity/
+settings/role, migration, P07/P08 or carried policy changes. No commit/push/
+deploy/merge/closure; tester/reviewer and Lam's approval gates remain separate.

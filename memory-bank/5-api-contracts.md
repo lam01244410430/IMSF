@@ -43,3 +43,22 @@ Waste adds uncapped root-event result materialization to the carried full-lot
 totals scan; output pagination does not bound work. Existing finance limits,
 identity/settings/roles, P05 OPEN-09 UNRESOLVED and other carried decisions stay
 unchanged.
+
+## P06 Step 4 PROPOSAL — currency summary and report maximums
+
+GET household `/finance/currency-summary` adds `CurrencySummaryPage`, all-six-role
+VIEW, optional seeded-code `currency`, default 50/max 200 and scoped currency
+cursor pages. No dates/timezone requirement. Exact Decimal purchase linked/
+unlinked totals, six nullable lot values and per-account same-currency ledger
+balances stay in observed-currency sections; no combined total or conversion.
+Global unknown-cost IDs/counts and nonblocking valuation issues are explicit.
+See [the exact contract](../docs/api/finance-currency-summary.md).
+
+This supersedes Step 2/3's historical bounds deferrals: waste-only date spans
+are capped at 366 days (367 rejects INVENTORY_INVALID_INPUT), and report
+repositories return at most 1,000 rows/query to Python (pages at most 201,
+aggregates one row, identifier lists first 100 plus complete counts). Valuation/
+waste full-scope SQL aggregates replace unbounded Python source scans. One
+REPEATABLE READ, READ ONLY transaction remains authoritative per request.
+Existing finance ledger/balance/integrity/payments/reconciliation contracts,
+limits and dates remain unchanged. All P06 OPEN decisions remain OPEN.

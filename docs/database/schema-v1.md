@@ -388,3 +388,54 @@ P06-OPEN-07's 366-day and 1,000-row caps remain Step 4 work. In addition to the
 carried matching-lot totals scan, waste materializes uncapped root-event rows;
 by-product output pagination bounds neither scan. This is a Step 4/P3 input,
 not a fix or a decided closure gate. All P06 OPEN decisions remain OPEN.
+
+## P06-01 Step 4 currency summary + bounds implementation note (PROPOSAL)
+
+P06 Step 4 PROPOSAL adds one VIEW GET currency summary from existing finance and
+inventory relations, without schema/grant changes or a migration. Head remains
+`000000000008`. One REPEATABLE READ, READ ONLY transaction includes household
+READ authorization and both repositories' SELECT-only aggregates. Finance sums
+POSTED EXPENSE items once using lot-link EXISTS, separates unlinked purchases,
+and sums ledger entries per account and matching account currency, including
+archived/zero-balance accounts with entries and reversal postings. It never
+calls existing unbounded integrity/report/payments services. Inventory valuation
+aggregates are reused inside the same transaction; no valuation SQL is copied.
+
+All money stays exact NUMERIC/Decimal text, grouped by observed seeded currency,
+without conversion/default currency/combined total. Unknown-cost lots retain
+null values and a global complete-count/first-100-ID summary, never estimates.
+Purchase mismatches and reversed originals retain amounts/lot values and report
+issues. The new [summary contract](../api/finance-currency-summary.md) lists the
+exact DTOs, filter/paging and worked two-currency example.
+
+P06-OPEN-07(a) bounds are implemented as PROPOSALS: default 50/max 200, scoped
+cursor pages; waste-only two-ended date ranges allow 366 days and reject 367+.
+The 1,000-row cap bounds rows returned from any report repository query to
+Python. SQL aggregates cover the full scope, returning one row with complete
+counts/totals; page SQL returns at most limit+1 (201), identifiers first 100.
+It does not truncate inputs, cap recursive DB work, or redefine nested account/
+month-list contracts. Existing finance route limits/parameters/responses stay
+unchanged. See [inventory bounds](../api/inventory-reports.md#bounds--p06-step-4-proposal).
+
+Carried P3 dispositions: Step 2 P3-2 full-lot totals materialization and Step 3
+P3-1 uncapped root/product-result materialization are fixed through shared SQL
+aggregates and bounded page fetches, with >1000-source-row tests. Step 3 P3-2
+opposite-signed overcorrected roots is preserved: per-root absolute waste still
+returns HTTP 200 with TIE_OUT_MISMATCH iff
+`sum(abs(net_delta))*unit_cost <> abs(sum(net_delta))*unit_cost` per lot.
+Recommendation for closure: explicitly accept this report interpretation or
+separately decide signed-net/correction-writer policy; do not silently alter
+retained-event meaning in this bounds refactor.
+
+Step 3 P3-3: actual frozen revision `000000000007_inventory_core.py` lines
+203–213 declares disposal `reason_code TEXT NOT NULL` with the four-code CHECK;
+aligned-detail guards also apply. No NULL-reason classification is added.
+Recommendation for closure: rely on enforced constraints for valid data and
+separately decide defensive malformed-import/integrity handling. Both P3-2 and
+P3-3 remain closure inputs, not decisions made by this worker.
+
+All P06 OPEN decisions remain OPEN through closure despite implementing defaults
+01–10. P05 OPEN-09 remains UNRESOLVED. No P05/P04/P03/P02 carried policy, P01-01
+label, proposed ADR-0005, identity/settings/roles, P07/P08 or existing finance
+contract limit is changed. No report writer, stored snapshot, FX, invented cost,
+email, production data change, commit, push, deployment or closure claim.

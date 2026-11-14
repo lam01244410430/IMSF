@@ -11,7 +11,7 @@ Still open at P04-01 closure: P3-2 (Step 4 reviewer: PurchaseCheckoutCreate.lots
 
 P05-01 delivered 2026-11-13 and verified on a fresh disposable PostgreSQL database: full suite 1157 passed, 0 failed, 0 skipped, 1 warning in 1398.98s (0:23:18) pytest (coder run; independent tester reproduction 1157 passed in 1476.66s; pytest process exit -15 in both runs — known host limitation, the printed summary is the evidence), uvicorn /health and /health/ready 200, migration chain base → 000000000008 verified (downgrade refused with alert/job history, SQLSTATE 55000, data intact; succeeds on an empty DB). All four step branches are pushed to GitHub after Lam's merge-gate approvals (Step 2 task/P05-01-lifecycle-reads f595e26; Step 3 task/P05-01-expiry-jobs 6eb9bbb; Step 4 task/P05-01-lifecycle-integration 9d81253; Step 5 task/P05-01-closure-review 2e24a7d). Lifecycle workflows are complete: one-local-date freshness reads, standing expiration alerts, bounded expiry jobs with lease fencing and deduplication, integrated lot reads with standing-alert summaries, and partial-deduction acceptance; a job never writes stock or finance and never deletes history. P2-1 is CLOSED by the follow-up at c22ea83 (combined race test, 10 cases, full suite 996 passed at the time) — the "P2-1 closure limitation" line in the "Still open at P04-01 closure" paragraph above is historical P04-closure wording, not the current state. Still open at P05-01 closure: OPEN-09 (explicit-lot expired consumption, UNRESOLVED); OPEN-01 threshold, OPEN-03 delivery, OPEN-04/05/06/08 execution behaviour, OPEN-10 provisioning; carried P3-2 (lots min_length), P04-OPEN-11 resolution policy, P04-OPEN-16 archived-account reconciliation, report/payload limits, carried P3s from Steps 2–5, and the 8 P02-02 open decisions as identity/deployment follow-ups.
 
-P06-01 is in progress: Steps 2–3 implement lot valuation and waste reads as PROPOSALS, depending on delivered P05-01; currency summary and report maximums remain Step 4 work. P05-01 delivered the lifecycle core: freshness reads, standing alerts, expiry jobs with deduplication, integrated lot reads, and partial-deduction acceptance; waste/valuation reports and recipe matching/ranking remain deferred to P06/P07.
+P06-01 is in progress: Steps 2–4 implement lot valuation, waste, currency summary and report maximums as PROPOSALS, depending on delivered P05-01; Step 4 worker verification is recorded; coordinator tester/reviewer and separate closure review remain pending. P05-01 delivered the lifecycle core: freshness reads, standing alerts, expiry jobs with deduplication, integrated lot reads, and partial-deduction acceptance; waste/valuation reports and recipe matching/ranking remain deferred to P06/P07.
 
 Local knowledge graph generated on 2026-11-06: 414 nodes, 515 edges, 56 communities. See [graph verification](.project/graphify-verification-2026-11-06.md) for extraction warnings. Phase and product acceptance status are unchanged.
 
@@ -25,3 +25,14 @@ valuation, received-value denominator, exact per-currency rates, local months,
 unknown-cost quantities and read-only reconciliation are implemented as PROPOSALS.
 All P06 OPEN decisions remain OPEN through closure; Step 4 owns date/row caps and
 uncapped lot/event scans. P06 delivery and closure are pending.
+
+2026-11-14 P06 Step 4 PROPOSAL worker evidence:
+[currency-summary contract](docs/api/finance-currency-summary.md),
+[report bounds](docs/api/inventory-reports.md#bounds--p06-step-4-proposal),
+[verification/handoff](.project/p0601-step4-coder-evidence.md).
+Full-scope SQL aggregates replace unbounded source-result scans; all existing
+finance contracts remain unchanged. Step 4 worker verification: targeted 9, scale 2 and regressions 516 passed
+(exit 0); full 1210 passed in 3439.84s, pytest exit -15 after the complete
+summary (known shutdown hang, not an exit-0 run); static review found no new
+P1/P2/P3. Coordinator tester/reviewer stages remain separate.
+All P06 OPEN decisions remain OPEN; P06-01 is not closed or delivered.

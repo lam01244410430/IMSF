@@ -29,3 +29,14 @@
   existing contracts unchanged. Remaining regression/full/review evidence is
   tracked in [Step 3 evidence](p0601-step3-coder-evidence.md). Step 4 owns
   366-day/1,000-row caps and uncapped lot/event work. No commit/push/PR/deploy.
+
+- 2026-11-14 P06 Step 4 PROPOSAL on `task/P06-01-currency-summary` from `5deea4f`:
+  currency summary and report maximums; SQL aggregates replace full-lot/root/
+  product materialization. RED 11 failed (after correcting test-only INCOME
+  fixture), initial GREEN excluding 1001-row tests 51 passed in 113.59s,
+  exit 0. Final targeted 9 passed in 20.03s, scale 2 in 209.48s, regression
+  516 in 390.29s (all exit 0). Full 1210 passed in 3439.84s, pytest -15 after
+  complete summary, runner 3569.91s; stop/remove 0/0, no container left.
+  OpenAPI 80/140 to 81/149, one GET/nine schemas only; independent static
+  review no new P1/P2/P3. See [Step 4 evidence](p0601-step4-coder-evidence.md).
+  No commit/push/deploy/migration or P06 closure; earlier OPEN items unchanged.

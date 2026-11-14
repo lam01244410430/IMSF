@@ -1,9 +1,10 @@
-# Inventory reports — P06-01 Steps 2–3
+# Inventory reports — P06-01 Steps 2–4
 
 Status: **PROPOSAL implementation**, authorized for Step 2 on 2026-11-13.
 Lam approved implementing the plan's Q1–Q8 default direction. P06-OPEN-01
 through P06-OPEN-10 remain OPEN until P06 closure; passing tests do not decide
-a policy gate. This document covers valuation and the additive Step 3 waste proposal.
+a policy gate. This document covers valuation, the additive Step 3 waste proposal
+and P06 Step 4 PROPOSAL bounds.
 
 Let `H = /api/v1/households/{household_id}`.
 
@@ -236,3 +237,56 @@ November 2026 bucket 3 / 50000, denominator 260000, rate `50000 / 260000` at
 precision 80. Unknown L2 contributes consumed 5 and disposed 0, never money.
 All three breakdowns tie out and reconciliation is TIED_OUT with no issues.
 See [Step 3 evidence](../../.project/p0601-step3-coder-evidence.md).
+
+## Bounds — P06 Step 4 PROPOSAL
+
+This section supersedes the historical Step 2/3 deferral notes above. Valuation
+and waste response fields and existing arithmetic remain unchanged. The new
+[finance currency summary](finance-currency-summary.md) shares valuation SQL.
+
+All three report pages reuse default 50 / maximum 200 (minimum 1); fetches return
+at most `limit + 1` (201) rows. Waste allows a 366-day difference between both
+supplied dates and rejects 367+ days with 422 `INVENTORY_INVALID_INPUT`, after
+the existing reversed-date check. Either endpoint may remain open-ended.
+Valuation and summary have no date parameters and no timezone requirement;
+waste retains its required household timezone and local-date/month semantics.
+Existing finance ledger date parameters and route limits are unchanged.
+
+The 1,000-row cap means **no repository query returns over 1,000 rows to Python**.
+It never truncates the source scope. `valuation_page_rows` fetches only ascending
+lot IDs after the cursor; `valuation_aggregates` computes exact per-currency
+NUMERIC sums, complete reconciliation counts and first-100 unknown/issue lists
+in SQL over the full shared recursive attribution. `lot_valuation` remains the
+pure-Python row helper for pages and the unchanged single-lot response.
+
+`waste_aggregates` computes per-currency sections, denominator, reason/month
+breakdowns, unknown quantities/counts and issue lists in SQL over the original
+root attribution. `waste_product_rows` groups by currency/product and applies
+cursor position plus SQL LIMIT. The old unbounded row methods and unused
+`waste_totals`/amount helpers are removed. Each service calls the aggregate and
+page method once inside its single REPEATABLE READ, READ ONLY transaction.
+SQL aggregate results use text for decimal JSON fields; rate division retains
+Python localcontext precision 80. Counts/totals cover all rows on every page.
+
+This fixes Step 2 P3-2 full-lot materialization and Step 3 P3-1 uncapped event/
+product-result materialization. The cap bounds repository result rows; it does
+not bound database scanning/recursive work or nested month/account arrays.
+No source data is discarded. The 1001-lot test proves full received value
+20020000 VND, complete checked/tied counts 1001 and 201-row direct repository
+fetch. The 1001-DISPOSE-root test uses 1001 kg at 20000 VND/kg: exact disposed
+quantity 1001 and value **20020000**, denominator 20020000. The task's 20010000
+numerator is an arithmetic typo; all 1001 one-kg roots are retained.
+
+Step 3 P3-2 remains a closure input: overcorrected opposite-signed roots retain
+per-root absolute waste and nonblocking TIE_OUT_MISMATCH. Closure should decide
+whether to accept that reporting interpretation or separately constrain
+correction writers/use signed nets; silently changing it would rewrite current
+meaning. The per-lot SQL comparison is exactly
+`sum(abs(net_delta))*unit_cost <> abs(sum(net_delta))*unit_cost`.
+
+Step 3 P3-3 finding: revision 000000000007 declares
+`disposal_records.reason_code TEXT NOT NULL` with the four-code CHECK and guards
+aligned disposal details. No new NULL-reason semantics are introduced. Closure
+should explicitly rely on those enforced constraints for valid data and decide
+any defensive handling of malformed imports as a separate integrity policy.
+All P06 OPEN items remain OPEN; this is implementation evidence only.

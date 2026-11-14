@@ -567,6 +567,8 @@ def test_exact_route_scope_and_openapi(http):
         PREFIX + "/households/{household_id}/transactions/{transaction_id}/reversals": {"post"},
         PREFIX + "/households/{household_id}/ledger": {"get"},
         PREFIX + "/households/{household_id}/finance/integrity": {"get"},
+        # P06 Step 4 PROPOSAL: one additive VIEW currency-summary read.
+        PREFIX + "/households/{household_id}/finance/currency-summary": {"get"},
         PREFIX + "/households/{household_id}/reconciliations": {"get", "post"},
         PREFIX + "/households/{household_id}/reconciliations/{session_id}": {"get"},
         PREFIX + "/households/{household_id}/reconciliations/{session_id}/matches": {"post"},

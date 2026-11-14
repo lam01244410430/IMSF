@@ -227,7 +227,7 @@ def test_valuation_one_read_only_snapshot_during_committed_stock_change(f, monke
     from app.inventory.infrastructure.report_repository import SqlAlchemyInventoryReportRepository
     p = kg_product(f)
     lot, _ = purchase_lot(f, p)
-    original = SqlAlchemyInventoryReportRepository.valuation_rows
+    original = SqlAlchemyInventoryReportRepository.valuation_aggregates
     observed = []
     async def concurrent_read(self, hid, filters):
         settings = (await self.session.execute(text("SELECT current_setting('transaction_isolation'), current_setting('transaction_read_only')"))).one()
@@ -240,7 +240,7 @@ def test_valuation_one_read_only_snapshot_during_committed_stock_change(f, monke
             await writer.execute(text("UPDATE inventory_lots SET remaining_quantity=9 WHERE household_id=:hid AND id=:lid"), {"hid": hid, "lid": lot["id"]})
         return await original(self, hid, filters)
     with monkeypatch.context() as patch:
-        patch.setattr(SqlAlchemyInventoryReportRepository, "valuation_rows", concurrent_read)
+        patch.setattr(SqlAlchemyInventoryReportRepository, "valuation_aggregates", concurrent_read)
         page = get_page(f)
     assert observed == [("repeatable read", "on")]
     assert Decimal(page["items"][0]["remaining_quantity"]) == 10
@@ -578,7 +578,7 @@ def test_waste_report_snapshot_is_read_only(f, monkeypatch):
     configure_timezone(f)
     p = kg_product(f)
     lot, _ = purchase_lot(f, p)
-    original = SqlAlchemyInventoryReportRepository.waste_rows
+    original = SqlAlchemyInventoryReportRepository.waste_aggregates
     observed = []
     async def concurrent_read(self, hid, filters):
         settings = (await self.session.execute(text("SELECT current_setting('transaction_isolation'), current_setting('transaction_read_only')"))).one()
@@ -589,7 +589,7 @@ def test_waste_report_snapshot_is_read_only(f, monkeypatch):
             await writer.execute(text("UPDATE inventory_lots SET remaining_quantity=9 WHERE household_id=:hid AND id=:lid"), {"hid": hid, "lid": lot["id"]})
         return await original(self, hid, filters)
     with monkeypatch.context() as patch:
-        patch.setattr(SqlAlchemyInventoryReportRepository, "waste_rows", concurrent_read)
+        patch.setattr(SqlAlchemyInventoryReportRepository, "waste_aggregates", concurrent_read)
         page = waste_page(f, **NOVEMBER)
     assert observed == [("repeatable read", "on")]
     assert page["sections"][0]["disposed"] == {"quantity": "0", "value": "0"}
@@ -667,3 +667,289 @@ def test_waste_report_unknown_identifiers_first_100_with_complete_count(f):
     unknown = waste_page(f, **NOVEMBER, limit=1)["unknown_cost"]
     assert unknown["lot_ids"] == ids[:100] and unknown["count"] == 101
     assert unknown["disposed_quantity"] == "101"
+
+
+# P06 Step 4 PROPOSAL: currency grouping and bounded full-scope aggregates.
+SUMMARY = "/finance/currency-summary"
+
+
+def summary_page(f, **params):
+    return get_page(f, report_path=SUMMARY, **params)
+
+
+def summary_fixture(f):
+    from test_finance_transactions import account, payment
+    p, lots, tx = fixture_lots(f)
+    vnd = account(f, "VND")
+    r = f.request("POST", f"/transactions/{tx['id']}/payments", json={
+        "payments": [payment(vnd, "200000", currency_code="VND")]})
+    assert r.status_code == 201, r.text
+    unlinked = create_draft(f, currency_code="VND", total_amount="30000", items=[{
+        "line_no": 1, "description": "Finance-only expense", "quantity": "1", "net_amount": "30000"}])
+    assert post(f, unlinked, [payment(vnd, "30000", currency_code="VND")]).status_code == 200
+    pending = create_draft(f, currency_code="VND", total_amount="10000", items=[{
+        "line_no": 1, "description": "Product not yet received", "quantity": "1",
+        "net_amount": "10000", "product_id": p["id"], "base_quantity": "1"}])
+    assert post(f, pending, []).status_code == 200
+    usd = account(f)
+    draft = create_draft(f, total_amount="15", items=[{
+        "line_no": 1, "description": "USD purchase", "quantity": "1", "net_amount": "15",
+        "product_id": p["id"], "base_quantity": "3"}])
+    tx_usd = post(f, draft, [payment(usd, "15")]).json()
+    lot = receipt(f, p, quantity="3", source_kind="PURCHASE", purchase_item_id=tx_usd["items"][0]["id"],
+                  unit_cost="5", cost_currency="USD").json()
+    deduct(f, p, lot, "consumption", "1", "DAILY_USE")
+    deduct(f, p, lot, "disposals", "1", "DAMAGED")
+    # Non-EXPENSE ledger entries affect balances, never purchase totals.
+    income = create_draft(f, kind="INCOME", total_amount="2", items=[{
+        "line_no": 1, "description": "Income", "quantity": "1", "net_amount": "2"}])
+    assert post(f, income, [payment(usd, "2", direction="IN")]).status_code == 200
+    zero = account(f)
+    income = create_draft(f, kind="INCOME", total_amount="4", items=[{
+        "line_no": 1, "description": "Reversed income", "quantity": "1", "net_amount": "4"}])
+    assert post(f, income, [payment(zero, "4", direction="IN")]).status_code == 200
+    assert f.request("POST", f"/transactions/{income['id']}/reversals", json={"reason": "Zero balance fixture"}).status_code == 201
+    assert f.request("POST", f"/accounts/{zero}/archive").status_code == 204
+    account(f, "BHD")  # No entries: neither a balance nor an observed section.
+    create_draft(f)  # DRAFT expense is excluded.
+    return p, lots, (vnd, usd, zero)
+
+
+def test_currency_summary_two_currencies_no_combined_total(f):
+    _, lots, (vnd, usd, zero) = summary_fixture(f)
+    page = summary_page(f)
+    assert set(page) == {"sections", "next_cursor", "unknown_cost", "reconciliation"}
+    assert page["next_cursor"] is None
+    assert [s["currency"] for s in page["sections"]] == ["USD", "VND"]
+    for s, amounts, counts, values, balances in (
+        (page["sections"][0], ("15", "0"), (1, 0), (15, 5, 5, 5, 0, 0), [(usd, -13), (zero, 0)]),
+        (page["sections"][1], ("200000", "40000"), (1, 2), (260000, 130000, 80000, 50000, 0, 0), [(vnd, -230000)]),
+    ):
+        assert set(s) == {"currency", "purchase", "lots", "ledger_balances"}
+        assert set(s["purchase"]) == {"linked_total", "linked_item_count", "unlinked_total", "unlinked_item_count"}
+        assert s["purchase"]["linked_item_count"] == counts[0]
+        assert s["purchase"]["unlinked_item_count"] == counts[1]
+        assert Decimal(s["purchase"]["linked_total"]) == Decimal(amounts[0])
+        assert Decimal(s["purchase"]["unlinked_total"]) == Decimal(amounts[1])
+        assert set(s["lots"]) == {k + "_value" for k in KINDS}
+        assert [Decimal(s["lots"][k + "_value"]) for k in KINDS] == list(values)
+        assert [(r["account_id"], Decimal(r["balance"])) for r in s["ledger_balances"]] == balances
+        assert all(set(r) == {"account_id", "balance"} for r in s["ledger_balances"])
+    assert page["unknown_cost"] == {"count": 1, "lot_ids": [lots[1]["id"]]}
+    assert page["reconciliation"] == {
+        "currencies": 2, "purchase_linked_item_count": 2, "purchase_unlinked_item_count": 2,
+        "purchase_mismatch_count": 0, "reversed_original_count": 0, "unknown_cost_count": 1,
+        "tie_out_mismatch_count": 0, "issues": {"count": 0, "items": []}}
+    # Full nested key set above excludes every possible combined-total field.
+    def assert_no_combined(value):
+        if isinstance(value, dict):
+            assert not ({"total", "combined_total", "cross_currency_total", "converted_total", "grand_total"} & value.keys())
+            for child in value.values():
+                assert_no_combined(child)
+        elif isinstance(value, list):
+            for child in value:
+                assert_no_combined(child)
+        else:
+            assert not isinstance(value, float)
+    assert_no_combined(page)
+    assert summary_page(f, currency="BHD")["sections"] == []
+
+
+def test_currency_summary_purchase_mismatch_and_reversed_original_flagged(f):
+    lot, tx = purchase_lot(f, kg_product(f), unit_cost="18000")
+    async def retained_reversal():
+        async with f.db() as db, db.begin():
+            rid = await db.scalar(text("""INSERT INTO transactions
+                (household_id,kind,occurred_at,currency_code,total_amount,created_by_member_id,
+                 original_transaction_id,reversal_reason)
+                VALUES (:hid,'REVERSAL',now(),'VND',200000,:mid,:tid,'Retained fixture') RETURNING id"""),
+                {"hid": f.hid, "mid": f.actors["OWNER"].member_id, "tid": tx["id"]})
+            await db.execute(text("UPDATE transactions SET status='POSTED',posted_at=now() WHERE household_id=:hid AND id=:rid"), {"hid": f.hid, "rid": rid})
+    asyncio.run(retained_reversal())
+    page = summary_page(f)
+    assert Decimal(page["sections"][0]["purchase"]["linked_total"]) == 200000
+    assert Decimal(page["sections"][0]["lots"]["received_value"]) == 180000
+    assert Decimal(page["sections"][0]["lots"]["remaining_value"]) == 180000
+    assert page["reconciliation"]["purchase_mismatch_count"] == 1
+    assert page["reconciliation"]["reversed_original_count"] == 1
+    assert page["reconciliation"]["issues"] == {"count": 2, "items": [
+        {"lot_id": lot["id"], "currency": "VND", "code": "PURCHASE_MISMATCH"},
+        {"lot_id": lot["id"], "currency": "VND", "code": "REVERSED_ORIGINAL"}]}
+    p = {"id": lot["product_id"], "base_unit_id": get_page(f)["items"][0]["base_unit_id"]}
+    # One purchase item split across two lots counts/sums once in purchases,
+    # while the unchanged per-lot full-item comparison reports two mismatches.
+    draft = create_draft(f, total_amount="10", items=[{
+        "line_no": 1, "description": "Split receipt", "quantity": "1", "net_amount": "10",
+        "product_id": p["id"], "base_quantity": "2"}])
+    tx_usd = post(f, draft, []).json()
+    for _ in range(2):
+        r = receipt(f, p, quantity="1", unit_cost="5", cost_currency="USD", source_kind="PURCHASE",
+                    purchase_item_id=tx_usd["items"][0]["id"])
+        assert r.status_code == 201, r.text
+    page = summary_page(f, currency="USD")
+    assert page["sections"][0]["purchase"] == {
+        "linked_total": "10.000000", "linked_item_count": 1, "unlinked_total": "0", "unlinked_item_count": 0}
+    assert Decimal(page["sections"][0]["lots"]["received_value"]) == 10
+    assert page["reconciliation"]["purchase_mismatch_count"] == 2
+
+
+def test_currency_summary_unknown_cost_never_estimated(f):
+    lot, _ = purchase_lot(f, kg_product(f), unit_cost=None)
+    page = summary_page(f)
+    assert page["unknown_cost"] == {"count": 1, "lot_ids": [lot["id"]]}
+    assert page["sections"][0]["currency"] == "VND"
+    assert page["sections"][0]["lots"] == {k + "_value": None for k in KINDS}
+    assert Decimal(page["sections"][0]["purchase"]["linked_total"]) == 200000
+    assert page["reconciliation"]["unknown_cost_count"] == 1
+    assert summary_page(f, currency="USD")["unknown_cost"] == page["unknown_cost"]
+
+
+def test_currency_summary_all_six_roles_and_isolation(f):
+    purchase_lot(f, kg_product(f))
+    for role in ("OWNER", "ADMIN", "FINANCE_MANAGER", "INVENTORY_MANAGER", "MEMBER", "VIEWER"):
+        assert f.request("GET", SUMMARY, role=role).status_code == 200
+    assert f.request("GET", SUMMARY, role="OUTSIDER").status_code == 404
+    assert f.client.get(f"/api/v1/households/{f.hid}" + SUMMARY).status_code == 401
+    assert f.client.get(f"/api/v1/households/{f.other_hid}" + SUMMARY, headers=f.actors["OUTSIDER"].headers).json()["sections"] == []
+    # Ledger-only currency is observed without purchases or priced lots.
+    from test_finance_transactions import account, payment
+    aid = account(f, "EUR")
+    opening = create_draft(f, kind="OPENING", currency_code="EUR", total_amount="7", items=[])
+    assert post(f, opening, [payment(aid, "7", direction="IN", currency_code="EUR")]).status_code == 200
+    section = summary_page(f, currency="EUR")["sections"][0]
+    assert section["lots"] == {k + "_value": None for k in KINDS}
+    assert section["ledger_balances"] == [{"account_id": aid, "balance": "7.000000"}]
+    assert section["purchase"] == {"linked_total": "0", "linked_item_count": 0,
+                                   "unlinked_total": "0", "unlinked_item_count": 0}
+
+
+def test_currency_summary_invalid_filters_and_cursor_binding(f):
+    summary_fixture(f)
+    for params in ({"currency": "ZZZ"}, {"limit": 201}, {"limit": 0}):
+        r = f.request("GET", SUMMARY, params=params)
+        assert r.status_code == 422 and r.json()["error_code"] == "FINANCE_INVALID_INPUT"
+    for value in ("garbage", "W10="):
+        r = f.request("GET", SUMMARY, params={"cursor": value})
+        assert r.status_code == 422 and r.json()["error_code"] == "FINANCE_INVALID_CURSOR"
+    first = summary_page(f, limit=1)
+    assert first["next_cursor"]
+    second = summary_page(f, cursor=first["next_cursor"], limit=1)
+    assert [s["currency"] for s in first["sections"] + second["sections"]] == ["USD", "VND"]
+    assert second["next_cursor"] is None
+    assert first["reconciliation"] == second["reconciliation"]
+    r = f.request("GET", SUMMARY, params={"cursor": first["next_cursor"], "currency": "VND"})
+    assert r.status_code == 422 and r.json()["error_code"] == "FINANCE_INVALID_CURSOR"
+    r = f.client.get(f"/api/v1/households/{f.other_hid}" + SUMMARY, headers=f.actors["OUTSIDER"].headers,
+                     params={"cursor": first["next_cursor"]})
+    assert r.status_code == 422 and r.json()["error_code"] == "FINANCE_INVALID_CURSOR"
+
+
+def test_currency_summary_read_only(f):
+    summary_fixture(f)
+    before = household_snapshot(f)
+    summary_page(f)
+    first = summary_page(f, limit=1)
+    summary_page(f, limit=1, cursor=first["next_cursor"])
+    summary_page(f, currency="USD")
+    assert household_snapshot(f) == before
+
+
+def test_currency_summary_snapshot_is_read_only(f, monkeypatch):
+    from app.finance.infrastructure.report_repository import SqlAlchemyFinanceReportRepository
+    lot, _ = purchase_lot(f, kg_product(f))
+    original = SqlAlchemyFinanceReportRepository.currency_aggregates
+    observed = []
+    async def concurrent_read(self, hid, filters):
+        settings = (await self.session.execute(text("SELECT current_setting('transaction_isolation'), current_setting('transaction_read_only')"))).one()
+        observed.append(tuple(settings))
+        async with f.db() as writer, writer.begin():
+            mid = await writer.scalar(text("INSERT INTO inventory_movements(household_id,lot_id,kind,quantity_delta,occurred_at) VALUES (:hid,:lid,'CONSUME',-1,now()) RETURNING id"), {"hid": hid, "lid": lot["id"]})
+            await writer.execute(text("INSERT INTO consumption_records(household_id,movement_id,reason_code) VALUES (:hid,:mid,'DAILY_USE')"), {"hid": hid, "mid": mid})
+            await writer.execute(text("UPDATE inventory_lots SET remaining_quantity=9 WHERE household_id=:hid AND id=:lid"), {"hid": hid, "lid": lot["id"]})
+        return await original(self, hid, filters)
+    with monkeypatch.context() as patch:
+        patch.setattr(SqlAlchemyFinanceReportRepository, "currency_aggregates", concurrent_read)
+        page = summary_page(f)
+    assert observed == [("repeatable read", "on")]
+    assert Decimal(page["sections"][0]["lots"]["remaining_value"]) == 200000
+    assert Decimal(summary_page(f)["sections"][0]["lots"]["remaining_value"]) == 180000
+
+
+def test_report_bounds_limit_200(f):
+    from test_inventory_checkout import configure_timezone
+    configure_timezone(f)
+    for path, code in ((ROOT, "INVENTORY_INVALID_INPUT"), (WASTE, "INVENTORY_INVALID_INPUT"), (SUMMARY, "FINANCE_INVALID_INPUT")):
+        r = f.request("GET", path, params={"limit": 201})
+        assert r.status_code == 422 and r.json()["error_code"] == code
+        assert f.request("GET", path, params={"limit": 200}).status_code == 200
+
+
+def test_report_bounds_waste_date_range_366_days(f):
+    from test_inventory_checkout import configure_timezone
+    configure_timezone(f)
+    fixture_lots(f)
+    assert f.request("GET", WASTE, params={"from_date": "2026-01-01", "to_date": "2027-01-02"}).status_code == 200
+    r = f.request("GET", WASTE, params={"from_date": "2026-01-01", "to_date": "2027-01-03"})
+    assert r.status_code == 422 and r.json()["error_code"] == "INVENTORY_INVALID_INPUT"
+
+
+def test_valuation_rows_bounded_at_1000(f):
+    from app.inventory.infrastructure.report_repository import SqlAlchemyInventoryReportRepository
+    # Missing bounded method must fail RED before the expensive 1001-receipt setup.
+    assert hasattr(SqlAlchemyInventoryReportRepository, "valuation_page_rows")
+    p = kg_product(f)
+    ids = []
+    for _ in range(1001):
+        r = receipt(f, p, quantity="1", unit_cost="20000", cost_currency="VND")
+        assert r.status_code == 201, r.text
+        ids.append(r.json()["id"])
+    page = get_page(f, limit=50)
+    assert len(page["items"]) == 50
+    assert Decimal(page["totals_by_currency"][0]["received_value"]) == 20020000
+    assert page["unknown_cost"] == {"count": 0, "items": []}
+    assert page["reconciliation"]["checked_lots"] == 1001
+    assert page["reconciliation"]["quantity_tied_out_count"] == 1001
+    assert page["reconciliation"]["value_tied_out_count"] == 1001
+    reached = [r["lot_id"] for r in page["items"]]
+    while page["next_cursor"]:
+        page = get_page(f, limit=200, cursor=page["next_cursor"])
+        reached.extend(r["lot_id"] for r in page["items"])
+        assert Decimal(page["totals_by_currency"][0]["received_value"]) == 20020000
+    assert reached == ids
+    async def bounded():
+        async with f.db() as db:
+            return await SqlAlchemyInventoryReportRepository(db).valuation_page_rows(f.hid,
+                dict(product_id=None, lot_id=None, currency=None, archived=None), 0, 201)
+    assert len(asyncio.run(bounded())) == 201
+
+
+def test_waste_rows_bounded_at_1000(f):
+    from app.inventory.infrastructure.report_repository import SqlAlchemyInventoryReportRepository
+    from test_inventory_checkout import configure_timezone
+    assert hasattr(SqlAlchemyInventoryReportRepository, "waste_product_rows")
+    configure_timezone(f)
+    p = kg_product(f)
+    # 1001 roots x 1 kg x 20000 = 20020000 (the task's 20010000 is an arithmetic typo).
+    lot = receipt(f, p, quantity="1001", unit_cost="20000", cost_currency="VND").json()
+    for _ in range(1001):
+        deduct(f, p, lot, "disposals", "1", "EXPIRED")
+    page = waste_page(f)
+    assert page["sections"][0]["disposed"] == {"quantity": "1001", "value": "20020000"}
+    assert page["sections"][0]["denominator"]["value"] == "20020000"
+    assert page["unknown_cost"] == {"disposed_quantity": "0", "consumed_quantity": "0", "by_reason": [], "lot_ids": [], "count": 0}
+    assert page["reconciliation"] == {"status": "TIED_OUT", "issues": {"count": 0, "items": []}}
+    assert page["by_product"] == [{"currency": "VND", "product_id": p["id"], "quantity": "1001", "value": "20020000"}]
+    walked = []
+    page = waste_page(f, limit=1)
+    while True:
+        walked.extend(page["by_product"])
+        if page["next_cursor"] is None:
+            break
+        page = waste_page(f, limit=1, cursor=page["next_cursor"])
+    assert walked == [{"currency": "VND", "product_id": p["id"], "quantity": "1001", "value": "20020000"}]
+    async def bounded():
+        async with f.db() as db:
+            return await SqlAlchemyInventoryReportRepository(db).waste_product_rows(f.hid,
+                dict(from_date=None, to_date=None, product_id=None, reason=None, currency=None,
+                     timezone="Asia/Ho_Chi_Minh"), ("", 0), 201)
+    assert len(asyncio.run(bounded())) <= 201

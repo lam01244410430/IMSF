@@ -16,7 +16,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 from app.identity.dto import UserResponse
 from app.finance.domain import Actor, FinanceRequestError
 from app.finance.dto import (
-    AccountCreate, AccountPage, AccountResponse, CategoryCreate, CategoryPage,
+    CurrencySummaryPage, AccountCreate, AccountPage, AccountResponse, CategoryCreate, CategoryPage,
     CategoryResponse, CurrencyResponse, Identifier, ItemCreate, ItemPatch,
     BalanceResponse, LedgerPage, PaymentBatchCreate, PaymentBatchResponse, TransactionPost,
     ReversalCreate, ReversalResponse,
@@ -25,6 +25,7 @@ from app.finance.dto import (
 from app.finance.infrastructure.household_access import SqlAlchemyHouseholdAccess
 from app.finance.infrastructure.repositories import SqlAlchemyFinanceRepository
 from app.finance.ledger_service import LedgerService
+from app.finance.report_service import FinanceReportService
 from app.inventory.infrastructure.reversal_effects import SqlAlchemyReversalEffects
 from app.finance.reconciliation_service import ReconciliationService
 from app.finance.dto import (IntegrityReport, ReconciliationCreate, ReconciliationReport,
@@ -263,3 +264,25 @@ async def reconciliation_close(household_id: Identifier, session_id: Identifier,
 async def reconciliation_refresh(household_id: Identifier, session_id: Identifier, body: ReconciliationRefresh,
                                   key: Key, actor: Principal, service: Reconciliation):
     return saved_response(await service.mutate(actor, household_id, session_id, "refresh-cutoff", body, key))
+
+
+# P06 Step 4 PROPOSAL: one additive VIEW read, existing finance contracts unchanged.
+def get_finance_report_service(session: Annotated[AsyncSession, Depends(get_db)]):
+    from app.finance.infrastructure.report_repository import SqlAlchemyFinanceReportRepository
+    from app.inventory.infrastructure.report_repository import SqlAlchemyInventoryReportRepository
+
+    return FinanceReportService(
+        session, SqlAlchemyFinanceReportRepository(session), SqlAlchemyHouseholdAccess(session),
+        SqlAlchemyInventoryReportRepository(session),
+    )
+
+FinanceReport = Annotated[FinanceReportService, Depends(get_finance_report_service)]
+
+
+@router.get("/finance/currency-summary", response_model=CurrencySummaryPage)
+async def finance_currency_summary(
+    household_id: Identifier, actor: Principal, service: FinanceReport,
+    currency: Literal["VND", "JPY", "USD", "EUR", "BHD"] | None = None,
+    limit: Limit = 50, cursor: Cursor = None,
+):
+    return await service.currency_summary(actor, household_id, currency=currency, limit=limit, cursor=cursor)

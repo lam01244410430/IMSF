@@ -364,3 +364,66 @@ class ReconciliationReport(ReadDTO):
 class ReconciliationPage(ReadDTO):
     items: list[ReconciliationReport]
     next_cursor: str | None
+
+
+# P06 Step 4 PROPOSAL: observed currencies only; no combined money total.
+class CurrencySummaryPurchase(ReadDTO):
+    linked_total: SerializedDecimal
+    linked_item_count: int
+    unlinked_total: SerializedDecimal
+    unlinked_item_count: int
+
+
+class CurrencySummaryLots(ReadDTO):
+    received_value: SerializedDecimal | None
+    remaining_value: SerializedDecimal | None
+    consumed_value: SerializedDecimal | None
+    disposed_value: SerializedDecimal | None
+    returned_value: SerializedDecimal | None
+    adjusted_out_value: SerializedDecimal | None
+
+
+class CurrencySummaryLedgerBalance(ReadDTO):
+    account_id: int
+    balance: SerializedDecimal
+
+
+class CurrencySummarySection(ReadDTO):
+    currency: str
+    purchase: CurrencySummaryPurchase
+    lots: CurrencySummaryLots
+    ledger_balances: list[CurrencySummaryLedgerBalance]
+
+
+class CurrencySummaryUnknownCost(ReadDTO):
+    count: int
+    lot_ids: list[int]
+
+
+class CurrencySummaryIssue(ReadDTO):
+    lot_id: int
+    currency: str | None
+    code: Literal["TIE_OUT_MISMATCH", "PURCHASE_MISMATCH", "REVERSED_ORIGINAL"]
+
+
+class CurrencySummaryIssues(ReadDTO):
+    count: int
+    items: list[CurrencySummaryIssue]
+
+
+class CurrencySummaryReconciliation(ReadDTO):
+    currencies: int
+    purchase_linked_item_count: int
+    purchase_unlinked_item_count: int
+    purchase_mismatch_count: int
+    reversed_original_count: int
+    unknown_cost_count: int
+    tie_out_mismatch_count: int
+    issues: CurrencySummaryIssues
+
+
+class CurrencySummaryPage(ReadDTO):
+    sections: list[CurrencySummarySection]
+    next_cursor: str | None
+    unknown_cost: CurrencySummaryUnknownCost
+    reconciliation: CurrencySummaryReconciliation

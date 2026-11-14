@@ -49,3 +49,24 @@ return 200 with TIE_OUT_MISMATCH. No correction writer policy is changed.
 
 P05 OPEN-09 remains UNRESOLVED. Other P05 OPEN items, P3-2, P04-OPEN-11/16,
 P02-02 leftovers, P01-01 label and proposed ADR-0005 are not re-decided.
+
+## P06 Step 4 PROPOSAL status
+
+P06-OPEN-07(a) default 50/max 200, cursor pages, waste-only 366-day spans and
+1,000-row query-result bound are implemented as PROPOSALS, alongside the
+currency-summary GET. This supersedes the historical Step 2/3 deferrals, not
+their policy status. SQL aggregates cover all scoped source rows; page fetches
+return at most 201, unknown/issue identifiers first 100 with complete counts.
+The bound does not truncate inputs or cap database recursion/nested aggregate
+arrays. Existing finance contracts/limits remain unchanged (P05-OPEN-14 input
+only). All ten P06 OPEN items remain OPEN until closure.
+
+Step 2 P3-2 full-lot Python materialization and Step 3 P3-1 uncapped root/product
+results are fixed. Step 3 P3-2 overcorrected opposite-signed roots remains a
+closure input: preserve HTTP 200/TIE_OUT_MISMATCH; recommend closure explicitly
+accept per-root absolute waste or separately decide signed-net/correction-writer
+policy. Step 3 P3-3 actual DDL finding: disposal_records.reason_code is NOT NULL
+with four-code CHECK in revision 7, and detail guards require alignment.
+Recommend relying on those valid-data constraints and separately deciding any
+defensive malformed-import policy; no new reason semantics are implemented.
+P05 OPEN-09, all prior carried OPEN items, P01-01 and ADR-0005 stay unchanged.
