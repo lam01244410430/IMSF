@@ -1,7 +1,9 @@
 """P06 Step 2 PROPOSAL contracts, exercised against disposable runtime PostgreSQL."""
 
 import asyncio
+from datetime import datetime
 from decimal import Decimal
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import text
@@ -32,7 +34,8 @@ def purchase_lot(f, p, *, unit_cost="20000", quantity="10"):
 
 def deduct(f, p, lot, kind, quantity, reason):
     r = f.request("POST", "/" + kind, json={"allocations": [{"lot_id": lot["id"],
-        "quantity": quantity, "unit_id": p["base_unit_id"]}], "reason_code": reason})
+        "quantity": quantity, "unit_id": p["base_unit_id"]}], "reason_code": reason,
+        **({"reason": "Other disposal fixture"} if reason == "OTHER" else {})})
     assert r.status_code == 201, r.text
     return r.json()["movement_ids"][0]
 
@@ -57,8 +60,8 @@ def fixture_lots(f):
     return p, (l1, l2, l3), tx
 
 
-def get_page(f, **params):
-    r = f.request("GET", ROOT, params=params)
+def get_page(f, *, report_path=ROOT, **params):
+    r = f.request("GET", report_path, params=params)
     assert r.status_code == 200, r.text
     return r.json()
 
@@ -330,3 +333,337 @@ def test_valuation_empty_unknown_and_known_zero_have_distinct_money_totals(f):
     assert page["items"][1]["lot_id"] == known["id"]
     assert page["items"][1]["unknown_cost"] is False
     assert page["unknown_cost"]["items"][0]["lot_id"] == unknown["id"]
+
+
+# P06 Step 3 PROPOSALS: root-event waste, household-local scope, no writers.
+WASTE = "/inventory/waste-report"
+NOVEMBER = {"from_date": "2026-11-01", "to_date": "2026-11-30"}
+
+
+def waste_page(f, **params):
+    # Reuse the report GET helper while preserving the valuation tests' default.
+    return get_page(f, report_path=WASTE, **params)
+
+
+def exact_rate(numerator, denominator):
+    from decimal import localcontext
+    with localcontext() as ctx:
+        ctx.prec = 80
+        return format(Decimal(numerator) / Decimal(denominator), "f")
+
+
+def test_waste_report_section5_exact_fixture(f):
+    from test_inventory_checkout import configure_timezone
+    configure_timezone(f)
+    p, lots, _ = fixture_lots(f)
+    assert waste_page(f, **NOVEMBER) == {
+        "period": {**NOVEMBER, "timezone": "Asia/Ho_Chi_Minh"},
+        "sections": [{
+            "currency": "VND", "disposed": {"quantity": "3", "value": "50000"},
+            "by_reason": [
+                {"reason_code": "EXPIRED", "quantity": "1", "value": "20000"},
+                {"reason_code": "SPOILED", "quantity": "2", "value": "30000"}],
+            "by_period": [{"period": "2026-11", "quantity": "3", "value": "50000"}],
+            "denominator": {"basis": "total_received_value_known_cost", "value": "260000", "scope": "same period and filters"},
+            "waste_rate": exact_rate(50000, 260000)}],
+        "by_product": [{"currency": "VND", "product_id": p["id"], "quantity": "3", "value": "50000"}],
+        "next_cursor": None,
+        "unknown_cost": {"disposed_quantity": "0", "consumed_quantity": "5", "by_reason": [], "lot_ids": [lots[1]["id"]], "count": 1},
+        "reconciliation": {"status": "TIED_OUT", "issues": {"count": 0, "items": []}},
+    }
+
+
+def test_waste_report_consumption_is_not_waste(f):
+    from test_inventory_checkout import configure_timezone
+    configure_timezone(f)
+    p, lots, _ = fixture_lots(f)
+    before = waste_page(f, **NOVEMBER)
+    deduct(f, p, lots[2], "consumption", "2", "DAILY_USE")
+    after = waste_page(f, **NOVEMBER)
+    assert after == before
+    assert after["unknown_cost"]["consumed_quantity"] == "5"
+    assert after["unknown_cost"]["disposed_quantity"] == "0"
+
+
+def test_waste_report_reason_filter_and_denominator_scope(f):
+    from test_inventory_checkout import configure_timezone
+    configure_timezone(f)
+    fixture_lots(f)
+    expired = waste_page(f, **NOVEMBER, reason="EXPIRED")["sections"][0]
+    assert expired["disposed"] == {"quantity": "1", "value": "20000"}
+    assert expired["denominator"]["value"] == "260000"
+    assert expired["waste_rate"] == exact_rate(20000, 260000)
+    damaged = waste_page(f, **NOVEMBER, reason="DAMAGED")["sections"][0]
+    assert damaged["disposed"] == {"quantity": "0", "value": "0"}
+    assert damaged["by_reason"] == damaged["by_period"] == []
+    assert damaged["denominator"]["value"] == "260000"
+    assert damaged["waste_rate"] == "0"
+
+
+def test_waste_report_date_range_and_open_ended(f):
+    from test_inventory_checkout import configure_timezone
+    configure_timezone(f)
+    fixture_lots(f)
+    page = waste_page(f, from_date="2026-11-01", to_date="2026-11-12")
+    assert page["sections"][0]["disposed"] == {"quantity": "0", "value": "0"}
+    assert page["sections"][0]["denominator"]["value"] == "260000"
+    assert page["sections"][0]["waste_rate"] == "0"
+    expected = waste_page(f, **NOVEMBER)
+    for filters in ({}, {"from_date": "2026-11-01"}, {"to_date": "2026-11-30"}):
+        actual = waste_page(f, **filters)
+        assert actual["period"] == {"from_date": filters.get("from_date"), "to_date": filters.get("to_date"), "timezone": "Asia/Ho_Chi_Minh"}
+        assert {k: v for k, v in actual.items() if k != "period"} == {k: v for k, v in expected.items() if k != "period"}
+
+
+def test_waste_report_disposal_outside_receipt_period_has_null_rate(f):
+    from test_inventory_checkout import configure_timezone
+    configure_timezone(f)
+    p = kg_product(f)
+    lot = receipt(f, p, received_at="2026-10-15T10:00:00Z", unit_cost="20000", cost_currency="VND").json()
+    deduct(f, p, lot, "disposals", "1", "EXPIRED")
+    section = waste_page(f, **NOVEMBER)["sections"][0]
+    assert section["disposed"] == {"quantity": "1", "value": "20000"}
+    assert section["denominator"]["value"] == "0" and section["waste_rate"] is None
+
+
+def test_waste_report_corrections_net_by_root_reason(f):
+    from test_inventory_checkout import configure_timezone
+    configure_timezone(f)
+    p = kg_product(f)
+    lot = receipt(f, p, quantity="4", unit_cost="15000", cost_currency="VND").json()
+    mid = deduct(f, p, lot, "disposals", "2", "SPOILED")
+    correction = adjust(f, p, lot, "3", mid)
+    section = waste_page(f, **NOVEMBER)["sections"][0]
+    assert section["disposed"] == {"quantity": "1", "value": "15000"}
+    assert section["by_reason"] == [{"reason_code": "SPOILED", "quantity": "1", "value": "15000"}]
+    # A correction of a correction retains its root; fully corrected roots vanish.
+    adjust(f, p, lot, "4", correction)
+    page = waste_page(f, **NOVEMBER)
+    assert page["by_product"] == []
+    assert page["sections"][0]["by_reason"] == page["sections"][0]["by_period"] == []
+    assert page["sections"][0]["disposed"] == {"quantity": "0", "value": "0"}
+
+
+def test_waste_report_unknown_cost_disposed_never_estimated(f):
+    from test_inventory_checkout import configure_timezone
+    configure_timezone(f)
+    p = kg_product(f)
+    lot = receipt(f, p).json()
+    deduct(f, p, lot, "disposals", "1", "DAMAGED")
+    page = waste_page(f, **NOVEMBER)
+    assert page["sections"] == page["by_product"] == []
+    assert page["unknown_cost"] == {"disposed_quantity": "1", "consumed_quantity": "0", "by_reason": [{"reason_code": "DAMAGED", "quantity": "1"}], "lot_ids": [lot["id"]], "count": 1}
+    def quantity_keys(value):
+        if isinstance(value, dict):
+            assert not any("value" in key or "money" in key or "amount" in key or "cost" in key for key in value)
+            for v in value.values():
+                quantity_keys(v)
+        elif isinstance(value, list):
+            for v in value:
+                quantity_keys(v)
+    quantity_keys(page["unknown_cost"])
+    # The precise Step 3 contract narrows unknown by_reason only.
+    filtered = waste_page(f, **NOVEMBER, reason="EXPIRED")["unknown_cost"]
+    assert filtered == page["unknown_cost"] | {"by_reason": []}
+    assert waste_page(f, **NOVEMBER, currency="VND")["unknown_cost"]["count"] == 0
+
+
+@pytest.mark.parametrize("role", ["OWNER", "ADMIN", "FINANCE_MANAGER", "INVENTORY_MANAGER", "MEMBER", "VIEWER"])
+def test_waste_report_all_six_roles_and_isolation(f, role):
+    from test_inventory_checkout import configure_timezone
+    configure_timezone(f)
+    p = kg_product(f)
+    for _ in range(2):
+        lot = receipt(f, p, unit_cost="1", cost_currency="VND").json()
+        deduct(f, p, lot, "disposals", "1", "OTHER")
+        p = kg_product(f)
+    assert f.request("GET", WASTE, role=role, params=NOVEMBER).status_code == 200
+    assert f.request("GET", WASTE, role="OUTSIDER", params=NOVEMBER).status_code == 404
+    assert f.client.get(f"/api/v1/households/{f.hid}" + WASTE).status_code == 401
+    page = waste_page(f, **NOVEMBER, limit=1)
+    assert page["next_cursor"] is not None
+    # Other household must have a valid timezone before checking its cursor.
+    from types import SimpleNamespace
+    configure_timezone(SimpleNamespace(db=f.db, hid=f.other_hid))
+    r = f.client.get(f"/api/v1/households/{f.other_hid}" + WASTE, headers=f.actors["OUTSIDER"].headers, params=NOVEMBER | {"cursor": page["next_cursor"]})
+    assert r.status_code == 422 and r.json()["error_code"] == "INVENTORY_INVALID_INPUT"
+
+
+def test_waste_report_missing_and_invalid_timezone(f):
+    from test_inventory_checkout import configure_timezone
+    for name in (None, "Invalid/Timezone"):
+        configure_timezone(f, name)
+        r = f.request("GET", WASTE)
+        assert r.status_code == 422 and r.json()["error_code"] == "INVENTORY_TIMEZONE_REQUIRED"
+        r = f.request("GET", WASTE, params={"product_id": 9223372036854775807})
+        assert r.status_code == 404 and r.json()["error_code"] == "INVENTORY_NOT_FOUND"
+    # A real foreign product is also scoped before the timezone requirement.
+    from types import SimpleNamespace
+    other = SimpleNamespace(request=lambda method, path, **kw: f.client.request(method, f"/api/v1/households/{f.other_hid}" + path, headers=f.actors["OUTSIDER"].headers | {"Idempotency-Key": uuid4().hex}, **kw))
+    foreign = kg_product(other)
+    assert f.request("GET", WASTE, params={"product_id": foreign["id"]}).status_code == 404
+
+
+def test_waste_report_invalid_filters_and_cursor_binding(f):
+    from test_inventory_checkout import configure_timezone
+    configure_timezone(f)
+    p, _, _ = fixture_lots(f)
+    p2 = kg_product(f)
+    lot = receipt(f, p2, unit_cost="1", cost_currency="VND").json()
+    deduct(f, p2, lot, "disposals", "1", "OTHER")
+    for params in ({"currency": "ZZZ"}, {"limit": 201}, {"limit": 0}, {"reason": "COOKING"}, {"product_id": 0}, {"from_date": "2026-12-01", "to_date": "2026-11-01"}, {"cursor": "garbage"}, {"cursor": "W10="}):
+        r = f.request("GET", WASTE, params=params)
+        assert r.status_code == 422 and r.json()["error_code"] == "INVENTORY_INVALID_INPUT"
+    page = waste_page(f, **NOVEMBER, limit=1)
+    for changed in ({"reason": "EXPIRED"}, {"currency": "VND"}, {"product_id": p["id"]}, {"from_date": "2026-11-02"}, {"to_date": "2026-11-29"}):
+        assert f.request("GET", WASTE, params=NOVEMBER | {"cursor": page["next_cursor"]} | changed).status_code == 422
+
+
+def test_waste_report_product_filter_and_by_product_pagination(f):
+    from test_inventory_checkout import configure_timezone
+    configure_timezone(f)
+    p, _, _ = fixture_lots(f)
+    p2 = kg_product(f)
+    lot = receipt(f, p2, unit_cost="2", cost_currency="VND").json()
+    deduct(f, p2, lot, "disposals", "1", "OTHER")
+    full = waste_page(f, **NOVEMBER)
+    first = waste_page(f, **NOVEMBER, limit=1)
+    second = waste_page(f, **NOVEMBER, limit=1, cursor=first["next_cursor"])
+    assert first["by_product"] + second["by_product"] == full["by_product"]
+    assert [r["product_id"] for r in full["by_product"]] == [p["id"], p2["id"]]
+    assert second["next_cursor"] is None
+    for key in ("sections", "unknown_cost", "reconciliation"):
+        assert first[key] == second[key] == full[key]
+    filtered = waste_page(f, **NOVEMBER, product_id=p2["id"])
+    assert filtered["by_product"] == [{"currency": "VND", "product_id": p2["id"], "quantity": "1", "value": "2"}]
+    assert filtered["sections"][0]["denominator"]["value"] == "10"
+    assert filtered["unknown_cost"]["count"] == 0
+
+
+def test_waste_report_currency_filter_and_no_combined_total(f):
+    from test_inventory_checkout import configure_timezone
+    configure_timezone(f)
+    p, _, _ = fixture_lots(f)
+    empty = waste_page(f, **NOVEMBER, currency="EUR")
+    assert empty["sections"] == empty["by_product"] == []
+    usd = receipt(f, p, unit_cost="0.123456789012", cost_currency="USD").json()
+    deduct(f, p, usd, "disposals", "1", "DAMAGED")
+    page = waste_page(f, **NOVEMBER, currency="USD")
+    assert [s["currency"] for s in page["sections"]] == ["USD"]
+    assert page["sections"][0]["disposed"] == {"quantity": "1", "value": "0.123456789012"}
+    assert set(page) == {"period", "sections", "by_product", "next_cursor", "unknown_cost", "reconciliation"}
+    both = waste_page(f, **NOVEMBER)
+    assert [s["currency"] for s in both["sections"]] == ["USD", "VND"]
+    assert [(r["currency"], r["product_id"]) for r in both["by_product"]] == [("USD", p["id"]), ("VND", p["id"])]
+
+
+def test_waste_report_read_only(f):
+    from test_inventory_checkout import configure_timezone
+    configure_timezone(f)
+    fixture_lots(f)
+    p = kg_product(f)
+    lot = receipt(f, p, unit_cost="1", cost_currency="VND").json()
+    deduct(f, p, lot, "disposals", "1", "OTHER")
+    before = household_snapshot(f)
+    waste_page(f, **NOVEMBER)
+    first = waste_page(f, **NOVEMBER, limit=1)
+    waste_page(f, **NOVEMBER, reason="SPOILED")
+    waste_page(f, **NOVEMBER, limit=1, cursor=first["next_cursor"])
+    assert household_snapshot(f) == before
+
+
+def test_waste_report_snapshot_is_read_only(f, monkeypatch):
+    from test_inventory_checkout import configure_timezone
+    from app.inventory.infrastructure.report_repository import SqlAlchemyInventoryReportRepository
+    configure_timezone(f)
+    p = kg_product(f)
+    lot, _ = purchase_lot(f, p)
+    original = SqlAlchemyInventoryReportRepository.waste_rows
+    observed = []
+    async def concurrent_read(self, hid, filters):
+        settings = (await self.session.execute(text("SELECT current_setting('transaction_isolation'), current_setting('transaction_read_only')"))).one()
+        observed.append(tuple(settings))
+        async with f.db() as writer, writer.begin():
+            mid = await writer.scalar(text("INSERT INTO inventory_movements(household_id,lot_id,kind,quantity_delta,occurred_at) VALUES (:hid,:lid,'DISPOSE',-1,now()) RETURNING id"), {"hid": hid, "lid": lot["id"]})
+            await writer.execute(text("INSERT INTO disposal_records(household_id,movement_id,reason_code) VALUES (:hid,:mid,'EXPIRED')"), {"hid": hid, "mid": mid})
+            await writer.execute(text("UPDATE inventory_lots SET remaining_quantity=9 WHERE household_id=:hid AND id=:lid"), {"hid": hid, "lid": lot["id"]})
+        return await original(self, hid, filters)
+    with monkeypatch.context() as patch:
+        patch.setattr(SqlAlchemyInventoryReportRepository, "waste_rows", concurrent_read)
+        page = waste_page(f, **NOVEMBER)
+    assert observed == [("repeatable read", "on")]
+    assert page["sections"][0]["disposed"] == {"quantity": "0", "value": "0"}
+    assert page["sections"][0]["denominator"]["value"] == "200000"
+    assert page["reconciliation"] == {"status": "TIED_OUT", "issues": {"count": 0, "items": []}}
+    assert waste_page(f, **NOVEMBER)["sections"][0]["disposed"] == {"quantity": "1", "value": "20000"}
+
+
+def test_waste_report_root_month_local_midnight_and_later_correction(f, monkeypatch):
+    from test_inventory_checkout import configure_timezone
+    from test_inventory_fefo import freeze_inventory_clock
+    configure_timezone(f)
+    p = kg_product(f)
+    lot = receipt(f, p, quantity="10", unit_cost="2", cost_currency="VND", received_at="2026-10-31T17:00:00Z").json()
+    # Vietnam midnight is still October in UTC. The preceding instant is out.
+    freeze_inventory_clock(monkeypatch, datetime.fromisoformat("2026-10-31T16:59:59+00:00"))
+    deduct(f, p, lot, "disposals", "1", "DAMAGED")
+    freeze_inventory_clock(monkeypatch, datetime.fromisoformat("2026-10-31T17:00:00+00:00"))
+    root = deduct(f, p, lot, "disposals", "2", "SPOILED")
+    freeze_inventory_clock(monkeypatch, datetime.fromisoformat("2026-11-30T16:59:59+00:00"))
+    deduct(f, p, lot, "disposals", "1", "EXPIRED")
+    freeze_inventory_clock(monkeypatch, datetime.fromisoformat("2026-11-30T17:00:00+00:00"))
+    deduct(f, p, lot, "disposals", "1", "DAMAGED")
+    # A December correction belongs to November's SPOILED root.
+    adjust(f, p, lot, "6", root)
+    nov = waste_page(f, **NOVEMBER)["sections"][0]
+    assert nov["disposed"] == {"quantity": "2", "value": "4"}
+    assert nov["by_period"] == [{"period": "2026-11", "quantity": "2", "value": "4"}]
+    assert nov["by_reason"] == [{"reason_code": "EXPIRED", "quantity": "1", "value": "2"}, {"reason_code": "SPOILED", "quantity": "1", "value": "2"}]
+    assert nov["denominator"]["value"] == "20"
+    dec = waste_page(f, from_date="2026-12-01", to_date="2026-12-31")["sections"][0]
+    assert dec["disposed"] == {"quantity": "1", "value": "2"}
+    assert dec["waste_rate"] is None
+    assert [r["period"] for r in waste_page(f)["sections"][0]["by_period"]] == ["2026-10", "2026-11", "2026-12"]
+
+
+def test_waste_report_overcorrection_lists_lot_without_blocking_read(f):
+    from test_inventory_checkout import configure_timezone
+    configure_timezone(f)
+    p = kg_product(f)
+    lot = receipt(f, p, quantity="10", unit_cost="2", cost_currency="VND").json()
+    root = deduct(f, p, lot, "disposals", "1", "SPOILED")
+    deduct(f, p, lot, "disposals", "3", "EXPIRED")
+    adjust(f, p, lot, "8", root)  # SPOILED root net +1, EXPIRED root net -3.
+    page = waste_page(f, **NOVEMBER)
+    assert page["sections"][0]["disposed"] == {"quantity": "4", "value": "8"}
+    assert page["reconciliation"] == {"status": "TIE_OUT_MISMATCH", "issues": {"count": 1, "items": [{"lot_id": lot["id"], "code": "TIE_OUT_MISMATCH"}]}}
+    assert waste_page(f, **NOVEMBER, reason="EXPIRED")["reconciliation"]["status"] == "TIED_OUT"
+
+
+def test_waste_report_archived_scope_and_known_zero_are_retained(f):
+    from test_inventory_checkout import configure_timezone
+    configure_timezone(f)
+    p = kg_product(f)
+    lot = receipt(f, p, unit_cost="0", cost_currency="VND").json()
+    deduct(f, p, lot, "disposals", "1", "DAMAGED")
+    before = waste_page(f, **NOVEMBER)
+    assert before["sections"][0]["disposed"] == {"quantity": "1", "value": "0"}
+    assert before["sections"][0]["waste_rate"] is None
+    assert f.request("POST", f"/inventory-lots/{lot['id']}/archive", json={"reason": "Historical report"}).status_code == 200
+    assert f.request("POST", f"/products/{p['id']}/archive", json={}).status_code == 200
+    assert f.client.post(f"/api/v1/households/{f.hid}/archive", headers=f.actors["OWNER"].headers).status_code == 204
+    assert waste_page(f, **NOVEMBER) == before
+
+
+def test_waste_report_unknown_identifiers_first_100_with_complete_count(f):
+    from test_inventory_checkout import configure_timezone
+    configure_timezone(f)
+    p = kg_product(f)
+    ids = []
+    for _ in range(101):
+        lot = receipt(f, p).json()
+        ids.append(lot["id"])
+        deduct(f, p, lot, "disposals", "1", "DAMAGED")
+    unknown = waste_page(f, **NOVEMBER, limit=1)["unknown_cost"]
+    assert unknown["lot_ids"] == ids[:100] and unknown["count"] == 101
+    assert unknown["disposed_quantity"] == "101"

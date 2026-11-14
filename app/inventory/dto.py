@@ -454,3 +454,89 @@ class LotValuationPage(ReadDTO):
     totals_by_currency: list[ValuationCurrencyTotal] | None
     unknown_cost: UnknownCostSection
     reconciliation: ValuationReconciliation
+
+
+# P06 Step 3 PROPOSALS: exact values; trim insignificant zeroes without rounding.
+def waste_decimal_string(value):
+    rendered = format(value, "f")
+    return rendered.rstrip("0").rstrip(".") if "." in rendered else rendered
+
+
+WasteDecimal = Annotated[SerializedDecimal, PlainSerializer(waste_decimal_string, return_type=str, when_used="json")]
+WasteReason = Literal["EXPIRED", "SPOILED", "DAMAGED", "OTHER"]
+
+
+class WastePeriod(ReadDTO):
+    from_date: date | None
+    to_date: date | None
+    timezone: str
+
+
+class WasteAmount(ReadDTO):
+    quantity: WasteDecimal
+    value: WasteDecimal
+
+
+class WasteReasonRow(WasteAmount):
+    reason_code: WasteReason
+
+
+class WastePeriodRow(WasteAmount):
+    period: str
+
+
+class WasteDenominator(ReadDTO):
+    basis: Literal["total_received_value_known_cost"]
+    value: WasteDecimal
+    scope: Literal["same period and filters"]
+
+
+class WasteCurrencySection(ReadDTO):
+    currency: str
+    disposed: WasteAmount
+    by_reason: list[WasteReasonRow]
+    by_period: list[WastePeriodRow]
+    denominator: WasteDenominator
+    waste_rate: WasteDecimal | None
+
+
+class WasteProductRow(WasteAmount):
+    currency: str
+    product_id: int
+
+
+class WasteUnknownReason(ReadDTO):
+    reason_code: WasteReason
+    quantity: WasteDecimal
+
+
+class WasteUnknownCost(ReadDTO):
+    disposed_quantity: WasteDecimal
+    consumed_quantity: WasteDecimal
+    by_reason: list[WasteUnknownReason]
+    lot_ids: list[int]
+    count: int
+
+
+class WasteIssue(ReadDTO):
+    lot_id: int
+    code: Literal["TIE_OUT_MISMATCH"]
+
+
+class WasteIssues(ReadDTO):
+    count: int
+    items: list[WasteIssue]
+
+
+class WasteReconciliation(ReadDTO):
+    status: Literal["TIED_OUT", "TIE_OUT_MISMATCH"]
+    issues: WasteIssues
+
+
+class WasteReport(ReadDTO):
+    period: WastePeriod
+    sections: list[WasteCurrencySection]
+    by_product: list[WasteProductRow]
+    next_cursor: str | None
+    unknown_cost: WasteUnknownCost
+    reconciliation: WasteReconciliation

@@ -8,7 +8,7 @@
 | P03-01 | Ledger, payments, reversals, and reconciliation | P02-02 | Decimal precision, concurrent idempotency, and balance verification | Delivered |
 | P04-01 | Products, lots, movements, and checkout | P03-01 | Atomic rollback, ownership constraints, and concurrent deductions | Delivered |
 | P05-01 | FEFO, consumption, disposal, and expiry jobs | P04-01 | Time zone boundaries, partial deductions, and deduplication | Delivered |
-| P06-01 | Waste and financial reports | P05-01 | Reconciled lot valuation and currency grouping | In progress — Step 2 PROPOSAL; closure pending |
+| P06-01 | Waste and financial reports | P05-01 | Reconciled lot valuation and currency grouping | In progress — Step 3 waste PROPOSAL; closure pending |
 | P07-01 | Recipe matching and ranking | P05-01 | Stable order and expired lot exclusion | Planned |
 | P08-01 | Frontend integration and three locales | P06-01, P07-01 | Critical E2E flows and keyboard paths | Planned |
 | P09-01 | Security and reliability | P08-01 | Authorization audit, concurrency, and recovery rehearsal | Planned |

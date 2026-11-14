@@ -21,3 +21,11 @@
   No migration, commit, push, PR or deployment. P06 closure remains pending.
 
 - P06-01 Step 2 final full suite: 1176 passed, 1 warning in 2537.39s (0:42:17); pytest exit -15. Known post-summary shutdown hang; SIGTERM recorded explicitly. Disposable container stop/removal both 0; targeted final valuation 19 and existing inventory/finance 194 both exit 0. See Step 2 evidence.
+
+- 2026-11-13 P06-01 Step 3 on `task/P06-01-waste-report` from `e3bbf12`:
+  waste report implemented as PROPOSALS; targeted waste **23 passed** in 52.30s,
+  exit 0 (fresh disposable PostgreSQL), exact section-5 math and read-only
+  snapshot/concurrency proof. OpenAPI recomputed 79/127 → 80/140 paths/schemas;
+  existing contracts unchanged. Remaining regression/full/review evidence is
+  tracked in [Step 3 evidence](p0601-step3-coder-evidence.md). Step 4 owns
+  366-day/1,000-row caps and uncapped lot/event work. No commit/push/PR/deploy.

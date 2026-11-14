@@ -363,3 +363,28 @@ underlying correction can overcompensate its source; absolute netting then
 reports a tie-out issue (P3 input to P06-OPEN-01). Q1–Q8 defaults are authorized
 for implementation as proposals; P06 OPEN decisions remain OPEN until closure.
 All P05 and carried open items remain unchanged.
+
+## P06-01 Step 3 waste implementation note (PROPOSAL)
+
+The waste GET reads existing `inventory_lots`, `inventory_movements`,
+`disposal_records` and household timezone settings at unchanged migration head
+`000000000008`. No schema, grant, stored snapshot or writer is added. All reads,
+authorization and settings use one REPEATABLE READ, READ ONLY report transaction.
+Composite household ownership scopes every relation/join; archived data remains
+readable. Recursive movement attribution extends Step 2 with the root ID and
+root occurred_at: later corrections adjust the root's reason and local month.
+Known waste uses per-root absolute net DISPOSE quantity times immutable lot cost;
+consumption/expiry alone never classifies waste. P05 OPEN-09 stays UNRESOLVED.
+
+P06-OPEN-02/09/10 default (a) directions are implemented as PROPOSALS: received
+known-cost value in the same date/product/currency scope is the denominator;
+reason filters the numerator, not receipts. Root occurred_at and received_at
+use the required household timezone and open-ended local-date boundaries.
+No cost/FX is invented. Unknown-cost quantities are explicit and unpriced.
+Per-root versus per-lot absolute-net discrepancies are nonblocking report issues.
+See [the exact API contract](../api/inventory-reports.md#waste-report--p06-01-step-3-proposal).
+
+P06-OPEN-07's 366-day and 1,000-row caps remain Step 4 work. In addition to the
+carried matching-lot totals scan, waste materializes uncapped root-event rows;
+by-product output pagination bounds neither scan. This is a Step 4/P3 input,
+not a fix or a decided closure gate. All P06 OPEN decisions remain OPEN.

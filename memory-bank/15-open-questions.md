@@ -29,3 +29,23 @@ the proposed absolute-per-kind net model reports TIE_OUT_MISMATCH for that
 retained shape. P06-OPEN-01 closure must consider signed nets versus correction
 constraints. No correction write policy is changed by Step 2. Split PURCHASE
 lots compare against the item's full net amount without allocation, as proposed.
+
+## P06-01 Step 3 proposal status
+
+P06-OPEN-02/09/10 defaults (a) are implemented as PROPOSALS under Lam's Q1–Q8
+authorization: same-period received known-cost value denominator (product and
+currency filters, never reason); root occurred_at for disposals/consumption and
+received_at for receipts, required household timezone, local months/open ranges;
+DISPOSE-only waste from recorded reasons. Expired/cooking consumption remains
+consumption. Step 2 defaults 01/03/04/05/06/08 are reused. **All P06 OPEN decisions
+remain OPEN until closure; implementation and tests decide no policy gate.**
+
+P06-OPEN-07's 366-day cap and per-report 1,000-row cap are deferred explicitly to
+Step 4, along with currency summary. P3 bounds input: waste returns uncapped
+per-root event rows to the application in addition to the existing full-lot
+totals/denominator scan; by-product pagination limits output only. Overcorrected
+opposite-signed disposal roots can disagree with per-lot absolute netting and
+return 200 with TIE_OUT_MISMATCH. No correction writer policy is changed.
+
+P05 OPEN-09 remains UNRESOLVED. Other P05 OPEN items, P3-2, P04-OPEN-11/16,
+P02-02 leftovers, P01-01 label and proposed ADR-0005 are not re-decided.

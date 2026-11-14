@@ -65,3 +65,58 @@ class SqlAlchemyInventoryReportRepository:
             ORDER BY l.id
         """), {"hid": hid, **filters})
         return [dict(row) for row in result.mappings()]
+
+    async def household_timezone(self, hid):
+        # Same settings read as the inventory repository, with no default/write.
+        values = await self.session.scalar(text(
+            "SELECT values FROM household_settings WHERE household_id=:hid"
+        ), {"hid": hid})
+        return values.get("timezone") if isinstance(values, dict) else None
+
+    async def waste_rows(self, hid, filters):
+        # Extend valuation's recursive attribution with root identity/time.
+        # Restrict roots by time, never their corrections: later corrections
+        # must still repair the original event's month and recorded reason.
+        result = await self.session.execute(text("""
+            WITH RECURSIVE lots AS (
+                SELECT l.id, l.household_id, l.product_id, l.cost_currency,
+                    l.unit_cost, l.received_quantity,
+                    ((CAST(:from_date AS date) IS NULL OR l.received_at >=
+                        (CAST(:from_date AS date)::timestamp AT TIME ZONE :timezone))
+                     AND (CAST(:to_date AS date) IS NULL OR l.received_at <
+                        ((CAST(:to_date AS date)+1)::timestamp AT TIME ZONE :timezone))) AS received_in_period
+                FROM inventory_lots l
+                WHERE l.household_id=:hid
+                  AND (CAST(:product_id AS bigint) IS NULL OR l.product_id=:product_id)
+                  AND (CAST(:currency AS text) IS NULL OR l.cost_currency=:currency)
+            ), movements AS (
+                SELECT m.* FROM inventory_movements m
+                JOIN lots l ON (l.household_id,l.id)=(m.household_id,m.lot_id)
+            ), attributed AS (
+                SELECT id, lot_id, id AS root_id, kind AS root_kind,
+                    occurred_at AS root_occurred_at, quantity_delta
+                FROM movements
+                WHERE correction_of_movement_id IS NULL AND kind IN ('DISPOSE','CONSUME')
+                  AND (CAST(:from_date AS date) IS NULL OR occurred_at >=
+                    (CAST(:from_date AS date)::timestamp AT TIME ZONE :timezone))
+                  AND (CAST(:to_date AS date) IS NULL OR occurred_at <
+                    ((CAST(:to_date AS date)+1)::timestamp AT TIME ZONE :timezone))
+                UNION ALL
+                SELECT m.id, m.lot_id, a.root_id, a.root_kind,
+                    a.root_occurred_at, m.quantity_delta
+                FROM movements m JOIN attributed a
+                  ON a.id=m.correction_of_movement_id AND a.lot_id=m.lot_id
+            ), events AS (
+                SELECT lot_id, root_id, root_kind,
+                    to_char(root_occurred_at AT TIME ZONE :timezone,'YYYY-MM') AS period,
+                    sum(quantity_delta) AS net_delta
+                FROM attributed GROUP BY lot_id, root_id, root_kind, root_occurred_at
+                HAVING sum(quantity_delta) <> 0
+            )
+            SELECT l.*, e.root_id, e.root_kind, e.period, e.net_delta, d.reason_code
+            FROM lots l LEFT JOIN events e ON e.lot_id=l.id
+            LEFT JOIN disposal_records d
+              ON (d.household_id,d.movement_id)=(l.household_id,e.root_id)
+            ORDER BY l.id, e.root_id
+        """), {"hid": hid, **filters})
+        return [dict(row) for row in result.mappings()]

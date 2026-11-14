@@ -8,7 +8,8 @@ from sqlalchemy import text
 
 from app.inventory.authorization import READ
 from app.inventory.domain import InventoryRequestError
-from app.inventory.dto import LotValuationPage, LotValuationResponse
+from app.inventory.dto import LotValuationPage, LotValuationResponse, WasteReport
+from app.lifecycle.domain import household_zone
 
 KINDS = ("received", "remaining", "consumed", "disposed", "returned", "adjusted_out")
 IDENTIFIER_LIMIT = 100
@@ -120,3 +121,133 @@ class InventoryReportService:
                     "unknown_cost": {"count": len(unknown), "items": unknown[:IDENTIFIER_LIMIT]},
                     "reconciliation": reconciliation,
                 }).model_dump(mode="json")
+
+    async def waste(self, actor, hid, *, from_date=None, to_date=None, product_id=None,
+                    reason=None, currency=None, limit=50, cursor=None):
+        filters = dict(from_date=from_date.isoformat() if from_date else None,
+                       to_date=to_date.isoformat() if to_date else None,
+                       product_id=product_id, reason=reason, currency=currency)
+        async with self.session.begin():
+            await self.session.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"))
+            await self.access.resolve(actor, hid, READ, write=False)
+            if product_id is not None and not await self.repository.contains(hid, "product_id", product_id):
+                raise InventoryRequestError(404, "INVENTORY_NOT_FOUND")
+            zone = household_zone(await self.repository.household_timezone(hid))
+            if from_date is not None and to_date is not None and from_date > to_date:
+                raise InventoryRequestError(422, "INVENTORY_INVALID_INPUT")
+            scope = [hid, "inventory/waste-report", filters]
+            position = ("", 0)
+            if cursor is not None:
+                try:
+                    decoded = json.loads(base64.urlsafe_b64decode(cursor.encode()))
+                    pos = decoded["position"]
+                    if (decoded["scope"] != scope or not isinstance(pos, list) or len(pos) != 2
+                            or pos[0] not in ("VND", "JPY", "USD", "EUR", "BHD")
+                            or type(pos[1]) is not int or not 0 < pos[1] <= 9223372036854775807):
+                        raise ValueError()
+                    position = tuple(pos)
+                except (ValueError, KeyError, TypeError, IndexError, UnicodeError):
+                    raise InventoryRequestError(422, "INVENTORY_INVALID_INPUT") from None
+            # Reuse valuation's exact arithmetic and single read-snapshot model.
+            with localcontext() as ctx:
+                ctx.prec = 80
+                rows = await self.repository.waste_rows(hid, {**filters, "timezone": zone.key})
+                report = waste_totals(rows, reason)
+                products = report["by_product"]
+                page = [r for r in products if (r["currency"], r["product_id"]) > position][:limit + 1]
+                next_cursor = None
+                if len(page) > limit:
+                    page = page[:limit]
+                    next_cursor = base64.urlsafe_b64encode(json.dumps({
+                        "scope": scope, "position": [page[-1]["currency"], page[-1]["product_id"]],
+                    }, sort_keys=True, separators=(",", ":")).encode()).decode()
+                return WasteReport.model_validate({
+                    **report, "by_product": page, "next_cursor": next_cursor,
+                    "period": {"from_date": from_date, "to_date": to_date, "timezone": zone.key},
+                }).model_dump(mode="json")
+
+
+WASTE_REASONS = ("EXPIRED", "SPOILED", "DAMAGED", "OTHER")
+
+
+def waste_amount():
+    return {"quantity": Decimal(0), "value": Decimal(0)}
+
+
+def add_waste_amount(target, quantity, value):
+    target["quantity"] += quantity
+    target["value"] += value
+
+
+def waste_totals(rows, reason):
+    """Group the same per-root absolute values; caller supplies precision 80.
+
+    This extends valuation's per-lot signed net comparison without purchase
+    linkage. Reason filters known waste only; unknown totals retain all reasons
+    and consumption, while unknown by_reason is narrowed per Step 3 contract.
+    """
+    sections, products, lot_values, seen_lots = {}, {}, {}, set()
+    unknown_ids, unknown_reasons = set(), {}
+    unknown = {"disposed_quantity": Decimal(0), "consumed_quantity": Decimal(0)}
+
+    def section(currency):
+        return sections.setdefault(currency, {
+            "currency": currency, "disposed": waste_amount(), "by_reason": {}, "by_period": {},
+            "denominator": {"basis": "total_received_value_known_cost", "value": Decimal(0),
+                            "scope": "same period and filters"},
+        })
+
+    for row in rows:
+        lid, cost = row["id"], row["unit_cost"]
+        if lid not in seen_lots:
+            seen_lots.add(lid)
+            if cost is not None and row["received_in_period"]:
+                section(row["cost_currency"])["denominator"]["value"] += row["received_quantity"] * cost
+        if row["root_id"] is None:
+            continue
+        q = abs(row["net_delta"])
+        if cost is None:
+            unknown_ids.add(lid)
+            if row["root_kind"] == "CONSUME":
+                unknown["consumed_quantity"] += q
+            else:
+                unknown["disposed_quantity"] += q
+                if reason is None or row["reason_code"] == reason:
+                    code = row["reason_code"]
+                    unknown_reasons[code] = unknown_reasons.get(code, Decimal(0)) + q
+            continue
+        if row["root_kind"] != "DISPOSE" or (reason is not None and row["reason_code"] != reason):
+            continue
+        value = q * cost
+        total = section(row["cost_currency"])
+        add_waste_amount(total["disposed"], q, value)
+        add_waste_amount(total["by_reason"].setdefault(row["reason_code"], waste_amount()), q, value)
+        add_waste_amount(total["by_period"].setdefault(row["period"], waste_amount()), q, value)
+        key = (row["cost_currency"], row["product_id"])
+        add_waste_amount(products.setdefault(key, waste_amount()), q, value)
+        lot = lot_values.setdefault(lid, {"net": Decimal(0), "event_value": Decimal(0), "cost": cost})
+        lot["net"] += row["net_delta"]
+        lot["event_value"] += value
+
+    output_sections = []
+    for currency in sorted(sections):
+        total = sections[currency]
+        denominator = total["denominator"]["value"]
+        total["waste_rate"] = total["disposed"]["value"] / denominator if denominator else None
+        total["by_reason"] = [{"reason_code": r, **total["by_reason"][r]} for r in WASTE_REASONS if r in total["by_reason"]]
+        total["by_period"] = [{"period": p, **total["by_period"][p]} for p in sorted(total["by_period"])]
+        output_sections.append(total)
+    # Per-lot differences are nonnegative, so this also proves the per-currency
+    # comparison. Group sums use these exact same root values by construction.
+    issues = [{"lot_id": lid, "code": "TIE_OUT_MISMATCH"}
+              for lid, lot in sorted(lot_values.items())
+              if lot["event_value"] != abs(lot["net"]) * lot["cost"]]
+    return {
+        "sections": output_sections,
+        "by_product": [{"currency": c, "product_id": p, **products[c, p]} for c, p in sorted(products)],
+        "unknown_cost": {**unknown, "by_reason": [{"reason_code": r, "quantity": unknown_reasons[r]}
+            for r in WASTE_REASONS if r in unknown_reasons],
+            "lot_ids": sorted(unknown_ids)[:IDENTIFIER_LIMIT], "count": len(unknown_ids)},
+        "reconciliation": {"status": "TIE_OUT_MISMATCH" if issues else "TIED_OUT",
+                           "issues": {"count": len(issues), "items": issues[:IDENTIFIER_LIMIT]}},
+    }

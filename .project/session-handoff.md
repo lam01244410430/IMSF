@@ -24,3 +24,14 @@ no finance files/migrations/waste/summary/P07/P08 changes. Step 3 and Step 4 are
 not authorized by this handoff. Read the P3 correction-overcompensation and
 uncapped-scan notes before closure. Final EC2 report is
 `/tmp/p0601-step2-result.md`; coordinator approval remains separate.
+
+2026-11-13 P06-01 Step 3 handoff: branch `task/P06-01-waste-report`, base/HEAD
+`e3bbf12`, no commit/push/PR/deploy. Read [Step 3 evidence](p0601-step3-coder-evidence.md)
+and [the waste contract](../docs/api/inventory-reports.md#waste-report--p06-01-step-3-proposal).
+Defaults 02/09/10 join Step 2 defaults as PROPOSALS; all P06 OPEN decisions stay
+OPEN. Step 4 receives currency summary, proposed 366-day/1,000-row caps, carried
+full-lot totals scans and new uncapped root-event materialization. Pagination
+bounds product output only. Overcorrection can return 200/TIE_OUT_MISMATCH;
+no correction policy or P05 OPEN-09 UNRESOLVED is re-decided. Unchanged migration
+head 000000000008 and all prior carried decisions remain intact. Independent
+coordinator test/review and closure approval remain separate from worker evidence.

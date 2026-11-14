@@ -23,3 +23,14 @@ Publication verification on 2026-11-06 reran all 18 existing tests successfully;
 2026-11-13 P05-01 Step 5 closure review: LIFE-01 date/freshness/timezone, deduplication and partial-deduction acceptance are re-verified on the Step 4 tree — full suite 1157 passed, targeted P05 files 343 passed, CLOSED P2-1 race regression 10/10 passed; ID-01 all-six-role VIEW/isolation/composite FKs rechecked through the targeted expiry/lifecycle/authorization files; INV-01 unchanged stock/history through read and job paths (no stock/finance writer in app/lifecycle, re-grepped); OPS-01 additive migration/grants/history-safe downgrade re-verified by standalone rehearsals (15/15 PASS: populated rev-7 upgrade preserves all rows, downgrade refuses 55000 with history, empty downgrade preserves rev-7 history) and OpenAPI compatibility (77 paths / 118 schemas, unchanged vs 9d81253). Health 200/200 on a fresh DB. Known host limitation: full-suite pytest process exit -15 (printed summary is the evidence). See [Step 5 evidence](/tmp/p0501-step5-result.md) (EC2; copy at ~/workspace/user/files/P05-01-step5-result.md).
 
 2026-11-13 P06-01 Step 2: WASTE-01 fixed-lot valuation/unknown cost/per-currency sums and purchase linkage, INV-01 correction-netted quantities and retained history, ID-01 VIEW for all six roles/isolation/removed-member denial, and FIN-01 unchanged purchase provenance map to `tests/test_p06_01_reports.py`. [Step 2 evidence](p0601-step2-coder-evidence.md) records exact fixture arithmetic, read-only snapshots and compatibility. This is proposal implementation evidence, not P06 closure or waste-report acceptance.
+
+2026-11-13 P06-01 Step 3: WASTE-01 root-event DISPOSE costing/reason-product-month
+breakdowns/denominator/rate/unknown-cost quantities and reconciliation map to
+`tests/test_p06_01_reports.py::test_waste_*`. LIFE-01 root-time/local-calendar
+boundaries and correction provenance reuse household timezone validation;
+ID-01 covers all six VIEW roles, scoped 404 ordering and cursor isolation;
+INV-01/FIN-01 read-only snapshots prove unchanged household-owned rows and
+REPEATABLE READ, READ ONLY observation during a concurrent committed disposal.
+OpenAPI compatibility adds exactly one GET to the exact-route test allow-list.
+See [actual Step 3 evidence](p0601-step3-coder-evidence.md); proposal implementation
+is not a policy decision or P06 closure. Step 4 owns date/row/scan bounds.

@@ -1,9 +1,9 @@
-# Inventory valuation reads — P06-01 Step 2
+# Inventory reports — P06-01 Steps 2–3
 
 Status: **PROPOSAL implementation**, authorized for Step 2 on 2026-11-13.
 Lam approved implementing the plan's Q1–Q8 default direction. P06-OPEN-01
 through P06-OPEN-10 remain OPEN until P06 closure; passing tests do not decide
-a policy gate. This document covers lot valuation only.
+a policy gate. This document covers valuation and the additive Step 3 waste proposal.
 
 Let `H = /api/v1/households/{household_id}`.
 
@@ -124,6 +124,115 @@ VND totals: received 260000, remaining 130000, consumed 80000, disposed 50000,
 returned 0, adjusted-out 0. L2's 5 kg consumption remains unpriced.
 See `tests/test_p06_01_reports.py` and the Step 2 engineering evidence.
 
-Waste reporting, the finance currency summary, date scopes and Step 4 report
-maximums are subsequent steps. All carried P05/P04/P03/P02 decisions, the
+Waste reporting and its date scope are documented below; the finance currency
+summary and wider report maximums remain Step 4 work. All carried P05/P04/P03/P02 decisions, the
 P01-01 label and proposed ADR-0005 remain unchanged.
+
+## Waste report — P06-01 Step 3 PROPOSAL
+
+GET `H/inventory/waste-report` returns `WasteReport`, VIEW for all six existing
+roles. Step 3 implements approved default directions as **PROPOSALS** under
+P06-OPEN-02/09/10, carrying Step 2 defaults 01/03/04/05/06/08. All OPEN decisions
+remain OPEN until P06 closure. No new writer, migration, snapshot table, cost
+estimate, currency conversion, summary route or P07/P08 behavior is introduced.
+
+Optional filters are `from_date`, `to_date` (ISO local dates), positive BIGINT
+`product_id`, `reason` (EXPIRED/SPOILED/DAMAGED/OTHER), and `currency`
+(VND/JPY/USD/EUR/BHD). Either or both dates may be omitted. Reversed dates give
+422 `INVENTORY_INVALID_INPUT`. A missing or foreign product gives scoped 404
+`INVENTORY_NOT_FOUND` **before** checking timezone. Authentication/membership
+errors follow valuation. Archived lots/products/households remain included.
+
+A configured, valid household timezone is **always required**, including
+unfiltered requests, because monthly buckets need it. The report repository
+SELECTs `household_settings.values`; shared `app.lifecycle.domain.household_zone`
+validates it. Missing/invalid timezone gives 422 `INVENTORY_TIMEZONE_REQUIRED`
+without fallback. The range is `[from_date 00:00, to_date + 1 day 00:00)` in that
+zone, converted to UTC instants for comparisons. Events use the root movement's
+`occurred_at`; receipts use lot `received_at`. Month buckets are local `YYYY-MM`.
+
+Waste consists only of root DISPOSE movements linked to their recorded
+`disposal_records.reason_code`. Each root's complete recursive correction chain
+nets its signed deltas; event quantity is `abs(net)` and event value is that
+quantity times fixed lot `unit_cost`. Corrections therefore repair the original
+month/reason even if recorded later or outside the requested period. Zero-net
+roots disappear. CONSUME events, including expired-lot consumption and cooking,
+are never waste. P05 OPEN-09 remains UNRESOLVED.
+
+For each observed known-cost currency, the denominator is received quantity
+times unit cost summed over lots received inside the same period, with the same
+product/currency filters. **Reason filters the known-cost waste numerator only;
+it never filters the denominator.** A disposal in scope may therefore have no
+receipt in scope. Rate is disposed value divided by that denominator, calculated
+with `localcontext` precision 80, without quantization or minor-unit rounding.
+Repeating ratios use the 80-digit Decimal division result. All quantities and
+values serialize as strings, with insignificant fractional zeroes removed
+without changing their value. No cross-currency total is returned.
+
+The exact top-level fields are:
+
+- `period`: `{from_date: date|null, to_date: date|null, timezone: str}`.
+- `sections`: currency-ascending entries with `currency`,
+  `disposed: {quantity, value}`, `by_reason`, `by_period`,
+  `denominator: {basis: "total_received_value_known_cost", value,
+  scope: "same period and filters"}`, and `waste_rate: str|null`.
+- `by_product`: `{currency, product_id, quantity, value}` rows ordered by
+  `(currency, product_id)`, containing nonzero disposal quantities only.
+- `next_cursor`: continuation or null, for `by_product` only.
+- `unknown_cost`: `{disposed_quantity, consumed_quantity, by_reason, lot_ids,
+  count}`; quantities only, no money/value fields.
+- `reconciliation`: `{status: "TIED_OUT"|"TIE_OUT_MISMATCH",
+  issues: {count, items: [{lot_id, code: "TIE_OUT_MISMATCH"}]}}`.
+
+`by_reason` has `{reason_code, quantity, value}` for nonzero disposed quantities
+in EXPIRED/SPOILED/DAMAGED/OTHER order. `by_period` has `{period, quantity, value}`
+for nonzero disposed months ascending. Sections exist for currencies observed
+in either known-cost disposals or receipts in scope. Disposal-only currency:
+denominator `"0"`, rate null. Receipt-only currency with a positive denominator:
+disposed `"0"`, rate `"0"`. Rate is null exactly when denominator is zero,
+including known zero cost. Empty or unknown-only scopes return `sections: []`
+and `by_product: []`. Rates always appear with their denominator section.
+
+Unknown-cost totals sum absolute net quantities per DISPOSE/CONSUME root in the
+date/product/currency scope. All consumption reasons count as consumed only.
+A currency filter excludes the null-cost/null-currency lots. Per the Step 3
+contract, **reason narrows unknown disposed `by_reason` only**: unknown disposed
+and consumed totals, contributor lot IDs/count retain all reasons. Unknown
+`by_reason` entries contain `{reason_code, quantity}` only in the same fixed
+order. Contributor IDs are ascending, first 100, with a complete distinct count;
+only nonzero root events contribute. Unknown quantities are never estimated or
+priced at zero. Cross-product quantities follow the proposed response contract;
+`by_product` retains the product dimension for known-cost disposal quantities.
+
+Reconciliation compares each lot's sum of per-root absolute disposed values to
+`abs(sum(signed DISPOSE root nets)) * unit_cost` in the same date/reason scope.
+The nonnegative per-lot differences also establish the comparison per currency.
+Opposite-signed roots after overcorrection can differ; list affected lot IDs
+ascending (first 100, complete count) and return HTTP 200 with TIE_OUT_MISMATCH.
+By-reason, by-period and full by-product sums equal section disposed totals by
+construction, from the same root values; no second check is added. Purchase
+linkage belongs to valuation and is unnecessary for this report.
+
+Reuse `Limit` (default 50, max 200) and `Cursor`. Cursor scope binds household,
+route and all five filters (from/to/product/reason/currency); its position is the
+last `(currency, product_id)`. Changed household/filters or malformed cursors
+give 422 `INVENTORY_INVALID_INPUT`. Only by-product output is paginated; sections,
+breakdowns, unknown cost and reconciliation cover the **complete scope** on
+every page. Each request has one REPEATABLE READ, READ ONLY transaction covering
+authorization, settings, ownership and report SELECTs. Snapshots do not persist
+across separate page requests.
+
+**Step 4 inputs (P06-OPEN-07 / carried scan P3):** the proposed 366-day cap and
+1,000-row report cap are explicitly deferred. Matching-lot totals/denominator
+still read all matching lots as in Step 2. Waste additionally materializes
+nonzero per-root disposal/consumption event rows, rather than only one row per
+lot: this is a **new uncapped event-result scan/materialization** beyond Step 2's
+lot-result scan (Step 2 already traverses movements). Output pagination does not
+bound either scan, correction-chain work or monthly buckets. Step 4 must include
+this input in its bounds design; existing finance contract limits are unchanged.
+
+The section-5 fixture is 3 kg / 50000 VND: EXPIRED 1 / 20000, SPOILED 2 / 30000,
+November 2026 bucket 3 / 50000, denominator 260000, rate `50000 / 260000` at
+precision 80. Unknown L2 contributes consumed 5 and disposed 0, never money.
+All three breakdowns tie out and reconciliation is TIED_OUT with no issues.
+See [Step 3 evidence](../../.project/p0601-step3-coder-evidence.md).

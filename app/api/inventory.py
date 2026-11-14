@@ -47,6 +47,8 @@ from app.inventory.dto import (
     DisposalPage,
     LotValuationPage,
     LotValuationResponse,
+    WasteReport,
+    WasteReason,
 )
 from app.inventory.infrastructure.repositories import SqlAlchemyInventoryRepository
 from app.inventory.service import InventoryService
@@ -460,3 +462,16 @@ async def lot_valuation(
     household_id: Identifier, lot_id: Identifier, actor: Principal, service: ReportService,
 ):
     return await service.valuation(actor, household_id, lot_id=lot_id, single=True)
+
+
+# P06-OPEN-02/09/10 PROPOSALS; closure decisions remain OPEN.
+@router.get("/inventory/waste-report", response_model=WasteReport)
+async def inventory_waste_report(
+    household_id: Identifier, actor: Principal, service: ReportService,
+    from_date: date | None = None, to_date: date | None = None,
+    product_id: Identifier | None = None, reason: WasteReason | None = None,
+    currency: Literal["VND", "JPY", "USD", "EUR", "BHD"] | None = None,
+    limit: Limit = 50, cursor: Cursor = None,
+):
+    return await service.waste(actor, household_id, from_date=from_date, to_date=to_date,
+        product_id=product_id, reason=reason, currency=currency, limit=limit, cursor=cursor)

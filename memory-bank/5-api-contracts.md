@@ -24,3 +24,22 @@ values, never estimates. Purchase mismatches/reversed originals return issues
 with 200. Archived rows remain visible. No finance writer/contract, migration,
 waste report, currency-summary route, P07 or P08 work is included. New report
 limits beyond reused list bounds remain Step 4 proposals.
+
+## P06-01 Step 3 waste (PROPOSAL implementation)
+
+GET household `/inventory/waste-report` adds all-six-role VIEW waste sections,
+reason/month breakdowns, paginated product rows, explicit received-value
+denominators/rates, unknown-cost quantities and nonblocking reconciliation.
+See [the waste contract](../docs/api/inventory-reports.md#waste-report--p06-01-step-3-proposal).
+Always require shared household timezone validation, even without dates; scoped
+product 404 precedes it. Dates select root occurred_at and lot received_at;
+corrections stay with their original reason/month. Reason leaves the known-cost
+denominator intact and narrows unknown by_reason only. Reuse precision 80 and
+one REPEATABLE READ, READ ONLY transaction. No stock/finance/history writes.
+
+P06-OPEN-02/09/10 defaults join Step 2 defaults as PROPOSALS; all OPEN items stay
+open through closure. Currency summary and 366-day/1,000-row caps remain Step 4.
+Waste adds uncapped root-event result materialization to the carried full-lot
+totals scan; output pagination does not bound work. Existing finance limits,
+identity/settings/roles, P05 OPEN-09 UNRESOLVED and other carried decisions stay
+unchanged.
