@@ -93,6 +93,12 @@ jobs:
       # the two named non-owner roles; the runtime role must be LOGIN
       # here because the tests connect as it, unlike the smoke job
       # where NOLOGIN roles only satisfy the migration preflights.
+      # The identity tables get no grants from any migration, so this
+      # step also issues the EC2 provisioner's default-privileges
+      # grants in the finance DB and the three rehearsal DBs, creates
+      # the P03/P04/P05 rehearsal DBs the migration rehearsal fixtures
+      # require, and exports the worker credential the expiry worker
+      # test connects with (LOGIN here; trust auth, no password).
       - name: Prepare CI finance DB
         run: |
           python - <<'PY'
@@ -103,13 +109,36 @@ jobs:
               conn = conn.execution_options(isolation_level="AUTOCOMMIT")
               conn.execute(text("CREATE DATABASE p03_finance_test_ci"))
               conn.execute(text("CREATE ROLE ci_finance_runtime LOGIN"))
-              conn.execute(text("CREATE ROLE ci_expiry_worker NOLOGIN"))
+              conn.execute(text("CREATE ROLE ci_expiry_worker LOGIN"))
+              conn.execute(text("CREATE DATABASE p03_rehearsal_test_ci"))
+              conn.execute(text("CREATE DATABASE p04_rehearsal_test_ci"))
+              conn.execute(text("CREATE DATABASE p05_rehearsal_test_ci"))
+          # Default-privileges grants, mirroring the EC2 provisioner
+          # (/tmp/p0601-step5-tester-run.py): no migration grants the
+          # identity tables, so the runtime role needs DML on every
+          # table the migrator creates. Issued by postgres (the
+          # migrator role) in each fresh DB, before pytest runs.
+          for dbname in ("p03_finance_test_ci", "p03_rehearsal_test_ci", "p04_rehearsal_test_ci", "p05_rehearsal_test_ci"):
+              db_engine = create_engine("postgresql+psycopg://postgres@localhost:5432/" + dbname)
+              with db_engine.connect() as db_conn:
+                  db_conn = db_conn.execution_options(isolation_level="AUTOCOMMIT")
+                  db_conn.execute(text("REVOKE CREATE ON SCHEMA public FROM PUBLIC"))
+                  db_conn.execute(text("GRANT USAGE ON SCHEMA public TO ci_finance_runtime, ci_expiry_worker"))
+                  db_conn.execute(text("ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT,INSERT,UPDATE,DELETE ON TABLES TO ci_finance_runtime"))
+                  db_conn.execute(text("ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE,SELECT ON SEQUENCES TO ci_finance_runtime"))
           with open(os.environ["GITHUB_ENV"], "a") as env:
               env.write("FINANCE_MIGRATOR_DATABASE_URL=postgresql+psycopg://postgres@localhost:5432/p03_finance_test_ci\n")
               env.write("FINANCE_RUNTIME_DATABASE_URL=postgresql+psycopg://ci_finance_runtime@localhost:5432/p03_finance_test_ci\n")
               env.write("P03_DISPOSABLE_DATABASE=p03_finance_test_ci\n")
               env.write("FINANCE_RUNTIME_ROLE=ci_finance_runtime\n")
               env.write("INVENTORY_EXPIRY_WORKER_ROLE=ci_expiry_worker\n")
+              env.write("INVENTORY_EXPIRY_WORKER_DATABASE_URL=postgresql+psycopg://ci_expiry_worker@localhost:5432/p03_finance_test_ci\n")
+              env.write("FINANCE_REHEARSAL_DATABASE_URL=postgresql+psycopg://postgres@localhost:5432/p03_rehearsal_test_ci\n")
+              env.write("P03_REHEARSAL_DATABASE=p03_rehearsal_test_ci\n")
+              env.write("INVENTORY_REHEARSAL_DATABASE_URL=postgresql+psycopg://postgres@localhost:5432/p04_rehearsal_test_ci\n")
+              env.write("P04_REHEARSAL_DATABASE=p04_rehearsal_test_ci\n")
+              env.write("EXPIRY_REHEARSAL_DATABASE_URL=postgresql+psycopg://postgres@localhost:5432/p05_rehearsal_test_ci\n")
+              env.write("P05_REHEARSAL_DATABASE=p05_rehearsal_test_ci\n")
           PY
       - name: Full suite
         run: python -m pytest tests -q
