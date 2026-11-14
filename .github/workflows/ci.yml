@@ -53,3 +53,52 @@ jobs:
         run: python -m pytest tests/test_migration.py -v
       - name: Syntax check
         run: python -m compileall app alembic migrations tests
+  full-suite:
+    # Full test suite (1210 tests). Runs here instead of on the EC2
+    # t3.micro, where the same suite takes 30-40 min and starves RAM
+    # (pytest alone takes ~460MB of 909MB). EC2 runs targeted tests
+    # only; the full suite is verified by this job on every push.
+    # Separate job (own fresh service DB) because test_migration.py
+    # requires a fresh database and the smoke job above migrates its DB.
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    services:
+      db:
+        image: postgres:16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: p02_test_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql+psycopg://postgres@localhost:5432/p02_test_ci
+      P02_DISPOSABLE_DATABASE: p02_test_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Install
+        run: pip install -e .[test]
+      # Same role preflight as the smoke job: revisions 7-8 fail closed
+      # without two named non-owner roles.
+      - name: Prepare CI roles
+        run: |
+          python - <<'PY'
+          import os
+          from sqlalchemy import create_engine, text
+          engine = create_engine(os.environ["DATABASE_URL"])
+          with engine.begin() as conn:
+              conn.execute(text("CREATE ROLE ci_runtime NOLOGIN"))
+              conn.execute(text("CREATE ROLE ci_expiry_worker NOLOGIN"))
+          with open(os.environ["GITHUB_ENV"], "a") as env:
+              env.write("FINANCE_RUNTIME_ROLE=ci_runtime\n")
+              env.write("INVENTORY_EXPIRY_WORKER_ROLE=ci_expiry_worker\n")
+          PY
+      - name: Full suite
+        run: python -m pytest tests -q
