@@ -343,184 +343,149 @@ substitution decisions. P08 receives stable localization codes and
 read DTOs for later UI, without assuming email or an implemented
 notification center.
 
-## P06-01 Step 2 valuation implementation note (PROPOSAL, 2026-11-13)
+## P06 reports implementation note
 
-Read-only valuation uses the existing lot, movement, product, transaction-item
-and transaction relations at migration head `000000000008`. There is no new
-relation, snapshot, migration, grant or writer. The application owns one
-REPEATABLE READ, READ ONLY transaction per report request; the repository
-SELECTs household-scoped rows with composite ownership joins.
+No migration, no new relation, no stored valuation, no snapshot table,
+no new grant and no writer is added by P06-01. Reports are computed
+reads over revisions 1–8, which stay frozen; migration head stays
+`000000000008`. Each report request runs one REPEATABLE READ, READ
+ONLY transaction, so its per-lot rows, per-currency totals and
+reconciliation summary always tie out to each other. The repositories
+are SELECT-only. Reads perform no stock, finance, history or
+operational writes, never set lot costs, never resolve refund links
+and never delete history. No email provider is configured; reports are
+in-app reads only.
 
-Fixed lot cost times correction-netted per-kind quantities yields exact Decimal
-strings. ADJUST_IN offsets adjusted-out. Unknown costs keep quantities and null
-values, with explicit lot IDs; no estimate, zero substitution or FX is used.
-Known values sum only within their observed currency. Archived lots/products/
-households remain readable and archived lots are included by default, flagged.
-Purchase mismatches and reversed originals are reported without blocking reads.
-See [the valuation API proposal](../api/inventory-reports.md) for tie-out,
-correction, split-receipt, pagination and unknown-cost semantics. An
-underlying correction can overcompensate its source; absolute netting then
-reports a tie-out issue (P3 input to P06-OPEN-01). Q1–Q8 defaults are authorized
-for implementation as proposals; P06 OPEN decisions remain OPEN until closure.
-All P05 and carried open items remain unchanged.
+Step 2 (commit e3bbf12) adds the lot valuation reads: GET
+`H/inventory/valuation` and GET `H/inventory/valuation/{lot_id}`, VIEW
+for all six roles, exact Decimal strings, no rounding. Per-lot value
+is the lot's fixed unit_cost times correction-netted per-kind movement
+deltas (PROPOSAL OPEN-01); ADJUST_IN counts as a negative contribution
+to adjusted_out; corrections inherit the original deduction kind
+through chains and net out per kind. The tie-out identity holds per
+lot in quantities and in values: received = remaining + consumed +
+disposed + returned + adjusted_out. Purchase linkage compares each
+PURCHASE lot's received value with its linked transaction item's
+net_amount (same currency enforced at receipt); agreement, mismatch
+and unknown-cost cases are counted and listed, never silently
+corrected. Unknown-cost lots (NULL cost pair, any source kind
+including PURCHASE) contribute quantities only — never money, never
+zero, never an estimate from the finance item (PROPOSAL OPEN-03) —
+with an explicit unknown_cost section (quantities by kind + lot IDs,
+first 100). Money is grouped by observed currency code only: no
+conversion, no combined cross-currency total, no household-default
+currency (PROPOSAL OPEN-04). Mismatches and reversed originals are
+report issues; the read still returns HTTP 200 (PROPOSAL OPEN-05).
+Archived lots/products/households remain readable; archived lots are
+included in totals by default, flagged. The §5 fixture is proven:
+L1 PURCHASE 10 kg @ 20000 VND/kg, received 200000 = remaining 100000
++ consumed 80000 + disposed 20000; L2 GIFT 5 kg NULL cost, quantities
+tie out 5 = 0 + 5 + 0 + 0 + 0, all values null; L3 MANUAL 4 kg @ 15000,
+received 60000 = remaining 30000 + disposed 30000.
 
-## P06-01 Step 3 waste implementation note (PROPOSAL)
+Step 3 (commit 5deea4f) adds the waste report: GET
+`H/inventory/waste-report`, VIEW for all six roles. Waste is DISPOSE
+movements only, by recorded reason code (EXPIRED/SPOILED/DAMAGED/
+OTHER); consumption — including expired-lot consumption through the
+explicit route (P05 OPEN-09, UNRESOLVED) and cooking consumption — is
+not waste (PROPOSAL OPEN-10). The denominator is the total received
+value of known-cost lots in the same scope (period + filters) as the
+numerator (PROPOSAL OPEN-02), and is stated in every response with its
+scope, so a rate is never quoted without its base. The rate is an
+exact Decimal division at precision 80, null only for a zero
+denominator. Date-range filters use movement `occurred_at` for
+waste/consumption/disposal and lot `received_at` for received/
+remaining, interpreted in the household's configured IANA timezone
+(missing/invalid → 422 `INVENTORY_TIMEZONE_REQUIRED`, no fallback),
+with local calendar-month buckets and open-ended ranges allowed
+(PROPOSAL OPEN-09). The §5 fixture is proven (VND, November 2026,
+Asia/Ho_Chi_Minh): disposed 3 kg / 50000 — EXPIRED 1 / 20000, SPOILED
+2 / 30000 — denominator 260000, waste rate 50000/260000, reconciliation
+TIED_OUT, issues empty; L2 unknown-cost consumed 5, disposed 0.
 
-The waste GET reads existing `inventory_lots`, `inventory_movements`,
-`disposal_records` and household timezone settings at unchanged migration head
-`000000000008`. No schema, grant, stored snapshot or writer is added. All reads,
-authorization and settings use one REPEATABLE READ, READ ONLY report transaction.
-Composite household ownership scopes every relation/join; archived data remains
-readable. Recursive movement attribution extends Step 2 with the root ID and
-root occurred_at: later corrections adjust the root's reason and local month.
-Known waste uses per-root absolute net DISPOSE quantity times immutable lot cost;
-consumption/expiry alone never classifies waste. P05 OPEN-09 stays UNRESOLVED.
+Step 4 (commit bc5b6ed) adds the currency-grouped financial summary:
+GET `H/finance/currency-summary`, VIEW for all six roles. One entry
+per observed currency: purchase totals (POSTED EXPENSE items linked
+to lots, counted once per item even for split receipts, plus unlinked
+finance-only totals flagged separately), remaining/consumed/disposed
+lot values, ledger balances per account (including archived and
+entry-backed zero-balance accounts, omitting no-entry accounts), and
+reconciliation issues (purchase mismatches, unknown-cost lots,
+reversed originals). No conversion, no combined total. Report/payload
+maximums are implemented as PROPOSALS (OPEN-07): new routes default
+50 / max 200, cursor pages bound to household + filters, waste-only
+two-ended date ranges allow 366 days and reject 367+, per-report row
+cap 1000. The 1,000-row cap is emergent, not a literal constant: page
+fetch ≤ 201 + one aggregate row + first-100 identifier/issue lists
+(worst case ≈402 Python-visible rows for valuation/waste, ≈202 for
+the summary); no literal `1000` row-cap constant exists in report
+code, and a future change raising the page or identifier limits must
+re-derive and re-test the bound. Valuation/waste full-scope
+totals/counts/denominators/reconciliation moved from unbounded Python
+materialisation to SQL aggregates (one row per aggregate), which
+FIXED the Step 2 P3-2 totals scan and the Step 3 P3-1 root-event scan
+(proven by 1001-lot and 1001-root tests: received/disposed 20020000,
+full counts 1001, TIED_OUT). The cap bounds Python-visible result
+rows, not DB scan/recursive work or nested account/month JSON arrays.
+Existing finance contract limits are unchanged: no `app/` finance
+service, shared Limit/Cursor, or migration is touched, and the
+reports never call the unbounded finance `integrity()`/`_report`/
+payments reads — the P05-OPEN-14 input as delivered is the
+new-surface maximums plus bounded SQL-aggregate inputs, with P09
+owning hardening. The two-currency fixture is proven: USD lots
+15/5/5/5, ledger −13; VND lots 260000/130000/80000/50000, ledger
+−230000; two sections, no combined total, no float.
 
-P06-OPEN-02/09/10 default (a) directions are implemented as PROPOSALS: received
-known-cost value in the same date/product/currency scope is the denominator;
-reason filters the numerator, not receipts. Root occurred_at and received_at
-use the required household timezone and open-ended local-date boundaries.
-No cost/FX is invented. Unknown-cost quantities are explicit and unpriced.
-Per-root versus per-lot absolute-net discrepancies are nonblocking report issues.
-See [the exact API contract](../api/inventory-reports.md#waste-report--p06-01-step-3-proposal).
+Step 5 (commit b695495) is compatibility, documentation and closure
+review only: no production code, test, migration, route or DTO
+change. Full suite 1210 passed on a fresh disposable DB; OpenAPI
+regenerated 81 paths / 149 schemas, identical to the Step 4 new spec
+(77/118 at P05-01 closure → 81/149: exactly four new GETs and 31 new
+schemas — 9 valuation + 13 waste + 9 summary — 0 removed, 0 changed).
+Finding F-1 (six stale Step-4-deferral sentences in the API docs,
+memory-bank and the Step 3 schema note) was corrected in place; no
+other doc/code contradiction was found. The two Step 5 reviewer
+wording findings (R-1, R-2) were applied before the Step 5 merge.
+Task-board acceptance "Reconciled lot valuation and currency grouping"
+is PROVEN as implemented (PROPOSAL) by the §5 fixture's exact numbers
+on all three routes plus the OpenAPI delta above. P06-OPEN-01..10
+remain OPEN for Lam.
 
-P06-OPEN-07's 366-day and 1,000-row caps remain Step 4 work. (Step 5 note: this
-sentence is the historical Step 3 record; the caps were delivered in Step 4 —
-see the Step 4 note below.) In addition to the
-carried matching-lot totals scan, waste materializes uncapped root-event rows;
-by-product output pagination bounds neither scan. This is a Step 4/P3 input,
-not a fix or a decided closure gate. All P06 OPEN decisions remain OPEN.
-
-## P06-01 Step 4 currency summary + bounds implementation note (PROPOSAL)
-
-P06 Step 4 PROPOSAL adds one VIEW GET currency summary from existing finance and
-inventory relations, without schema/grant changes or a migration. Head remains
-`000000000008`. One REPEATABLE READ, READ ONLY transaction includes household
-READ authorization and both repositories' SELECT-only aggregates. Finance sums
-POSTED EXPENSE items once using lot-link EXISTS, separates unlinked purchases,
-and sums ledger entries per account and matching account currency, including
-archived/zero-balance accounts with entries and reversal postings. It never
-calls existing unbounded integrity/report/payments services. Inventory valuation
-aggregates are reused inside the same transaction; no valuation SQL is copied.
-
-All money stays exact NUMERIC/Decimal text, grouped by observed seeded currency,
-without conversion/default currency/combined total. Unknown-cost lots retain
-null values and a global complete-count/first-100-ID summary, never estimates.
-Purchase mismatches and reversed originals retain amounts/lot values and report
-issues. The new [summary contract](../api/finance-currency-summary.md) lists the
-exact DTOs, filter/paging and worked two-currency example.
-
-P06-OPEN-07(a) bounds are implemented as PROPOSALS: default 50/max 200, scoped
-cursor pages; waste-only two-ended date ranges allow 366 days and reject 367+.
-The 1,000-row cap bounds rows returned from any report repository query to
-Python. SQL aggregates cover the full scope, returning one row with complete
-counts/totals; page SQL returns at most limit+1 (201), identifiers first 100.
-It does not truncate inputs, cap recursive DB work, or redefine nested account/
-month-list contracts. Existing finance route limits/parameters/responses stay
-unchanged. See [inventory bounds](../api/inventory-reports.md#bounds--p06-step-4-proposal).
-
-Carried P3 dispositions: Step 2 P3-2 full-lot totals materialization and Step 3
-P3-1 uncapped root/product-result materialization are fixed through shared SQL
-aggregates and bounded page fetches, with >1000-source-row tests. Step 3 P3-2
-opposite-signed overcorrected roots is preserved: per-root absolute waste still
-returns HTTP 200 with TIE_OUT_MISMATCH iff
-`sum(abs(net_delta))*unit_cost <> abs(sum(net_delta))*unit_cost` per lot.
-Recommendation for closure: explicitly accept this report interpretation or
-separately decide signed-net/correction-writer policy; do not silently alter
-retained-event meaning in this bounds refactor.
-
-Step 3 P3-3: actual frozen revision `000000000007_inventory_core.py` lines
-203–213 declares disposal `reason_code TEXT NOT NULL` with the four-code CHECK;
-aligned-detail guards also apply. No NULL-reason classification is added.
-Recommendation for closure: rely on enforced constraints for valid data and
-separately decide defensive malformed-import/integrity handling. Both P3-2 and
-P3-3 remain closure inputs, not decisions made by this worker.
-
-All P06 OPEN decisions remain OPEN through closure despite implementing defaults
-01–10. P05 OPEN-09 remains UNRESOLVED. No P05/P04/P03/P02 carried policy, P01-01
-label, proposed ADR-0005, identity/settings/roles, P07/P08 or existing finance
-contract limit is changed. No report writer, stored snapshot, FX, invented cost,
-email, production data change, commit, push, deployment or closure claim.
-
-## P06-01 Step 5 compatibility, documentation and closure review note (PROPOSAL)
-
-Step 5 is docs-only: no production code, test, migration, route or DTO change.
-Branch `task/P06-01-closure-review` from Step 4 merge `bc5b6ed`. It reviews
-Steps 2–4, corrects stale Step-4-deferral wording in the API docs and
-memory-bank (finding F-1 — three sentences in
-`docs/api/inventory-reports.md`, two in `memory-bank/5-api-contracts.md`, and
-the pointer added to the Step 3 note above; the Step 4 bounds were already
-implemented and tested, only the prose lagged), and records closure verdicts
-(a)–(h) for Lam's separate closure decision. No other doc/code contradiction
-was found. Full evidence: `.project/p0601-step5-coder-evidence.md`; EC2 result
-`/tmp/p0601-step5-result.md`.
-
-(a) Task-board acceptance "Reconciled lot valuation and currency grouping" is
-proven as implemented (PROPOSAL) by the plan §5 fixture's exact numbers on all
-three routes — valuation L1 200000 = 100000 + 80000 + 20000, L2 quantities
-5 = 0 + 5 + 0 + 0 + 0 with all values null, L3 60000 = 30000 + 0 + 30000;
-waste disposed 3 kg / 50000 VND (EXPIRED 1 / 20000, SPOILED 2 / 30000),
-denominator 260000, rate 50000/260000 at precision 80; currency summary two
-sections (VND received 260000 / ledger −230000; USD received 15 / ledger −13),
-no combined total, no conversion, no float — and by the OpenAPI delta below.
-The acceptance holds as a PROPOSAL: P06-OPEN-01..10 remain OPEN for Lam.
-
-(b) P06-OPEN-01..10 are all implemented as the recommended (a) defaults and all
-stay OPEN for Lam to decide at the P06 closure; implementation and passing
-tests decide none of them. What each decision needs is tabulated in
-`memory-bank/15-open-questions.md` (Step 5 section).
-
-(c) Carried P3 dispositions: Step 2 P3-1 (correction overcompensation) →
-OPEN-01 closure decision (write-time correction constraints vs signed nets);
-Step 2 P3-3 (VIEWER/MEMBER money visibility) → OPEN-06 closure decision;
-Step 3 P3-2 (overcorrected opposite-signed roots) → closure accepts per-root
-absolute waste or separately decides signed-net / correction-writer policy;
-Step 3 P3-3 (NULL reason_code) → DDL-enforced NOT NULL + four-code CHECK in
-revision 000000000007, defensive handling is a separate decision; Step 4
-reviewer P3-1 (global unknown_cost under a currency filter) → closure
-semantics; Step 4 reviewer P3-2 (summary unknown_cost count+lot_ids only) →
-confirm the shape at closure; Step 4 reviewer P3-3 (shared aggregate fields
-dropped by the valuation DTO) → recommended disposition is documenting the
-shared-aggregate contract (follow-up cleanup vs documented summary-only use),
-no code change in Step 5.
-
-(d) P05-OPEN-14 input as delivered: new-surface maximums (default 50/max 200,
-scoped cursor pages, waste-only 366-day cap, 1,000-row query-result bound) and
-bounded SQL-aggregate inputs for the consumed finance reads; existing finance
-contract limits unchanged. P05-OPEN-14 itself remains a release input, with
-P09 owning hardening.
-
-(e) Known limitations: full-suite pytest exit -15 (post-summary interpreter
-shutdown hang on the 1 GB EC2 host) is recorded plainly in every P06 step; the
-Step 5 exit code, duration and any SIGTERM record are in the Step 5 evidence
-file. The Step 3 coder's first full-suite attempt died at 84% with no summary
-on a Codex usage-limit hit (184,773 tokens); that step's count rests on two
-complete independent re-runs, not on that attempt.
-
-(f) OpenAPI delta across P06-01, regenerated from the running app: 77 paths /
-118 schemas at P05-01 closure (3d4587e) → 81 / 149 at Step 5 (identical to the
-Step 4 new spec) — exactly +4 GET paths (valuation, valuation/{lot_id},
-waste-report, currency-summary) and +31 schemas (9 valuation + 13 waste + 9
-summary); 0 removed, 0 changed. The identity exact-route test allow-list
-carries exactly the same four GETs.
-
-(g) Migration chain: head stays `000000000008`; no P06 migration exists.
-Revisions 1–8 are frozen and untouched by Steps 2–5.
-
-(h) Handoffs: P07 receives per-lot valuation + waste facts (read-only) plus the
-unchanged P05 contracts (freshness/FEFO eligibility, consumption/cooking
-contracts). P08/P09 receive stable report DTOs and the maximums as implemented (PROPOSAL; P06-OPEN-07 still OPEN)
-(P06-OPEN-07) as hardening input.
-
-Verification (Step 5, fresh disposable DB): full suite **1210 passed, 1 warning
-in 2402.96s (0:40:02)**, pytest exit -15 after the runner's SIGTERM 120.65s
-post-summary (known host shutdown hang — the 11th occurrence counting one
-final full-suite run per step; printed summary is the evidence, not an exit-0
-run). OpenAPI regenerated 81 paths / 149 schemas, identical to the Step 4 new
-spec. No code, test or migration change in this step.
-
-The 1,000-row cap is emergent (page ≤ 201 + one aggregate row + first-100
-identifier/issue lists), with no literal `1000` constant in code; a future
-change raising the page or identifier limits must re-derive and re-test the
-bound. All P06 OPEN decisions remain OPEN; P06-01 is not closed or delivered
-by this step.
+Still open after P06-01 (see .project/open-decisions.md at closure):
+P06-OPEN-01 valuation method; OPEN-02 waste denominator; OPEN-03
+unknown-cost policy; OPEN-04 currency policy; OPEN-05 reconciliation
+strictness; OPEN-06 report surface and roles (including whether
+VIEWER/MEMBER may see household financial values); OPEN-07
+report/payload maximums; OPEN-08 money rounding/presentation;
+OPEN-09 report periods/timezone; OPEN-10 waste definition. Seven
+carried P3 dispositions: Step 2 P3-1 correction overcompensation →
+OPEN-01 closure decision (write-time correction constraints, a P04
+change, vs signed nets in the report model); Step 2 P3-3 VIEWER/MEMBER
+money visibility → OPEN-06 closure decision; Step 3 P3-2 overcorrected
+opposite-signed roots → closure accepts per-root absolute waste or
+separately decides signed-net / correction-writer policy; Step 3 P3-3
+NULL reason_code → DDL-enforced NOT NULL + four-code CHECK in
+revision 000000000007, defensive malformed-import handling is a
+separate decision; Step 4 reviewer P3-1 global unknown_cost under a
+currency filter → closure semantics; Step 4 reviewer P3-2 summary
+unknown_cost count+lot_ids only → confirm the shape at closure or add
+quantities by kind; Step 4 reviewer P3-3 shared aggregate fields
+dropped by the valuation DTO → recommended disposition is documenting
+the shared-aggregate contract (follow-up cleanup vs documented
+summary-only use), no code change. Carried unchanged: P3-2
+(`lots: []` min_length), P04-OPEN-11 resolution policy, P04-OPEN-16
+archived-account reconciliation, P05 OPEN-01..10 (incl. OPEN-09
+UNRESOLVED), report/payload limits as a release follow-up (P05-OPEN-14
+input delivered above; P09 owns hardening), the 8 P02-02 open
+decisions as identity/deployment follow-ups, the P05 carried P3
+backlog, P01-01 Conditionally approved, ADR-0005 proposed (not
+expanded at this closure). Known host limitation: the full-suite
+pytest process does not exit cleanly on the 1 GB EC2 host (printed
+summary is the evidence; process exit -15 after a documented SIGTERM
+following the complete summary — eleventh occurrence counting one
+final full-suite run per step; zero test failures in any of them).
+P07 receives per-lot valuation + waste facts (read-only) plus the
+unchanged P05 contracts (freshness/FEFO eligibility,
+consumption/cooking contracts). P08 receives stable report DTOs and
+read contracts for its frontend. P09 receives the maximums as
+implemented (PROPOSAL; P06-OPEN-07 still OPEN) as hardening input.
