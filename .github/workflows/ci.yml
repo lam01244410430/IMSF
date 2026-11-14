@@ -85,19 +85,30 @@ jobs:
           python-version: "3.14"
       - name: Install
         run: pip install -e .[test]
-      # Same role preflight as the smoke job: revisions 7-8 fail closed
-      # without two named non-owner roles.
-      - name: Prepare CI roles
+      # The finance tests need a second, operator-provisioned disposable
+      # DB (P03) plus a LOGIN runtime role, exactly as the EC2 test
+      # drivers provision them. Without these the finance_database_urls
+      # session fixture refuses and all ~900 tests using fixture `f`
+      # error at setup (CI run #28). Revisions 7-8 fail closed without
+      # the two named non-owner roles; the runtime role must be LOGIN
+      # here because the tests connect as it, unlike the smoke job
+      # where NOLOGIN roles only satisfy the migration preflights.
+      - name: Prepare CI finance DB
         run: |
           python - <<'PY'
           import os
           from sqlalchemy import create_engine, text
           engine = create_engine(os.environ["DATABASE_URL"])
-          with engine.begin() as conn:
-              conn.execute(text("CREATE ROLE ci_runtime NOLOGIN"))
+          with engine.connect() as conn:
+              conn = conn.execution_options(isolation_level="AUTOCOMMIT")
+              conn.execute(text("CREATE DATABASE p03_finance_test_ci"))
+              conn.execute(text("CREATE ROLE ci_finance_runtime LOGIN"))
               conn.execute(text("CREATE ROLE ci_expiry_worker NOLOGIN"))
           with open(os.environ["GITHUB_ENV"], "a") as env:
-              env.write("FINANCE_RUNTIME_ROLE=ci_runtime\n")
+              env.write("FINANCE_MIGRATOR_DATABASE_URL=postgresql+psycopg://postgres@localhost:5432/p03_finance_test_ci\n")
+              env.write("FINANCE_RUNTIME_DATABASE_URL=postgresql+psycopg://ci_finance_runtime@localhost:5432/p03_finance_test_ci\n")
+              env.write("P03_DISPOSABLE_DATABASE=p03_finance_test_ci\n")
+              env.write("FINANCE_RUNTIME_ROLE=ci_finance_runtime\n")
               env.write("INVENTORY_EXPIRY_WORKER_ROLE=ci_expiry_worker\n")
           PY
       - name: Full suite
