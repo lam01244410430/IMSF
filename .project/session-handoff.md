@@ -52,3 +52,21 @@ roots and P3-3 NOT NULL reason finding remain closure inputs with recommendation
 All P06 OPEN decisions remain OPEN. No existing finance limit/contract, identity/
 settings/role, migration, P07/P08 or carried policy changes. No commit/push/
 deploy/merge/closure; tester/reviewer and Lam's approval gates remain separate.
+
+2026-11-14 P06 Step 5 closure review handoff: branch
+`task/P06-01-closure-review`, base/HEAD `bc5b6ed`; docs only, no production
+code, test, migration, route or DTO change. Read
+[Step 5 evidence](p0601-step5-coder-evidence.md),
+[closure verdicts](../docs/api/inventory-reports.md#closure-review--p06-step-5),
+[schema-v1 Step 5 note](../docs/database/schema-v1.md) and
+[open-questions Step 5 section](../memory-bank/15-open-questions.md).
+Worker verification: full suite 1210 passed, 1 warning in 2402.96s (0:40:02)
+on a fresh disposable DB, pytest exit -15 after the runner's SIGTERM 120.65s
+post-summary (known shutdown hang, 11th occurrence counting one final
+full-suite run per step; printed summary is the evidence, not an exit-0 run);
+OpenAPI regenerated 81/149, identical to the Step 4 new spec; migration head
+000000000008; container stop/remove 0/0. Finding F-1 (stale Step-4-deferral
+wording in the API docs/memory-bank) is fixed in place. Verdicts (a)–(h) and
+carried P3 dispositions are recorded for Lam's separate closure decision;
+P06-OPEN-01..10 remain OPEN. No commit/push/deploy/merge/closure;
+coordinator tester/reviewer and Lam's merge/closure approvals remain separate.

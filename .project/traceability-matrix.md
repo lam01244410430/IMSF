@@ -51,3 +51,19 @@ full 1210 passed (pytest -15 after complete summary, known shutdown hang);
 OpenAPI 80/140 to 81/149 adds only one GET and nine schemas. Static independent
 review no new P1/P2/P3; no migration or existing finance-contract change.
 This verifies worker implementation, not the separate coordinator/closure gates.
+
+2026-11-14 P06-01 Step 5 closure review: WASTE-01/FIN-01/ID-01/INV-01/OPS-01
+acceptance is re-verified on the Step 4 tree with no code change — full suite
+1210 passed, 1 warning in 2402.96s (0:40:02) on a fresh disposable DB (pytest
+exit -15 after the runner's SIGTERM 120.65s post-summary, known shutdown hang;
+printed summary is the evidence, not an exit-0 run); OpenAPI regenerated
+81 paths / 149 schemas, identical to the Step 4 new spec (77/118 at P05-01
+closure → 81/149: exactly four new GETs and 31 new schemas, nothing existing
+changed or removed); migration head 000000000008; identity exact-route
+allow-list carries exactly the same four GETs. Docs-only diff (see
+`git diff --stat` in the result file); `git diff --check` clean. Finding F-1
+(stale Step-4-deferral wording) fixed in place; no other doc/code contradiction
+found. Closure verdicts (a)–(h) and carried P3 dispositions recorded for Lam's
+separate closure decision; P06-OPEN-01..10 remain OPEN. See
+[Step 5 evidence](p0601-step5-coder-evidence.md). This verifies worker
+implementation and documentation, not the separate coordinator/closure gates.

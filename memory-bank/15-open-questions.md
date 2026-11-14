@@ -70,3 +70,57 @@ with four-code CHECK in revision 7, and detail guards require alignment.
 Recommend relying on those valid-data constraints and separately deciding any
 defensive malformed-import policy; no new reason semantics are implemented.
 P05 OPEN-09, all prior carried OPEN items, P01-01 and ADR-0005 stay unchanged.
+
+## P06 Step 5 closure review status (2026-11-14, docs only)
+
+Step 5 changes no production code, test, migration, route or DTO. It reviews
+Steps 2–4 and records the closure verdicts (a)–(h) for Lam's separate closure
+decision. Full evidence: [.project/p0601-step5-coder-evidence.md](../.project/p0601-step5-coder-evidence.md);
+EC2 result `/tmp/p0601-step5-result.md`. The live full-suite floor is 1210
+passed (plan §6 "1157" is the P05-01 floor, never the P06 floor).
+
+**P06-OPEN-01..10 — every item implemented as a PROPOSAL, every item stays OPEN
+for Lam to decide at the P06 closure:**
+
+| Item | Implemented as (proposal) | What the closure decision needs |
+|---|---|---|
+| OPEN-01 Valuation method | (a) per-lot unit_cost × movement deltas per kind; ADJUST_IN negative vs adjusted_out; corrections net out per kind | Confirm (a), or choose pro-rata allocation (b) / stored snapshot (c, needs a migration). Also decides Step 2 P3-1: write-time correction constraints vs signed nets |
+| OPEN-02 Waste denominator | (a) total received value of known-cost lots in the same scope | Confirm (a), or choose quantity (b) / consumed+disposed (c) / purchase cost (d) / lifetime (e) |
+| OPEN-03 Unknown-cost policy | (a) quantities only, never money/zero/estimate; explicit unknown_cost section | Confirm (a), or approve estimating from the finance item (b) / zero money (c) |
+| OPEN-04 Currency policy | (a) group by observed code; no conversion, no combined total, no default currency | Confirm (a), or choose conversion (b, needs a rate source) / single-currency only (c) |
+| OPEN-05 Reconciliation strictness | (a) mismatches + reversed originals are report issues; read returns 200 | Confirm (a), or choose mismatch blocks the report (b) / ignore the linkage (c) |
+| OPEN-06 Report surface and roles | (a) four GET routes, VIEW for all six roles | Confirm (a), or restrict the currency summary (b) / all reports (c). Also decides Step 2 P3-3 (VIEWER/MEMBER money visibility) |
+| OPEN-07 Report/payload maximums | (a) default 50/max 200, cursor pages, waste 366-day cap, 1,000-row query-result bound | Confirm (a), or choose tighter (b) / looser (c). Feeds P05-OPEN-14 + P09 hardening |
+| OPEN-08 Money rounding/presentation | (a) exact Decimal strings, no rounding | Confirm (a), or choose minor-unit rounding (b) / display-only half-up (c) |
+| OPEN-09 Report periods/timezone | (a) occurred_at for waste/disposal, received_at for received/remaining; required household timezone; local months; open-ended ranges allowed | Confirm (a), or choose recorded_at everywhere (b) / period required (c) |
+| OPEN-10 Waste definition | (a) DISPOSE movements only by recorded reason code; expired-lot and cooking consumption are not waste | Confirm (a), or include expired-lot consumption (b) / cooking consumption (c) as waste |
+
+**Carried P3 dispositions (Step 5):** Step 2 P3-1 → OPEN-01 closure decision
+above; Step 2 P3-3 → OPEN-06 closure decision above; Step 3 P3-2 → closure
+accepts per-root absolute waste or separately decides signed-net /
+correction-writer constraints; Step 3 P3-3 → rely on DDL-enforced NOT NULL +
+four-code CHECK for valid data, defensive malformed-import handling is a
+separate decision; Step 4 reviewer P3-1 → closure confirms global-unknown_cost
+semantics for filtered summaries or aligns the summary with valuation/waste;
+Step 4 reviewer P3-2 → closure confirms the summary unknown_cost count+IDs-only
+shape or adds quantities by kind; Step 4 reviewer P3-3 → recommended
+disposition is documenting the shared-aggregate contract (follow-up cleanup vs
+documented summary-only use), no code change in Step 5.
+
+**P05-OPEN-14 input as delivered:** new-surface maximums (default 50/max 200,
+waste 366-day cap, 1,000-row query-result bound) plus bounded SQL-aggregate
+inputs for the consumed finance reads; existing finance contract limits
+unchanged. P05-OPEN-14 itself stays a release input; P09 owns hardening.
+
+**Known limitations:** full-suite pytest exit -15 (post-summary shutdown hang
+on the 1 GB host) is recorded plainly in every P06 step; the Step 5 exit code
+and SIGTERM record are in the Step 5 evidence file. The Step 3 coder's first
+full-suite attempt died at 84% on a Codex usage-limit hit (184,773 tokens);
+that step's count rests on two complete independent re-runs.
+
+**Handoffs:** P07 receives per-lot valuation + waste facts (read-only) plus the
+unchanged P05 contracts. P08/P09 receive stable report DTOs and the decided
+maximums as hardening input.
+
+P05 OPEN-09 remains UNRESOLVED. Other P05 OPEN items, P3-2, P04-OPEN-11/16,
+P02-02 leftovers, P01-01 label and proposed ADR-0005 are not re-decided.

@@ -131,3 +131,56 @@ unlinked items 2, purchase mismatch 0, reversed original 0, unknown cost 1,
 tie-out mismatch 0, issues count 0. No money is combined across these rows.
 Verification status and actual timings are recorded in
 [Step 4 worker evidence](../../.project/p0601-step4-coder-evidence.md).
+Step 5 closure-review evidence is in
+[Step 5 worker evidence](../../.project/p0601-step5-coder-evidence.md).
+
+## Closure review — P06 Step 5
+
+Step 5 changes no production code, test, migration, route or DTO. It reviews
+Steps 2–4 and records the following dispositions for Lam's separate closure
+decision. Full Step 5 evidence is in the evidence file above; the EC2 result
+is `/tmp/p0601-step5-result.md`.
+
+### Step 4 reviewer P3-1 — global unknown_cost under a currency filter
+
+`unknown_cost` is global even with a currency filter: with `currency=USD` the
+sections/reconciliation are USD-scoped but `unknown_cost` still reports the VND
+lot L2 (`{count: 1, lot_ids: [L2]}`); with `currency=BHD` the page reports
+`sections == []` yet still names that VND lot. `reconciliation.unknown_cost_count`
+is therefore global while `currencies`, purchase counts and issues are
+filter-scoped — a deliberate, documented, tested behaviour (code comment in
+`app/inventory/infrastructure/report_repository.py`, test
+`tests/test_p06_01_reports.py:804`), inconsistent with valuation/waste where the
+currency filter does narrow unknown_cost. **Closure decision:** confirm the
+global-unknown_cost semantics for filtered summaries as the decided contract,
+or align the summary with valuation/waste by filtering `unknown_cost` on
+`summary_currency`. No code change in this step.
+
+### Step 4 reviewer P3-2 — summary unknown_cost omits quantities by kind
+
+`CurrencySummaryUnknownCost` carries `count` + `lot_ids` only, while plan §4.3
+recommends every report's unknown_cost section carry quantities by kind + lot
+IDs. The quantities remain available in the valuation report. **Closure
+decision:** confirm the count+IDs-only shape as the decided contract, or add
+quantities by kind to `CurrencySummaryUnknownCost` (a DTO change, not a Step 5
+change).
+
+### Step 4 reviewer P3-3 — shared aggregate fields dropped by the valuation DTO
+
+The shared valuation aggregate computes `reversed_original_count` and
+`tie_out_mismatch_count` (and per-issue currency) for the currency summary,
+whose DTO has them; the valuation path runs the same aggregate and Pydantic
+drops the extras on `LotValuationPage.model_validate` — no response change,
+tests pass. **Recommended disposition:** document the shared-aggregate contract
+(the two counts exist for the summary consumer; the valuation DTO intentionally
+does not surface them). The alternative follow-up cleanup is trimming the
+valuation select. Either is a post-closure follow-up, not a Step 5 code change.
+
+### Step 4 reviewer observation O-1 — the 1,000-row cap is emergent
+
+No literal `1000` constant guards the cap in code; it follows from page fetch
+≤ 201 + one aggregate row + first-100 identifier/issue lists. A future change
+raising the page or identifier limits could silently breach it. Any such change
+must re-derive and re-test the bound; a named constant is a post-closure
+follow-up, not a Step 5 change. See also the pinning note in
+[inventory-reports.md](inventory-reports.md#closure-review--p06-step-5).

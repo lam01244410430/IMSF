@@ -36,3 +36,19 @@ finance contracts remain unchanged. Step 4 worker verification: targeted 9, scal
 summary (known shutdown hang, not an exit-0 run); static review found no new
 P1/P2/P3. Coordinator tester/reviewer stages remain separate.
 All P06 OPEN decisions remain OPEN; P06-01 is not closed or delivered.
+
+2026-11-14 P06-01 Step 5 closure review worker evidence:
+[closure verdicts](docs/api/inventory-reports.md#closure-review--p06-step-5),
+[schema-v1 Step 5 note](docs/database/schema-v1.md),
+[verification/handoff](.project/p0601-step5-coder-evidence.md).
+Docs only — no production code, test, migration, route or DTO change.
+Full suite 1210 passed, 1 warning in 2402.96s (0:40:02) on a fresh disposable
+DB (pytest exit -15 after the runner's SIGTERM 120.65s post-summary, known
+shutdown hang — 11th occurrence counting one final full-suite run per step;
+printed summary is the evidence, not an exit-0 run). OpenAPI regenerated
+81 paths / 149 schemas, identical to the Step 4 new spec (77/118 at P05-01
+closure → 81/149). Migration head stays 000000000008. Finding F-1 (stale
+Step-4-deferral wording) fixed in place; verdicts (a)–(h) and carried P3
+dispositions recorded for Lam's separate closure decision. Coordinator
+tester/reviewer and Lam's merge/closure approvals remain separate.
+All P06 OPEN decisions remain OPEN; P06-01 is in progress, not closed or delivered.

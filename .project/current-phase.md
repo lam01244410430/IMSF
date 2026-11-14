@@ -25,3 +25,18 @@ OPEN. See [Step 4 evidence](p0601-step4-coder-evidence.md). Worker verification:
 9 passed, scale 2 passed, regressions 516 passed (all exit 0), full 1210 passed
 in 3439.84s (pytest -15 after summary, known shutdown hang); coordinator gates pending;
 no commit/push/deploy/migration/closure, no existing finance limit change.
+
+2026-11-14 P06 Step 5 closure review PROPOSAL on `task/P06-01-closure-review` from `bc5b6ed`:
+compatibility, documentation and closure review only — no production code,
+test, migration, route or DTO change. Full suite 1210 passed, 1 warning in
+2402.96s (0:40:02) on a fresh disposable DB (pytest exit -15 after the runner's
+SIGTERM 120.65s post-summary, known shutdown hang — 11th occurrence counting
+one final full-suite run per step; printed summary is the evidence, not an
+exit-0 run). OpenAPI regenerated 81 paths / 149 schemas, identical to the
+Step 4 new spec (77/118 at P05-01 closure → 81/149: exactly four new GETs and
+31 new schemas, nothing existing changed or removed). Migration head stays
+000000000008. Docs correct stale Step-4-deferral wording (finding F-1) and
+record closure verdicts (a)–(h) with carried P3 dispositions for Lam's separate
+closure decision. See [Step 5 evidence](p0601-step5-coder-evidence.md).
+Coordinator tester/reviewer and Lam's merge/closure approvals remain separate;
+no commit/push/deploy.

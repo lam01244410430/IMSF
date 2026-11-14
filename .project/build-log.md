@@ -40,3 +40,19 @@
   OpenAPI 80/140 to 81/149, one GET/nine schemas only; independent static
   review no new P1/P2/P3. See [Step 4 evidence](p0601-step4-coder-evidence.md).
   No commit/push/deploy/migration or P06 closure; earlier OPEN items unchanged.
+
+- 2026-11-14 P06-01 Step 5 closure review on `task/P06-01-closure-review`
+  from `bc5b6ed`: docs only — no production code, test, migration, route or
+  DTO change. Full suite 1210 passed, 1 warning in 2402.96s (0:40:02) on a
+  fresh disposable PostgreSQL DB (pytest exit -15 after the runner's SIGTERM
+  120.65s post-summary, known shutdown hang — 11th occurrence counting one
+  final full-suite run per step; printed summary is the evidence, not an
+  exit-0 run); container stop/remove 0/0. OpenAPI regenerated 81 paths /
+  149 schemas, identical to the Step 4 new spec (77/118 at P05-01 closure →
+  81/149: exactly four new GETs and 31 new schemas, nothing existing changed
+  or removed). Migration head stays 000000000008. Docs correct stale
+  Step-4-deferral wording (finding F-1) and record closure verdicts (a)–(h)
+  with carried P3 dispositions for Lam's separate closure decision. See
+  [Step 5 evidence](p0601-step5-coder-evidence.md). No commit/push/deploy/
+  merge/closure; coordinator tester/reviewer and Lam's approvals remain
+  separate.

@@ -22,8 +22,10 @@ Rows tie out fixed lot cost against net movement quantities; totals group only
 observed known-cost currencies. Unknown-cost lots expose quantities and null
 values, never estimates. Purchase mismatches/reversed originals return issues
 with 200. Archived rows remain visible. No finance writer/contract, migration,
-waste report, currency-summary route, P07 or P08 work is included. New report
-limits beyond reused list bounds remain Step 4 proposals.
+waste report, currency-summary route, P07 or P08 work is included. Report
+limits beyond reused list bounds were Step 4 proposals, delivered in Step 4
+(see below). (Step 5 correction F-1: this sentence previously still said they
+"remain Step 4 proposals".)
 
 ## P06-01 Step 3 waste (PROPOSAL implementation)
 
@@ -38,7 +40,9 @@ denominator intact and narrows unknown by_reason only. Reuse precision 80 and
 one REPEATABLE READ, READ ONLY transaction. No stock/finance/history writes.
 
 P06-OPEN-02/09/10 defaults join Step 2 defaults as PROPOSALS; all OPEN items stay
-open through closure. Currency summary and 366-day/1,000-row caps remain Step 4.
+open through closure. Currency summary and 366-day/1,000-row caps were Step 4
+work, delivered in Step 4 (see below). (Step 5 correction F-1: this sentence
+previously still said they "remain Step 4".)
 Waste adds uncapped root-event result materialization to the carried full-lot
 totals scan; output pagination does not bound work. Existing finance limits,
 identity/settings/roles, P05 OPEN-09 UNRESOLVED and other carried decisions stay
@@ -62,3 +66,26 @@ waste full-scope SQL aggregates replace unbounded Python source scans. One
 REPEATABLE READ, READ ONLY transaction remains authoritative per request.
 Existing finance ledger/balance/integrity/payments/reconciliation contracts,
 limits and dates remain unchanged. All P06 OPEN decisions remain OPEN.
+
+## P06 Step 5 closure review (PROPOSAL, docs only)
+
+Step 5 changes no production code, test, migration, route or DTO. It reviews
+Steps 2–4, corrects stale Step-4-deferral wording in the API docs and this file
+(finding F-1, see [inventory-reports.md](../docs/api/inventory-reports.md#closure-review--p06-step-5)),
+and records closure verdicts (a)–(h) for Lam's separate closure decision.
+OpenAPI regenerated from the app: 77 paths / 118 schemas at P05-01 closure →
+81 / 149 at Step 5 (exactly the four new GETs and 31 new schemas; nothing
+existing changed or removed; identical to the Step 4 new spec). Migration head
+stays `000000000008`. Full suite re-run on a fresh disposable DB — see
+[Step 5 evidence](../.project/p0601-step5-coder-evidence.md); the live floor is
+1210 passed (the plan §6 "1157" figure is the P05-01 floor, not the P06 floor).
+Carried P3 dispositions: Step 2 P3-1 → P06-OPEN-01 closure decision; Step 2 P3-3
+→ P06-OPEN-06; Step 3 P3-2 → closure (accept per-root absolute waste or decide
+signed-net/correction-writer policy); Step 3 P3-3 → DDL-enforced NOT NULL,
+defensive handling separate; Step 4 reviewer P3-1 → closure semantics for
+global unknown_cost under a currency filter; P3-2 → confirm the summary
+unknown_cost shape at closure; P3-3 → recommended disposition is documenting
+the shared-aggregate contract (follow-up cleanup vs documented summary-only
+use). P07 receives per-lot valuation + waste facts (read-only); P08/P09 receive
+stable report DTOs and the maximums as implemented (PROPOSAL; P06-OPEN-07 still OPEN) as hardening input. P06-OPEN-01..10
+remain OPEN; P06-01 is not closed or delivered by this step.

@@ -1,10 +1,12 @@
-# Inventory reports — P06-01 Steps 2–4
+# Inventory reports — P06-01 Steps 2–5
 
 Status: **PROPOSAL implementation**, authorized for Step 2 on 2026-11-13.
 Lam approved implementing the plan's Q1–Q8 default direction. P06-OPEN-01
 through P06-OPEN-10 remain OPEN until P06 closure; passing tests do not decide
-a policy gate. This document covers valuation, the additive Step 3 waste proposal
-and P06 Step 4 PROPOSAL bounds.
+a policy gate. This document covers valuation, the additive Step 3 waste proposal,
+P06 Step 4 PROPOSAL bounds, and the Step 5 closure review (docs only, no code
+change). Step 5 corrects three stale Step-4-deferral sentences left in this file
+(see Closure review, finding F-1) and records the closure verdicts (a)–(h).
 
 Let `H = /api/v1/households/{household_id}`.
 
@@ -42,8 +44,10 @@ The cursor binds household, resource and all filters, and stores the last lot
 ID. It is a position, not an authorization token. Changing household or filters
 rejects the cursor with 422. Page-wide totals, unknown-cost entries and
 reconciliation cover **all matching lots**, including earlier/later pages.
-The Step 4 scan/row-cap and wider report-bounds work remains deferred; there
-is currently no cap on the number of matching lots read to derive totals.
+Since Step 4, totals/counts are computed by SQL aggregates over the full scope
+and page fetches return at most 201 rows; see
+[Bounds](#bounds--p06-step-4-proposal) below. (Step 5 correction F-1: this
+paragraph previously still said the Step 4 scan/row-cap work "remains deferred".)
 No existing finance contract limit changes.
 
 ## Proposed calculations and DTOs
@@ -126,7 +130,10 @@ returned 0, adjusted-out 0. L2's 5 kg consumption remains unpriced.
 See `tests/test_p06_01_reports.py` and the Step 2 engineering evidence.
 
 Waste reporting and its date scope are documented below; the finance currency
-summary and wider report maximums remain Step 4 work. All carried P05/P04/P03/P02 decisions, the
+summary is documented in [finance-currency-summary.md](finance-currency-summary.md)
+and the wider report maximums in [Bounds](#bounds--p06-step-4-proposal) below
+(both delivered as PROPOSALS in Step 4). (Step 5 correction F-1: this sentence
+previously still said they "remain Step 4 work".) All carried P05/P04/P03/P02 decisions, the
 P01-01 label and proposed ADR-0005 remain unchanged.
 
 ## Waste report — P06-01 Step 3 PROPOSAL
@@ -223,14 +230,18 @@ every page. Each request has one REPEATABLE READ, READ ONLY transaction covering
 authorization, settings, ownership and report SELECTs. Snapshots do not persist
 across separate page requests.
 
-**Step 4 inputs (P06-OPEN-07 / carried scan P3):** the proposed 366-day cap and
-1,000-row report cap are explicitly deferred. Matching-lot totals/denominator
-still read all matching lots as in Step 2. Waste additionally materializes
+**Step 4 inputs (P06-OPEN-07 / carried scan P3) — DELIVERED in Step 4, kept here
+as the historical Step 3 record:** at Step 3 the proposed 366-day cap and
+1,000-row report cap were explicitly deferred. Matching-lot totals/denominator
+then still read all matching lots as in Step 2. Waste additionally materialized
 nonzero per-root disposal/consumption event rows, rather than only one row per
-lot: this is a **new uncapped event-result scan/materialization** beyond Step 2's
-lot-result scan (Step 2 already traverses movements). Output pagination does not
-bound either scan, correction-chain work or monthly buckets. Step 4 must include
-this input in its bounds design; existing finance contract limits are unchanged.
+lot: this was a **new uncapped event-result scan/materialization** beyond Step 2's
+lot-result scan (Step 2 already traverses movements). Output pagination did not
+bound either scan, correction-chain work or monthly buckets. Step 4 delivered
+the bounds design for this input (SQL aggregates + bounded page fetches; see
+[Bounds](#bounds--p06-step-4-proposal)); existing finance contract limits are unchanged.
+(Step 5 correction F-1: this paragraph previously still read as an open
+"Step 4 must include" instruction.)
 
 The section-5 fixture is 3 kg / 50000 VND: EXPIRED 1 / 20000, SPOILED 2 / 30000,
 November 2026 bucket 3 / 50000, denominator 260000, rate `50000 / 260000` at
@@ -290,3 +301,135 @@ aligned disposal details. No new NULL-reason semantics are introduced. Closure
 should explicitly rely on those enforced constraints for valid data and decide
 any defensive handling of malformed imports as a separate integrity policy.
 All P06 OPEN items remain OPEN; this is implementation evidence only.
+
+## Closure review — P06 Step 5 (docs only, 2026-11-14)
+
+Step 5 changes **no production code, test, migration, route or DTO**. It reviews
+Steps 2–4, corrects the docs, and records the closure verdicts (a)–(h) below for
+Lam's separate closure decision. Full Step 5 evidence:
+[Step 5 evidence](../../.project/p0601-step5-coder-evidence.md);
+EC2 result `/tmp/p0601-step5-result.md`.
+
+### Finding F-1 (doc staleness, fixed in this step)
+
+Three sentences in this file still described Step 4 bounds work as deferred or
+pending although Step 4 had delivered it: the valuation "Query and visibility"
+paragraph, the "remain Step 4 work" sentence after the acceptance fixture, and
+the waste "Step 4 inputs" paragraph (future-tense "Step 4 must include"). Each
+is corrected in place above and marked "(Step 5 correction F-1)". The same
+stale wording in `memory-bank/5-api-contracts.md` (Step 2 and Step 3 sections)
+is corrected there, and the Step 3 note in `docs/database/schema-v1.md` gains a
+pointer to the superseding Step 4 note. No code contradicted the docs: the
+Step 4 SQL-aggregate bounds were already implemented and tested; only the prose
+lagged. No other doc/code contradiction was found in Step 5.
+
+### (a) Task-board acceptance — PROVEN as implemented (PROPOSAL)
+
+"Reconciled lot valuation and currency grouping" is proven by the §5 fixture's
+exact numbers on all three routes: valuation L1 200000 = 100000 + 80000 + 20000,
+L2 quantities 5 = 0 + 5 + 0 + 0 + 0 with all values null, L3 60000 = 30000 + 0 +
+30000; waste disposed 3 kg / 50000 VND (EXPIRED 1 / 20000, SPOILED 2 / 30000),
+denominator 260000, rate 50000/260000 at precision 80; currency summary two
+sections (VND received 260000 / ledger −230000; USD received 15 / ledger −13),
+no combined total, no conversion, no float. OpenAPI: 77 paths / 118 schemas at
+P05-01 closure → 81 / 149 at Step 5, exactly the four new GETs and 31 new
+schemas, nothing existing changed or removed. The acceptance holds as a
+PROPOSAL: P06-OPEN-01..10 remain OPEN for Lam (see (b)).
+
+### (b) P06-OPEN-01..10 — all implemented as PROPOSALS, all stay OPEN for Lam
+
+01 valuation method (a) per-lot unit_cost × deltas; 02 waste denominator (a)
+same-scope received known-cost value; 03 unknown-cost (a) quantities only;
+04 currency (a) observed-code grouping, no conversion; 05 reconciliation (a)
+nonblocking issues, read returns 200; 06 roles (a) VIEW all six roles;
+07 maximums (a) default 50/max 200, waste 366-day cap, 1,000-row query-result
+bound; 08 money (a) exact Decimal strings, no rounding; 09 periods (a)
+occurred_at/received_at, required household timezone, local months, open-ended
+ranges allowed; 10 waste definition (a) DISPOSE-only by recorded reason code.
+Each decision needs Lam's explicit confirmation at the P06 closure (or a stated
+alternative (b)/(c)); implementation and passing tests decide none of them.
+
+### (c) Carried P3 dispositions
+
+- Step 2 P3-1 (correction overcompensation → TIE_OUT_MISMATCH): closure decision
+  under P06-OPEN-01 — either constrain corrections at write time (a P04 change)
+  or adopt signed nets in the report model (changes every consumer's
+  consumed/disposed/adjusted_out semantics). Report stays honest (HTTP 200,
+  issue listed, history preserved) either way.
+- Step 2 P3-3 (VIEWER/MEMBER see per-lot money values): closure decision under
+  P06-OPEN-06 — confirm all-six-role VIEW for the four report routes, or
+  restrict the routes (options (b)/(c)); only route wiring would change.
+- Step 3 P3-2 (overcorrected opposite-signed roots): closure decision — accept
+  per-root absolute waste with nonblocking TIE_OUT_MISMATCH, or separately
+  decide signed-net / correction-writer constraints. Do not silently change
+  retained-event meaning.
+- Step 3 P3-3 (NULL reason_code): DDL-enforced NOT NULL + four-code CHECK in
+  revision 000000000007; rely on the enforced constraint for valid data.
+  Defensive malformed-import/integrity handling is a separate decision, not
+  part of this closure.
+- Step 4 reviewer P3-1 (global unknown_cost under a currency filter): closure
+  semantics — confirm the documented global-unknown_cost contract for filtered
+  summaries, or align the summary with valuation/waste by filtering
+  unknown_cost on summary_currency. See
+  [finance-currency-summary.md](finance-currency-summary.md#closure-review--p06-step-5).
+- Step 4 reviewer P3-2 (summary unknown_cost is count+lot_ids only, no
+  quantities by kind): confirm the shape at closure, or add quantities by kind
+  to CurrencySummaryUnknownCost (a DTO change, not a Step 5 change).
+- Step 4 reviewer P3-3 (shared aggregate fields dropped by the valuation DTO):
+  recommended disposition — document the shared-aggregate contract (the
+  reversed_original_count / tie_out_mismatch_count fields exist for the
+  currency-summary consumer; the valuation DTO intentionally does not surface
+  them) while the alternative follow-up cleanup is trimming the valuation select;
+  either is a post-closure follow-up, not a Step 5 code change. No response
+  shape changes in this step.
+
+### (d) P05-OPEN-14 input as delivered
+
+Report/payload maximums for the new surfaces: default 50 / max 200, scoped
+cursor pages, waste-only 366-day spans (367 rejects 422
+INVENTORY_INVALID_INPUT), per-report query-result bound 1,000 rows to Python
+(pages ≤ 201, aggregates one row, identifiers first 100 with complete counts).
+The reports consume the existing finance reads only through bounded SQL
+aggregates and never call the unbounded integrity/_report/payments paths.
+Existing finance contract limits are unchanged; P05-OPEN-14 itself remains a
+release input, with P09 owning hardening.
+
+### (e) Known limitations, stated plainly
+
+Full-suite pytest exit -15 (post-summary interpreter shutdown hang on the 1 GB
+EC2 host) recurred in Step 5: **1210 passed, 1 warning in 2402.96s (0:40:02)**,
+SIGTERM 120.65s after the complete summary — the 11th occurrence counting one
+final full-suite run per step (7 at P05-01 plus the Step 2, Step 3 and Step 4
+finals). The printed summary is the evidence, never claimed as exit 0.
+The Step 3 coder's first full-suite attempt died at 84% with no summary on a
+Codex usage-limit hit (184,773 tokens); the Step 3 count rests on two complete
+independent re-runs, not on that attempt. Neither incident changes any number.
+
+### (f) OpenAPI delta across P06-01
+
+77 paths / 118 schemas (P05-01 closure, 3d4587e) → 81 / 149 (Step 5, regenerated
+from the running app and verified identical to the Step 4 new spec): exactly
++4 GET paths (valuation, valuation/{lot_id}, waste-report, currency-summary)
+and +31 schemas (9 valuation + 13 waste + 9 summary); 0 removed, 0 changed.
+The identity exact-route test allow-list carries exactly the same four GETs.
+
+### (g) Migration chain
+
+Head stays `000000000008`; no P06 migration exists. Revisions 1–8 are frozen
+and untouched by Steps 2–5.
+
+### (h) Handoffs
+
+P07 receives per-lot valuation + waste facts (read-only) plus the unchanged P05
+contracts (freshness/FEFO eligibility, consumption/cooking contracts). P08/P09
+receive stable report DTOs and the maximums as implemented (PROPOSAL; P06-OPEN-07 still OPEN) as hardening
+input. P08 receives no frontend; P09 hardening itself is not done here.
+
+### The 1,000-row cap, pinned (Step 4 reviewer observation O-1)
+
+The cap has no literal `1000` constant in code: it is emergent from page fetch
+≤ 201 + one aggregate row + first-100 identifier/issue lists per report query
+(≈402 worst-case Python-visible rows for valuation/waste, ≈202 for the
+summary). A future change raising the page or identifier limits could silently
+breach it. Any such change must re-derive and re-test the bound; a named
+constant is a post-closure follow-up, not a Step 5 change.

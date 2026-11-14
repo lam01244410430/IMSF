@@ -384,7 +384,9 @@ No cost/FX is invented. Unknown-cost quantities are explicit and unpriced.
 Per-root versus per-lot absolute-net discrepancies are nonblocking report issues.
 See [the exact API contract](../api/inventory-reports.md#waste-report--p06-01-step-3-proposal).
 
-P06-OPEN-07's 366-day and 1,000-row caps remain Step 4 work. In addition to the
+P06-OPEN-07's 366-day and 1,000-row caps remain Step 4 work. (Step 5 note: this
+sentence is the historical Step 3 record; the caps were delivered in Step 4 —
+see the Step 4 note below.) In addition to the
 carried matching-lot totals scan, waste materializes uncapped root-event rows;
 by-product output pagination bounds neither scan. This is a Step 4/P3 input,
 not a fix or a decided closure gate. All P06 OPEN decisions remain OPEN.
@@ -439,3 +441,86 @@ All P06 OPEN decisions remain OPEN through closure despite implementing defaults
 label, proposed ADR-0005, identity/settings/roles, P07/P08 or existing finance
 contract limit is changed. No report writer, stored snapshot, FX, invented cost,
 email, production data change, commit, push, deployment or closure claim.
+
+## P06-01 Step 5 compatibility, documentation and closure review note (PROPOSAL)
+
+Step 5 is docs-only: no production code, test, migration, route or DTO change.
+Branch `task/P06-01-closure-review` from Step 4 merge `bc5b6ed`. It reviews
+Steps 2–4, corrects stale Step-4-deferral wording in the API docs and
+memory-bank (finding F-1 — three sentences in
+`docs/api/inventory-reports.md`, two in `memory-bank/5-api-contracts.md`, and
+the pointer added to the Step 3 note above; the Step 4 bounds were already
+implemented and tested, only the prose lagged), and records closure verdicts
+(a)–(h) for Lam's separate closure decision. No other doc/code contradiction
+was found. Full evidence: `.project/p0601-step5-coder-evidence.md`; EC2 result
+`/tmp/p0601-step5-result.md`.
+
+(a) Task-board acceptance "Reconciled lot valuation and currency grouping" is
+proven as implemented (PROPOSAL) by the plan §5 fixture's exact numbers on all
+three routes — valuation L1 200000 = 100000 + 80000 + 20000, L2 quantities
+5 = 0 + 5 + 0 + 0 + 0 with all values null, L3 60000 = 30000 + 0 + 30000;
+waste disposed 3 kg / 50000 VND (EXPIRED 1 / 20000, SPOILED 2 / 30000),
+denominator 260000, rate 50000/260000 at precision 80; currency summary two
+sections (VND received 260000 / ledger −230000; USD received 15 / ledger −13),
+no combined total, no conversion, no float — and by the OpenAPI delta below.
+The acceptance holds as a PROPOSAL: P06-OPEN-01..10 remain OPEN for Lam.
+
+(b) P06-OPEN-01..10 are all implemented as the recommended (a) defaults and all
+stay OPEN for Lam to decide at the P06 closure; implementation and passing
+tests decide none of them. What each decision needs is tabulated in
+`memory-bank/15-open-questions.md` (Step 5 section).
+
+(c) Carried P3 dispositions: Step 2 P3-1 (correction overcompensation) →
+OPEN-01 closure decision (write-time correction constraints vs signed nets);
+Step 2 P3-3 (VIEWER/MEMBER money visibility) → OPEN-06 closure decision;
+Step 3 P3-2 (overcorrected opposite-signed roots) → closure accepts per-root
+absolute waste or separately decides signed-net / correction-writer policy;
+Step 3 P3-3 (NULL reason_code) → DDL-enforced NOT NULL + four-code CHECK in
+revision 000000000007, defensive handling is a separate decision; Step 4
+reviewer P3-1 (global unknown_cost under a currency filter) → closure
+semantics; Step 4 reviewer P3-2 (summary unknown_cost count+lot_ids only) →
+confirm the shape at closure; Step 4 reviewer P3-3 (shared aggregate fields
+dropped by the valuation DTO) → recommended disposition is documenting the
+shared-aggregate contract (follow-up cleanup vs documented summary-only use),
+no code change in Step 5.
+
+(d) P05-OPEN-14 input as delivered: new-surface maximums (default 50/max 200,
+scoped cursor pages, waste-only 366-day cap, 1,000-row query-result bound) and
+bounded SQL-aggregate inputs for the consumed finance reads; existing finance
+contract limits unchanged. P05-OPEN-14 itself remains a release input, with
+P09 owning hardening.
+
+(e) Known limitations: full-suite pytest exit -15 (post-summary interpreter
+shutdown hang on the 1 GB EC2 host) is recorded plainly in every P06 step; the
+Step 5 exit code, duration and any SIGTERM record are in the Step 5 evidence
+file. The Step 3 coder's first full-suite attempt died at 84% with no summary
+on a Codex usage-limit hit (184,773 tokens); that step's count rests on two
+complete independent re-runs, not on that attempt.
+
+(f) OpenAPI delta across P06-01, regenerated from the running app: 77 paths /
+118 schemas at P05-01 closure (3d4587e) → 81 / 149 at Step 5 (identical to the
+Step 4 new spec) — exactly +4 GET paths (valuation, valuation/{lot_id},
+waste-report, currency-summary) and +31 schemas (9 valuation + 13 waste + 9
+summary); 0 removed, 0 changed. The identity exact-route test allow-list
+carries exactly the same four GETs.
+
+(g) Migration chain: head stays `000000000008`; no P06 migration exists.
+Revisions 1–8 are frozen and untouched by Steps 2–5.
+
+(h) Handoffs: P07 receives per-lot valuation + waste facts (read-only) plus the
+unchanged P05 contracts (freshness/FEFO eligibility, consumption/cooking
+contracts). P08/P09 receive stable report DTOs and the maximums as implemented (PROPOSAL; P06-OPEN-07 still OPEN)
+(P06-OPEN-07) as hardening input.
+
+Verification (Step 5, fresh disposable DB): full suite **1210 passed, 1 warning
+in 2402.96s (0:40:02)**, pytest exit -15 after the runner's SIGTERM 120.65s
+post-summary (known host shutdown hang — the 11th occurrence counting one
+final full-suite run per step; printed summary is the evidence, not an exit-0
+run). OpenAPI regenerated 81 paths / 149 schemas, identical to the Step 4 new
+spec. No code, test or migration change in this step.
+
+The 1,000-row cap is emergent (page ≤ 201 + one aggregate row + first-100
+identifier/issue lists), with no literal `1000` constant in code; a future
+change raising the page or identifier limits must re-derive and re-test the
+bound. All P06 OPEN decisions remain OPEN; P06-01 is not closed or delivered
+by this step.
