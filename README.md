@@ -1,8 +1,6 @@
 # IMSF-v2
 
-**IMSF-v2 is the NEW IMSF system — a full rewrite.** IMSF v1 stays in the
-repo `IMSF` (demo on port 8000), untouched. This repo is a separate system
-with its own port, database, and deployment.
+**IMSF-v2 is the NEW IMSF system — a full rewrite: Household Inventory, Expense & Community Recipe System.** IMSF v1 stays in the repo `IMSF` (demo on port 8000), untouched. This repo is a separate system with its own port, database, and deployment.
 
 ## Stack
 
