@@ -1,0 +1,32 @@
+{
+  "store_name": "盒马鲜生",
+  "purchased_at": "2026-11-20T10:05:00+08:00",
+  "total_amount": 19.4,
+  "currency": "CNY",
+  "lines": [
+    {
+      "raw_name": "纯牛奶",
+      "quantity": 1,
+      "unit": "盒",
+      "price": 15.9,
+      "canonical_name": "Sữa tươi",
+      "is_stock_item": true
+    },
+    {
+      "raw_name": "西红柿",
+      "quantity": 1,
+      "unit": "斤",
+      "price": 8.5,
+      "canonical_name": "Cà chua",
+      "is_stock_item": true
+    },
+    {
+      "raw_name": "优惠券抵扣",
+      "quantity": 1,
+      "unit": "份",
+      "price": -5.0,
+      "canonical_name": null,
+      "is_stock_item": false
+    }
+  ]
+}

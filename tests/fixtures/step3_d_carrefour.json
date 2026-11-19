@@ -1,0 +1,48 @@
+{
+  "store_name": "家乐福",
+  "purchased_at": "2026-11-20T14:20:00+08:00",
+  "total_amount": 47.8,
+  "currency": "CNY",
+  "lines": [
+    {
+      "raw_name": "农夫山泉 550ml",
+      "quantity": 2,
+      "unit": "瓶",
+      "price": 4.0,
+      "canonical_name": "Nước suối",
+      "is_stock_item": true
+    },
+    {
+      "raw_name": "鸡蛋",
+      "quantity": 1,
+      "unit": "盒",
+      "price": 12.8,
+      "canonical_name": "Trứng gà",
+      "is_stock_item": true
+    },
+    {
+      "raw_name": "五花肉",
+      "quantity": 1,
+      "unit": "斤",
+      "price": 25.0,
+      "canonical_name": "Thịt ba chỉ",
+      "is_stock_item": true
+    },
+    {
+      "raw_name": "豆腐",
+      "quantity": 1,
+      "unit": "块",
+      "price": 3.5,
+      "canonical_name": "Đậu phụ",
+      "is_stock_item": true
+    },
+    {
+      "raw_name": "食盐",
+      "quantity": 1,
+      "unit": "袋",
+      "price": 2.5,
+      "canonical_name": "Muối",
+      "is_stock_item": true
+    }
+  ]
+}

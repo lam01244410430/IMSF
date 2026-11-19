@@ -1,0 +1,32 @@
+{
+  "store_name": "永辉超市",
+  "purchased_at": "2026-11-20T11:30:00+08:00",
+  "total_amount": 48.8,
+  "currency": "CNY",
+  "lines": [
+    {
+      "raw_name": "可口可乐 330ml",
+      "quantity": 1,
+      "unit": "罐",
+      "price": 3.5,
+      "canonical_name": null,
+      "is_stock_item": true
+    },
+    {
+      "raw_name": "鸡蛋",
+      "quantity": 1,
+      "unit": "盒",
+      "price": 12.8,
+      "canonical_name": "Trứng gà",
+      "is_stock_item": true
+    },
+    {
+      "raw_name": "大米 5kg",
+      "quantity": 1,
+      "unit": "袋",
+      "price": 32.5,
+      "canonical_name": "Gạo",
+      "is_stock_item": true
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-"""Receipt endpoints (design §5.1, EXCEPT POST .../confirm — Step 3).
+"""Receipt endpoints (design §5.1, including POST .../confirm — Step 3).
 
 - POST /api/v2/receipts: multipart image (jpg/png/webp, <= 10MB),
   household_id, optional store_name / purchased_at. Saves the image to
@@ -10,21 +10,34 @@
 - GET /api/v2/receipts: list, household-scoped, status filter, limit/offset.
 - GET /api/v2/receipts/{id}: detail + lines + inventory_created.
 - GET /api/v2/receipts/{id}/image: same-household only (else 403).
+- POST /api/v2/receipts/{id}/confirm (§5.1, §5.4): only when status =
+  needs_review, else 409. Body {lines: [{line_id, quantity, unit,
+  price, is_stock_item}]}. Applies the corrections, re-runs the §6.4
+  reconciliation on the corrected lines; if it passes, creates
+  inventory_items for is_stock_item lines (same expiry logic as the
+  worker) and marks completed; if it still fails, stays needs_review
+  with the updated error_message and the corrected lines saved. The
+  whole confirm (lines update + inventory creation + status change)
+  runs in ONE database transaction.
 """
 
 import json
 import os
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
 from sqlalchemy import text
 
 from app.auth import Identity, require_auth, require_household_member, require_receipt_household
 from app.db import (IDEMPOTENCY_PREFIX, IDEMPOTENCY_TTL_SECONDS, QUEUE_KEY,
                     get_engine, get_redis)
+from app.reconcile import check_reconciliation, insert_inventory_item
 
 router = APIRouter(prefix="/api/v2/receipts", tags=["receipts"])
 
@@ -56,6 +69,18 @@ _RECEIPT_COLS = ("id, household_id, uploaded_by_user_id, image_url,"
                  " store_name, purchased_at, total_amount, currency,"
                  " status, ocr_raw_text, error_message, processed_at,"
                  " created_at, updated_at")
+
+
+class ConfirmLine(BaseModel):
+    line_id: uuid.UUID
+    quantity: Decimal
+    unit: str
+    price: Decimal
+    is_stock_item: bool
+
+
+class ConfirmBody(BaseModel):
+    lines: list[ConfirmLine] = Field(min_length=1)
 
 
 @router.post("", status_code=202)
@@ -206,6 +231,130 @@ def get_receipt(receipt_id: uuid.UUID,
     } for ln in lines]
     out["inventory_created"] = inventory_created
     return out
+
+
+@router.post("/{receipt_id}/confirm")
+def confirm_receipt(receipt_id: uuid.UUID,
+                    body: ConfirmBody,
+                    ident: Identity = Depends(require_auth)):
+    """§5.1 confirm: only when status = needs_review, else 409 (§5.4).
+
+    Applies the corrected lines, re-runs the §6.4 reconciliation on
+    ALL lines of the receipt (corrected + untouched), and either
+    creates inventory + completes, or stays needs_review with the
+    updated error_message. One transaction for the whole confirm.
+    """
+    engine = get_engine()
+    with engine.begin() as conn:
+        row = conn.execute(
+            text(f"SELECT {_RECEIPT_COLS} FROM receipts WHERE id=:rid"
+                 " FOR UPDATE"),
+            {"rid": receipt_id},
+        ).first()
+        if not row:
+            raise HTTPException(status_code=404, detail="Receipt not found")
+        require_receipt_household(uuid.UUID(str(row[1])), ident)
+        if row[8] != "needs_review":
+            raise HTTPException(
+                status_code=409,
+                detail=f"Cannot confirm a receipt with status"
+                       f" '{row[8]}' (must be 'needs_review')")
+        existing = conn.execute(
+            text("SELECT id, line_no, raw_name, quantity, unit, price,"
+                 " currency, canonical_ingredient_id, is_stock_item"
+                 " FROM receipt_lines WHERE receipt_id=:rid"
+                 " ORDER BY line_no"),
+            {"rid": receipt_id},
+        ).all()
+        by_id = {str(r[0]): r for r in existing}
+        # §5.4 422: invalid corrected line (quantity <= 0; negative
+        # price except on a non-stock discount/fee line; empty unit;
+        # line_id that is not part of this receipt).
+        for cl in body.lines:
+            key = str(cl.line_id)
+            if key not in by_id:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"line_id {key} is not part of this receipt")
+            if cl.quantity <= 0:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"line {key}: quantity must be > 0")
+            if not (cl.unit or "").strip():
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"line {key}: unit must not be empty")
+            if cl.price < 0 and cl.is_stock_item:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"line {key}: negative price is only allowed"
+                           " on a non-stock (discount/fee) line")
+        for cl in body.lines:
+            conn.execute(
+                text("UPDATE receipt_lines SET quantity=:qty, unit=:unit,"
+                     " price=:price, is_stock_item=:stock WHERE id=:lid"),
+                {"qty": cl.quantity, "unit": cl.unit.strip(),
+                 "price": cl.price, "stock": cl.is_stock_item,
+                 "lid": cl.line_id},
+            )
+        # Re-run §6.4 on ALL lines (corrected + untouched).
+        lines_total = conn.execute(
+            text("SELECT COALESCE(SUM(price), 0) FROM receipt_lines"
+                 " WHERE receipt_id=:rid"),
+            {"rid": receipt_id},
+        ).scalar_one()
+        total_amount = row[6]  # NUMERIC from the receipt row
+        ok, error_msg = check_reconciliation(lines_total, total_amount)
+        if not ok:
+            # Corrected lines are saved; stays needs_review with the
+            # updated error_message; processed_at marks this run.
+            conn.execute(
+                text("UPDATE receipts SET error_message=:msg,"
+                     " processed_at=now(), updated_at=now()"
+                     " WHERE id=:rid"),
+                {"msg": error_msg, "rid": receipt_id},
+            )
+        else:
+            # Reconciliation passed: create inventory for stock lines
+            # (same expiry logic as the worker), then complete.
+            master_rows = conn.execute(
+                text("SELECT id, canonical_name, default_storage_zone,"
+                     " default_shelf_life_days FROM master_ingredients")
+            ).all()
+            master_by_id = {
+                r[0]: {"id": r[0], "name": r[1], "zone": r[2],
+                       "shelf_life": r[3]}
+                for r in master_rows
+            }
+            # Defensive: a needs_review receipt should have no inventory,
+            # but never create duplicates if one somehow exists.
+            conn.execute(
+                text("DELETE FROM inventory_items WHERE receipt_id=:rid"),
+                {"rid": receipt_id},
+            )
+            lines_now = conn.execute(
+                text("SELECT id, raw_name, quantity, unit, price, currency,"
+                     " canonical_ingredient_id, is_stock_item"
+                     " FROM receipt_lines WHERE receipt_id=:rid"
+                     " ORDER BY line_no"),
+                {"rid": receipt_id},
+            ).all()
+            added = datetime.now(ZoneInfo("Asia/Shanghai")).date()
+            for ln in lines_now:
+                if ln[7] and ln[2] > 0:
+                    canon = master_by_id.get(ln[6])
+                    insert_inventory_item(
+                        conn, uuid.UUID(str(row[1])), receipt_id, ln[0],
+                        ln[1], canon, ln[2], ln[3], ln[4], ln[5], added)
+            conn.execute(
+                text("UPDATE receipts SET status='completed',"
+                     " error_message=NULL, processed_at=now(),"
+                     " updated_at=now() WHERE id=:rid"),
+                {"rid": receipt_id},
+            )
+    # Read the fresh detail only AFTER the transaction commits, so the
+    # returned receipt reflects the confirmed lines and new status.
+    return get_receipt(receipt_id, ident)
 
 
 @router.get("/{receipt_id}/image")

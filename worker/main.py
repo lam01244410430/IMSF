@@ -3,16 +3,28 @@
 Redis consumer on ``imsf-v2:receipt-jobs``; job =
 {"receipt_id", "household_id", "image_path", "attempts"}.
 
-Implements §6.2 steps 1, 2, 3, 4 and 6, SKIPPING the 2% reconciliation
-check (Step 3 adds it — see §6.4): on a successful parse, persist
-receipt_lines for ALL lines and inventory_items for is_stock_item
-lines, set status completed + processed_at.
+Implements §6.2 steps 1-6, including the Step 3 additions:
+- canonical mapping refinement (``app.reconcile.resolve_canonical``):
+  raw_name exact match, then Qwen's suggested canonical_name, else
+  NULL = explicitly unmatched; matched/unmatched counts are logged.
+- the §6.4 2% reconciliation (``app.reconcile.check_reconciliation``),
+  run AFTER persisting receipt_lines and BEFORE creating
+  inventory_items. On needs_review the lines ARE persisted (so the user
+  can see/correct them), inventory is NOT created, and processed_at IS
+  set (it marks the end of processing, not success). The Step 2
+  interim behaviour (using the lines sum when Qwen returned
+  total_amount null) is REMOVED: a null/<=0 total now means
+  needs_review ("không đọc được tổng tiền") per §6.4. The upload-time
+  total_amount 0.00 placeholder is kept only until the worker writes
+  the real total; when the total is unreadable the row keeps 0.00 and
+  the receipt is needs_review.
 
 Retries: max 3 attempts, backoff 5s → 30s → 120s (§6.5). A bad job
 never crashes the worker: every per-job exception is caught, logged,
 and the receipt is marked failed (or requeued while attempts remain).
 Config errors (Baidu not configured) and Qwen JSON errors (already
 retried once inside the parse step) fail immediately without requeue.
+On failed, processed_at is also set (same "end of processing" rule).
 """
 
 import json
@@ -22,18 +34,20 @@ import sys
 import time
 import traceback
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 import redis as redis_lib
 from redis.exceptions import TimeoutError as RedisTimeoutError
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 
 from app.db import QUEUE_KEY, get_engine, get_redis
 from app.ocr import run_ocr
 from app.ocr_baidu import BaiduNotConfiguredError
 from app.qwen import QwenParseError, parse_receipt_text
+from app.reconcile import (check_reconciliation, insert_inventory_item,
+                           resolve_canonical)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -44,7 +58,6 @@ log = logging.getLogger("imsf-v2-worker")
 
 MAX_ATTEMPTS = 3
 BACKOFF_SECONDS = [5, 30, 120]  # §6.5
-FALLBACK_SHELF_LIFE_DAYS = 3  # §6.2 step 6: unmatched item → +3 days
 SHANGHAI = ZoneInfo("Asia/Shanghai")
 
 # Errors that must NOT be retried: the outcome cannot change on retry.
@@ -100,10 +113,13 @@ def process_job(job: dict) -> str:
     engine = get_engine()
 
     def mark_failed(message: str) -> str:
+        # processed_at marks the end of processing, not success (§6.4
+        # note in app.reconcile): it is set on failed as well.
         with engine.begin() as conn:
             conn.execute(
                 text("UPDATE receipts SET status='failed',"
-                     " error_message=:msg, updated_at=now() WHERE id=:rid"),
+                     " error_message=:msg, processed_at=now(),"
+                     " updated_at=now() WHERE id=:rid"),
                 {"msg": message[:2000], "rid": receipt_id},
             )
         log.warning("job receipt=%s FAILED: %s", receipt_id, message)
@@ -118,12 +134,22 @@ def process_job(job: dict) -> str:
         except OSError as exc:
             raise ValueError(f"cannot read receipt image {image_path}: {exc}")
 
-        # Step 1: pending -> processing.
+        # Step 1: pending -> processing. A requeued job (attempts > 0)
+        # still shows 'processing' from its previous attempt, so it
+        # must be accepted too — otherwise a retry would be skipped
+        # and the receipt stuck in 'processing' forever (found in the
+        # Step 3 gates: receipts (b)/(c) hit the 120s Qwen timeout
+        # once, were requeued, and their retries would have skipped).
+        # Single worker + BLPOP means no concurrent double-processing.
+        allowed = ("pending", "failed", "processing") if attempts > 0 \
+            else ("pending", "failed")
         with engine.begin() as conn:
+            stmt = text(
+                "UPDATE receipts SET status='processing', updated_at=now()"
+                " WHERE id=:rid AND status IN :allowed"
+            ).bindparams(bindparam("allowed", expanding=True))
             updated = conn.execute(
-                text("UPDATE receipts SET status='processing', updated_at=now()"
-                     " WHERE id=:rid AND status IN ('pending','failed')"),
-                {"rid": receipt_id},
+                stmt, {"rid": receipt_id, "allowed": allowed},
             ).rowcount
             if updated == 0:
                 # Already being processed / already terminal — skip.
@@ -160,18 +186,11 @@ def process_job(job: dict) -> str:
         if parsed is None:
             raise QwenParseError(str(last_error))
 
-        # Step 4: canonical lookup (done inline below via master map).
+        # Step 4: canonical mapping (order in app.reconcile:
+        # raw_name exact match, then Qwen's suggested canonical_name,
+        # else NULL = explicitly unmatched).
         lines = parsed.get("lines") or []
-        total = parsed.get("total_amount")
-        if total is None:
-            # STEP-2 INTERIM (ambiguity recorded): §6.4 (Step 3) will turn
-            # a missing total into needs_review. Step 2 skips §6.4, so
-            # fall back to the sum of lines to satisfy the NOT NULL
-            # total_amount column; Step 3 replaces this with needs_review.
-            total = sum(float(_dec(ln.get("price"))) for ln in lines)
-            log.info("job receipt=%s Qwen returned no total; using "
-                     "lines sum %.2f (Step 3 will needs_review this)",
-                     receipt_id, total)
+        total = parsed.get("total_amount")  # may be None -> §6.4 needs_review
         currency = parsed.get("currency") or "CNY"
         if currency not in ("CNY", "VND"):
             currency = "CNY"
@@ -179,27 +198,39 @@ def process_job(job: dict) -> str:
         store_name = parsed.get("store_name")
         added = datetime.now(SHANGHAI).date()
 
-        # Step 6: persist lines + inventory, mark completed.
+        # Steps 5-6 (one transaction): persist the receipt header +
+        # ALL receipt_lines, run the §6.4 reconciliation on the
+        # persisted lines, then either mark needs_review (no inventory)
+        # or create inventory_items and mark completed.
+        matched = 0
+        unmatched = 0
         inventory_created = 0
         with engine.begin() as conn:
+            # Header: the real total when Qwen read one; when it did
+            # not, the row keeps the upload-time 0.00 placeholder and
+            # the reconciliation below sends it to needs_review.
             conn.execute(
                 text("UPDATE receipts SET store_name=:store,"
                      " purchased_at=:purchased, total_amount=:total,"
-                     " currency=:cur, ocr_raw_text=:ocr, status='completed',"
-                     " error_message=NULL, processed_at=now(),"
+                     " currency=:cur, ocr_raw_text=:ocr,"
                      " updated_at=now() WHERE id=:rid"),
                 {"store": store_name, "purchased": purchased_at,
-                 "total": _dec(total), "cur": currency,
-                 "ocr": ocr_text, "rid": receipt_id},
+                 "total": _dec(total) if total is not None else Decimal("0"),
+                 "cur": currency, "ocr": ocr_text, "rid": receipt_id},
             )
+            resolved = []  # (line dict, canon entry|None, line_id)
             for i, ln in enumerate(lines, start=1):
                 raw_name = str(ln.get("raw_name") or "").strip() or "?"
                 quantity = _dec(ln.get("quantity"), Decimal("0"))
                 unit = str(ln.get("unit") or "").strip() or "个"
                 price = _dec(ln.get("price"))
                 is_stock = bool(ln.get("is_stock_item", True))
-                canon = master.get(_norm(ln.get("canonical_name") or "")) \
-                    or master.get(_norm(raw_name))
+                canon = resolve_canonical(
+                    raw_name, ln.get("canonical_name"), master)
+                if canon is not None:
+                    matched += 1
+                else:
+                    unmatched += 1
                 line_id = conn.execute(
                     text("INSERT INTO receipt_lines (receipt_id, line_no,"
                          " raw_name, quantity, unit, price, currency,"
@@ -212,32 +243,51 @@ def process_job(job: dict) -> str:
                      "canon": canon["id"] if canon else None,
                      "stock": is_stock},
                 ).scalar_one()
-                if is_stock and quantity > 0:
-                    if canon and canon["shelf_life"] is not None:
-                        expiry = added + timedelta(days=canon["shelf_life"])
-                    else:
-                        # Recorded fallback (§6.2 step 6).
-                        expiry = added + timedelta(days=FALLBACK_SHELF_LIFE_DAYS)
-                    conn.execute(
-                        text("INSERT INTO inventory_items (household_id,"
-                             " receipt_id, receipt_line_id, raw_name,"
-                             " canonical_ingredient_id, quantity, unit,"
-                             " price, currency, storage_zone, added_date,"
-                             " auto_expiry_date, status)"
-                             " VALUES (:h, :rid, :lid, :raw, :canon, :qty,"
-                             " :unit, :price, :cur, :zone, :added, :exp,"
-                             " 'fresh')"),
-                        {"h": household_id, "rid": receipt_id,
-                         "lid": line_id, "raw": raw_name,
-                         "canon": canon["id"] if canon else None,
-                         "qty": quantity, "unit": unit, "price": price,
-                         "cur": currency,
-                         "zone": canon["zone"] if canon else None,
-                         "added": added, "exp": expiry},
-                    )
+                resolved.append(({
+                    "raw_name": raw_name, "quantity": quantity,
+                    "unit": unit, "price": price,
+                    "is_stock_item": is_stock}, canon, line_id))
+            # §6.4: lines_total = SUM(price) over ALL persisted lines.
+            lines_total = conn.execute(
+                text("SELECT COALESCE(SUM(price), 0) FROM receipt_lines"
+                     " WHERE receipt_id=:rid"),
+                {"rid": receipt_id},
+            ).scalar_one()
+            ok, error_msg = check_reconciliation(
+                lines_total, _dec(total) if total is not None else None)
+            log.info("job receipt=%s mapping matched=%d unmatched=%d"
+                     " lines_total=%.2f total=%s reconcile=%s",
+                     receipt_id, matched, unmatched, float(lines_total),
+                     str(total), "ok" if ok else error_msg)
+            if not ok:
+                # Lines ARE persisted so the user can see/correct them;
+                # inventory is NOT created; processed_at IS set.
+                conn.execute(
+                    text("UPDATE receipts SET status='needs_review',"
+                         " error_message=:msg, processed_at=now(),"
+                         " updated_at=now() WHERE id=:rid"),
+                    {"msg": error_msg, "rid": receipt_id},
+                )
+                log.info("job receipt=%s NEEDS_REVIEW: %s",
+                         receipt_id, error_msg)
+                return "needs_review"
+            for line, canon, line_id in resolved:
+                if line["is_stock_item"] and line["quantity"] > 0:
+                    insert_inventory_item(
+                        conn, household_id, receipt_id, line_id,
+                        line["raw_name"], canon, line["quantity"],
+                        line["unit"], line["price"], currency, added)
                     inventory_created += 1
-        log.info("job receipt=%s COMPLETED lines=%d inventory=%d total=%.2f",
-                 receipt_id, len(lines), inventory_created, float(_dec(total)))
+            conn.execute(
+                text("UPDATE receipts SET status='completed',"
+                     " error_message=NULL, processed_at=now(),"
+                     " updated_at=now() WHERE id=:rid"),
+                {"rid": receipt_id},
+            )
+        log.info("job receipt=%s COMPLETED lines=%d matched=%d unmatched=%d"
+                 " inventory=%d total=%s",
+                 receipt_id, len(lines), matched, unmatched,
+                 inventory_created, str(total))
         return "completed"
 
     except NON_RETRYABLE as exc:

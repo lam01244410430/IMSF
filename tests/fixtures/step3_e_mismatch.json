@@ -1,0 +1,48 @@
+{
+  "store_name": "永辉超市",
+  "purchased_at": "2026-11-20T16:40:00+08:00",
+  "total_amount": 100.0,
+  "currency": "CNY",
+  "lines": [
+    {
+      "raw_name": "大米 5kg",
+      "quantity": 1,
+      "unit": "袋",
+      "price": 32.5,
+      "canonical_name": "Gạo",
+      "is_stock_item": true
+    },
+    {
+      "raw_name": "五花肉",
+      "quantity": 1,
+      "unit": "斤",
+      "price": 25.0,
+      "canonical_name": "Thịt ba chỉ",
+      "is_stock_item": true
+    },
+    {
+      "raw_name": "纯牛奶",
+      "quantity": 1,
+      "unit": "盒",
+      "price": 15.9,
+      "canonical_name": "Sữa tươi",
+      "is_stock_item": true
+    },
+    {
+      "raw_name": "鸡蛋",
+      "quantity": 1,
+      "unit": "盒",
+      "price": 12.8,
+      "canonical_name": "Trứng gà",
+      "is_stock_item": true
+    },
+    {
+      "raw_name": "食盐",
+      "quantity": 1,
+      "unit": "袋",
+      "price": 8.8,
+      "canonical_name": "Muối",
+      "is_stock_item": true
+    }
+  ]
+}
