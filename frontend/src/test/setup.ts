@@ -17,6 +17,12 @@ vi.mock('@tarojs/taro', () => ({
   ...taroMock,
 }))
 
+// NutUI Lottie kéo theo lottie-web, mà lottie-web chạy canvas feature
+// detection ngay lúc import (jsdom không có canvas → nổ). Không test nào
+// render Lottie nên mock cả hai.
+vi.mock('lottie-web', () => ({}))
+vi.mock('lottie-react', () => ({ default: () => null }))
+
 // @tarojs/components → stub DOM element giữ nguyên children/className.
 const stub = (tag: string) =>
   React.forwardRef<unknown, Record<string, unknown>>(function Stub(props, ref) {

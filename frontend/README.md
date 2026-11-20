@@ -66,6 +66,52 @@ weapp (mở bằng WeChat DevTools). Lệch với design doc §8.8 (ghi `dist/h5
   (backend đối soát bằng SUM(price)) — UI sửa đơn giá thì gửi
   `price = round2(quantity × unitPrice)`.
 
+## Adapter primitives (§8.2 — Step 3)
+
+13 primitives ở `src/ui/primitives/<Name>/`, mỗi cái: `<Name>.types.ts`
+(interface dùng chung) + `<Name>.weapp.tsx` (NutUI) + `<Name>.h5.tsx` (MUI)
++ `<Name>.ts` (fallback chỉ để tsc resolve — webpack MultiPlatformPlugin
+luôn ưu tiên file `.weapp`/`.h5` khi tồn tại) + `index.ts`. Twin tests ở
+`src/ui/primitives/primitives.test.tsx` (16 tests: render + tương tác giống
+nhau ở cả 2 platform).
+
+- **Toast:** `showToast(message, kind)` imperative + `ToastHost` mount 1 lần
+  ở app shell. Weapp: `NutToast.show('imsf-toast', …)` qua custom event.
+- **Dialog:** component khai báo + `confirmDialog(opts): Promise<boolean>`
+  imperative qua `dialogStore.ts` dùng chung + `DialogHost`.
+- **Uploader:** shell hiển thị thuần (preview + nút thêm) — transport thuộc
+  `services/upload.ts` (§8.5), không dùng NutUI Uploader (transport tích hợp
+  của nó xung đột với quyền sở hữu đó; NutUI Uploader đã chứng minh build ở
+  Gate 0).
+- **TabBar:** icon truyền bằng key (`home`/`fridge`/`recipes`/`mine`), mỗi
+  platform map sang icon set native. Lệch nhỏ §4.1: `@nutui/icons-react-taro`
+  3.0.2 không có icon tủ lạnh/sách/mũ đầu bếp — weapp dùng Store (冰箱) và
+  List (菜谱); H5 dùng Kitchen + MenuBook đúng spec.
+- **Cạm bẫy NutUI (đã kiểm chứng trên code đã cài):**
+  - Truyền prop `undefined` tường minh sẽ GHI ĐÈ default của NutUI (nó gộp
+    bằng spread): `InputNumber` `max={undefined}` → `Number(max)` = NaN.
+    Chỉ spread prop khi có giá trị.
+  - `Skeleton` `visible=true` nghĩa là HIỆN NỘI DUNG (ẩn skeleton) — ngược
+    trực giác; primitive luôn truyền `visible={false}`.
+  - `Picker` `options` là MẢNG CÁC CỘT (`PickerOptions[]`): 1 cột → `[options]`.
+  - `InputNumber` nút + là async (await `beforeChange`) — test phải `waitFor`.
+  - MUI v9: system props (`display`, `position`, `width`, `bgcolor`…)
+    KHÔNG còn là prop trực tiếp của `Box` — phải cho vào `sx`; `TextField`
+    `inputProps` → `slotProps.htmlInput`; `Switch` `inputProps` →
+    `slotProps.input`; `ListItemText` không còn `primaryTypographyProps`;
+    `Switch` input có `role="switch"`.
+- **Test setup (`vitest.config.ts`, `src/test/`):** Vitest externalize NutUI
+  ESM native → import `@tarojs/*` bên trong NutUI bypass `vi.mock` và load
+  runtime thật (nổ `ENABLE_INNER_HTML` — global chỉ có khi build webpack).
+  Khắc phục: `server.deps.inline` cho NutUI/Taro + alias `@tarojs/taro` /
+  `@tarojs/components` về stub (`taroStub.ts`, `taroComponentsStub.tsx`) +
+  `define` 7 global `ENABLE_* = false` + alias NutUI root về entry ESM
+  (tránh UMD bundle chạy lottie canvas detection lúc load) + mock
+  `lottie-web` / `lottie-react` trong setup (không test nào render Lottie).
+  `@testing-library/dom@10.4.2` cài riêng (peer của react 16.3.3, bị
+  `--legacy-peer-deps` bỏ qua). `cleanup()` tay trong `afterEach` (Vitest
+  không có `globals: true` nên RTL không tự cleanup).
+
 ## Hai mục mở (design doc §10.2)
 
 - **D-F2 (reprocess endpoint):** backend KHÔNG có endpoint reprocess — cả hai
