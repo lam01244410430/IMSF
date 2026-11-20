@@ -38,3 +38,19 @@ export function goLogin(): Promise<unknown> {
 export function goBack(): Promise<unknown> {
   return Taro.navigateBack()
 }
+
+/** Tới trang danh sách tiểu phiếu (trang thường, navigateTo — không phải tab). */
+export function goReceipts(): Promise<unknown> {
+  return Taro.navigateTo({ url: routes.receipts })
+}
+
+/** Các tab còn lại (switchTab). */
+export function goFridge(): Promise<unknown> {
+  return Taro.switchTab({ url: routes.fridge })
+}
+export function goRecipes(): Promise<unknown> {
+  return Taro.switchTab({ url: routes.recipes })
+}
+export function goMine(): Promise<unknown> {
+  return Taro.switchTab({ url: routes.mine })
+}

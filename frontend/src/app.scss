@@ -1,0 +1,9 @@
+/* Global styles (§8.3): token CSS + NutUI overrides + resets. */
+@import './ui/tokens.css';
+@import './ui/nutui.css';
+
+page {
+  background-color: var(--imsf-color-background);
+  font-family: var(--imsf-font-family);
+  color: var(--imsf-color-on-surface);
+}

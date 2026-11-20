@@ -16,16 +16,20 @@ interface UiState {
   toasts: ToastItem[]
   tabBarSelected: number
   isOnline: boolean
+  /** FAB bấm ở tab khác → trang upload mở camera khi hiện (§4.1). Trang upload tự clear sau khi consume. */
+  openCameraOnShow: boolean
   showToast: (message: string, kind?: ToastItem['kind']) => void
   dismissToast: (id: number) => void
   setTabBarSelected: (index: number) => void
   setOnline: (online: boolean) => void
+  setOpenCameraOnShow: (open: boolean) => void
 }
 
 export const useUiStore = create<UiState>()((set) => ({
   toasts: [],
   tabBarSelected: 0,
   isOnline: true,
+  openCameraOnShow: false,
   showToast: (message, kind = 'info') => {
     const id = ++toastSeq
     set((s) => ({ toasts: [...s.toasts, { id, message, kind }] }))
@@ -37,4 +41,5 @@ export const useUiStore = create<UiState>()((set) => ({
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
   setTabBarSelected: (tabBarSelected) => set({ tabBarSelected }),
   setOnline: (isOnline) => set({ isOnline }),
+  setOpenCameraOnShow: (openCameraOnShow) => set({ openCameraOnShow }),
 }))

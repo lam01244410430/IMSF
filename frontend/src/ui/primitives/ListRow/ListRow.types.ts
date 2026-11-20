@@ -7,6 +7,8 @@ import type { ReactNode } from 'react'
 
 export interface ListRowProps {
   glyph?: string
+  /** Custom leading node (e.g. the 40px store-glyph circle, §5.1). When set, it replaces `glyph`. */
+  left?: ReactNode
   title: string
   subtitle?: string
   amount?: string

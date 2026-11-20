@@ -103,3 +103,14 @@ export function storeGlyph(storeName: string | null | undefined): string {
   if (!name) return '?'
   return name[0]
 }
+
+/** rgba(hex, alpha) — dùng cho border/background cần opacity mà không thêm token mới (§5.1 capture card). */
+export function withAlpha(hex: string, alpha: number): string {
+  const h = hex.replace('#', '')
+  const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h
+  const n = Number.parseInt(full, 16)
+  const r = (n >> 16) & 255
+  const g = (n >> 8) & 255
+  const b = n & 255
+  return `rgba(${r},${g},${b},${alpha})`
+}

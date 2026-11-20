@@ -64,6 +64,9 @@ export const getEnv = vi.fn(() => 'WEB')
 export const getCurrentInstance = vi.fn(() => ({ router: { params: {} } }))
 export const useLoad = vi.fn()
 export const useDidShow = vi.fn()
+export const usePullDownRefresh = vi.fn()
+export const stopPullDownRefresh = vi.fn()
+export const offNetworkStatusChange = vi.fn()
 export const useRouter = vi.fn(() => ({ params: {} }))
 
 export const taroMock = {
@@ -92,6 +95,9 @@ export const taroMock = {
   getCurrentInstance,
   useLoad,
   useDidShow,
+  usePullDownRefresh,
+  stopPullDownRefresh,
+  offNetworkStatusChange,
   useRouter,
   eventCenter,
 }

@@ -6,10 +6,11 @@ import { tokens } from '../../tokens'
 import type { ListRowProps } from './ListRow.types'
 
 export default function ListRow(props: ListRowProps) {
-  const { glyph, title, subtitle, amount, chip, onClick } = props
+  const { glyph, left, title, subtitle, amount, chip, onClick } = props
   return (
     <ListItemButton onClick={() => onClick?.()} sx={{ minHeight: tokens.size.receiptRowHeight }}>
-      {glyph ? (
+      {left}
+      {left ? null : glyph ? (
         <Typography sx={{ mr: 1, fontSize: 20 }} aria-hidden>
           {glyph}
         </Typography>

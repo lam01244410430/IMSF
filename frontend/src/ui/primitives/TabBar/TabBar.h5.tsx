@@ -30,8 +30,11 @@ export default function TabBar(props: TabBarProps) {
           left: 0,
           right: 0,
           zIndex: tokens.zIndex.bottomNavigation,
+          backgroundColor: tokens.color.surface,
         }}
       >
+        {/* Divider NẰM TRÊN nav, là sibling — KHÔNG bao giờ nằm trong hàng nav (§4.1, lỗi Figma đã biết). */}
+        <Box sx={{ height: 1, backgroundColor: tokens.color.divider }} />
         <BottomNavigation
           value={selected}
           onChange={(_, v) => onSelect(v)}

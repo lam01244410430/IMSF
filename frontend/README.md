@@ -118,3 +118,53 @@ nhau ở cả 2 platform).
   nút 重新识别 (Màn 02 + 03) đều ẨN. Chỉ hiện 重新上传.
 - **D-F3 (confirm payload dòng thêm):** dòng client thêm gửi `line_id: null`.
   Backend hiện tại yêu cầu UUID (422 nếu khác) — đang chờ backend xác nhận.
+
+## Step 4 — App shell + Screen 01
+
+- **Providers:** `src/providers.weapp.tsx` (NutUI ConfigProvider zh-CN) /
+  `src/providers.h5.tsx` (MUI ThemeProvider + CssBaseline; `Taro.hideTabBar()`
+  trong `useEffect` vì H5 bỏ qua tabBar.custom). `src/app.tsx` thay `app.ts`
+  (Taro ưu tiên `.ts` trước `.tsx` khi resolve — hai file không được cùng tồn
+  tại). `app.tsx` đăng ký network listener (mất mạng → ui store `isOnline`
+  false + OfflineBanner; có mạng lại → `invalidateQueries()`) và
+  session-expired handler → `goLogin()`. `app.config.ts`: pages upload đầu
+  tiên (launch), `navigationStyle: 'custom'`, tabBar custom với slot giữa
+  trỏ lại upload (FAB placeholder — custom bar chặn tap).
+- **Tab bar:** `src/components/AppTabBar/` là component duy nhất, mount ở
+  `src/custom-tab-bar/index.tsx` (weapp) và `TabBarHost.h5.tsx` (H5);
+  `TabBarHost.weapp.tsx` render null. `useTabBarSelected` đồng bộ tab vào ui
+  store + `getTabBar().setData({selected})` (weapp). Divider nằm TRÊN nav,
+  là sibling của nav — KHÔNG trong hàng nav (§4.1, lỗi Figma đã biết).
+- **Icon primitive mới** (`src/ui/primitives/Icon/`, §8.2 "thêm khi cần"):
+  13 key (camera, chevron-left/right, check, clock, close, error, image,
+  plus, refresh, search, warning, info) — NutUI icons weapp, MUI icons H5,
+  twin test đủ 13 key. **ListRow thêm slot `left?: ReactNode`** — ReceiptRow
+  dùng vòng tròn glyph 40px; khi có `left`, subtitle render trong cột title
+  (căn dưới title, không nằm dưới vòng tròn).
+- **Business components:** StatusChip (4 trạng thái, màu từ tokens.status),
+  PageHeader (56px, title 20 semibold + subtitle 14, back chevron 44px),
+  OfflineBanner (amber, khi `isOnline` false), EmptyState (pattern §7.2:
+  icon dashed 64px + title + body + một action), ReceiptRow (vòng glyph +
+  ngày tương đối + số tiền — chỉ hiển thị khi completed/needs_review, còn lại
+  「—」; tên cửa hàng thiếu → 「未知商家」), ReceiptList (skeleton 3 dòng,
+  panel lỗi + [重试], empty state do cha truyền, `limit`).
+- **Màn 01 (§5.1):** capture card 180px dashed 1.5px primary 60%, bg
+  primaryContainer 40% (qua `withAlpha` trong `utils/format.ts`, không thêm
+  token mới); tap card = camera; preview + ✕ gỡ + progress xác định +
+  正在上传…; lỗi inline dưới card (⚠ + text + 重新选择/重新上传), không toast;
+  202 → navigateTo `/receipts/{id}` + toast「小票已上传，正在识别」; 403 →
+  inline「您没有权限上传到该家庭账本」; offline chặn pick với「无网络连接，
+  请联网后上传」; recent list 3 dòng + 查看全部 ›; pull-to-refresh
+  (enablePullDownRefresh, xác nhận「已更新」); skeleton 3 dòng chỉ khi load
+  lần đầu >300ms; empty state + 立即拍照; chưa login → card「请先登录」+
+  去登录. FAB ở tab khác → mở camera khi về upload (ui store
+  `openCameraOnShow`, trang upload tự clear).
+- **Trang khác:** fridge/recipes placeholder honest (§4.1, §7.2); mine
+  (household name/role/currency/timezone/locale chỉ đọc + switcher nếu >1 +
+  logout — KHÔNG có số thành viên vì API không trả); login (wx.login →
+  code → POST /auth/wechat; H5 login thất bại → 「请在微信中打开小程序登录」);
+  receipts (filter chip 全部/处理中/需核对/已完成/识别失败 — backend chỉ lọc
+  đúng một status nên chip「处理中」gộp pending + processing, lọc ở client).
+- **Copy KHÔNG trong doc (ghi vào báo cáo cuối):** recipes placeholder body
+  「第一批食材入库后，这里会显示菜谱推荐。」(cấu trúc song song với fridge);
+  login「请先登录」/「登录后即可查看最近小票」/「微信登录」/「请使用微信登录以继续」.

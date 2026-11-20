@@ -27,11 +27,22 @@ function Icon({ iconKey }: { iconKey: TabBarIconKey }) {
 export default function TabBar(props: TabBarProps) {
   const { items, selected, onSelect, fab } = props
   return (
-    <View>
+    <View
+      style={{
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        zIndex: tokens.zIndex.bottomNavigation,
+        backgroundColor: tokens.color.surface,
+      }}
+    >
+      {/* Divider NẰM TRÊN nav, là sibling — KHÔNG bao giờ nằm trong hàng nav (§4.1, lỗi Figma đã biết). */}
+      <View style={{ height: 1, backgroundColor: tokens.color.divider }} />
       <Tabbar
         value={selected}
         onSwitch={(v: number) => onSelect(v)}
-        fixed
+        fixed={false}
         safeArea
         activeColor={tokens.color.primary}
         inactiveColor={tokens.color.onSurfaceVariant}

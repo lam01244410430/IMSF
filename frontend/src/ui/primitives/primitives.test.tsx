@@ -38,6 +38,8 @@ import SwitchWeapp from './Switch/Switch.weapp'
 import SwitchH5 from './Switch/Switch.h5'
 import PickerWeapp from './Picker/Picker.weapp'
 import PickerH5 from './Picker/Picker.h5'
+import IconWeapp from './Icon/Icon.weapp'
+import IconH5 from './Icon/Icon.h5'
 
 afterEach(() => {
   // @testing-library/react chỉ tự cleanup khi test framework expose global
@@ -326,5 +328,70 @@ describe('Picker twin', () => {
     expect(screen.getByText('选择单位')).toBeTruthy()
     fireEvent.click(screen.getByText('kg'))
     expect(onConfirmH5).toHaveBeenCalledWith('kg')
+  })
+})
+
+describe('Icon twin', () => {
+  // NutUI icon render thành element .nut-icon (svg nằm trong data URI base64,
+  // KHÔNG phải <svg> inline) — assert theo class; MUI icon render <svg>.
+  it('renders the same icon key on both platforms', () => {
+    const { container: c1 } = render(<IconWeapp name='camera' size={32} />)
+    const el1 = c1.querySelector('.nut-icon')
+    expect(el1).toBeTruthy()
+    expect(el1?.className.toLowerCase()).toContain('photograph')
+    cleanup()
+    const { container: c2 } = render(<IconH5 name='camera' size={32} />)
+    const svg2 = c2.querySelector('svg.MuiSvgIcon-root')
+    expect(svg2).toBeTruthy()
+    expect(svg2?.getAttribute('data-testid')).toBe('PhotoCameraIcon')
+  })
+
+  it('renders every icon key on both platforms', () => {
+    const names = [
+      'camera',
+      'chevron-left',
+      'chevron-right',
+      'check',
+      'clock',
+      'close',
+      'error',
+      'image',
+      'plus',
+      'refresh',
+      'search',
+      'warning',
+      'info',
+    ] as const
+    for (const name of names) {
+      const { container, unmount } = render(<IconWeapp name={name} />)
+      expect(container.querySelector('.nut-icon')).toBeTruthy()
+      unmount()
+      const r2 = render(<IconH5 name={name} />)
+      expect(r2.container.querySelector('svg.MuiSvgIcon-root')).toBeTruthy()
+      r2.unmount()
+    }
+  })
+})
+
+describe('ListRow left slot', () => {
+  it('renders the left node and aligns subtitle under the title on both platforms', () => {
+    render(
+      <ListRowWeapp
+        left={<span>沃</span>}
+        title='沃尔玛'
+        subtitle='今天'
+        amount='¥123.45'
+      />,
+    )
+    expect(screen.getByText('沃')).toBeTruthy()
+    expect(screen.getByText('沃尔玛')).toBeTruthy()
+    expect(screen.getByText('今天')).toBeTruthy()
+    cleanup()
+    render(
+      <ListRowH5 left={<span>沃</span>} title='沃尔玛' subtitle='今天' amount='¥123.45' />,
+    )
+    expect(screen.getByText('沃')).toBeTruthy()
+    expect(screen.getByText('沃尔玛')).toBeTruthy()
+    expect(screen.getByText('今天')).toBeTruthy()
   })
 })

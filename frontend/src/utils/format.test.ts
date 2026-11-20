@@ -8,6 +8,7 @@ import {
   round2,
   storeGlyph,
   unitPriceFromLine,
+  withAlpha,
 } from './format'
 
 describe('formatMoney', () => {
@@ -74,5 +75,15 @@ describe('storeGlyph', () => {
     expect(storeGlyph('永辉超市')).toBe('永')
     expect(storeGlyph('')).toBe('?')
     expect(storeGlyph(null)).toBe('?')
+  })
+})
+
+describe('withAlpha', () => {
+  it('hex 6 ký tự → rgba', () => {
+    expect(withAlpha('#2E7D32', 0.6)).toBe('rgba(46,125,50,0.6)')
+    expect(withAlpha('#C8E6C9', 0.4)).toBe('rgba(200,230,201,0.4)')
+  })
+  it('hex 3 ký tự → rgba', () => {
+    expect(withAlpha('#fff', 0.5)).toBe('rgba(255,255,255,0.5)')
   })
 })
