@@ -5,6 +5,8 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql+psycopg://imsf_v2:test@127.0.0.1:5432/imsf_v2
     services:
       postgres:
         image: postgres:16
@@ -39,8 +41,6 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
       - name: Alembic upgrade head
-        env:
-          DATABASE_URL: postgresql+psycopg://imsf_v2:test@127.0.0.1:5432/imsf_v2
         run: alembic upgrade head
       - name: Run tests
         run: pytest -q
