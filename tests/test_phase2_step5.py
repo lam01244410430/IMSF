@@ -487,16 +487,86 @@ def test_shelf_life_days_for_stubbed(db_engine, monkeypatch):
     import app.rag as rag_mod
 
     assert ingest_fixture_stubbed(monkeypatch) == 0
-    # Butter passage: first "N days" range is "1-2 days" (room
-    # temperature) -> lower bound 1, per the documented extraction
-    # rule in app/rag.py (range -> lower bound, food-safety
-    # conservative). No Qwen call is needed: the regex hits.
+    # Butter passage: "refrigerate 1-2 months; freeze 6-9 months; room
+    # temperature 1-2 days". Corrected rule (§7.3, 2026-11-21): prefer
+    # the REFRIGERATED span -> "1-2 months" lower bound 1 month = 30
+    # days (not the room-temperature "1-2 days" = 1). No Qwen call is
+    # needed: the regex hits.
     found = rag_mod.shelf_life_days_for("butter")
     assert found is not None
-    assert found["days"] == 1
+    assert found["days"] == 30
     assert found["source"].startswith(FOODKEEPER_SOURCE)
     # No document above threshold -> no answer, never invented.
     assert rag_mod.shelf_life_days_for(NONSENSE_QUERY) is None
+
+
+@pytest.mark.parametrize("content,days", [
+    # Butter (the reported bug): refrigerated "1-2 months" beats the
+    # room-temperature "1-2 days" that the old rule returned (1).
+    ("Butter: refrigerate 1-2 months from date of purchase; freeze "
+     "6-9 months from date of purchase. It may be left at room "
+     "temperature for 1-2 days.", 30),
+    # Ginger (multi-span): pantry "2-5 days" comes first, but the
+    # refrigerated "2-3 weeks" wins -> 2 weeks = 14 days.
+    ("Ginger root (Gừng, 生姜): store in the pantry 2-5 days from date "
+     "of purchase; refrigerate 2-3 weeks from date of purchase; freeze "
+     "6 months from date of purchase.", 14),
+    # Rice: the refrigerated span sits AFTER two pantry spans
+    # ("6 months in the refrigerator") -> 180, not the first span 730.
+    ("White or wild rice (Gạo, 大米): store in the pantry 2 years from "
+     "date of purchase; after opening, 1 year in the pantry or 6 months "
+     "in the refrigerator.", 180),
+    # Garlic (single-span, unchanged): refrigerated "3-14 days" -> 3.
+    ("Garlic (Tỏi, 大蒜): store unbroken bulbs in the pantry 1 month "
+     "from date of purchase; store individual cloves in the refrigerator "
+     "3-14 days from date of purchase; freeze 1 month from date of "
+     "purchase.", 3),
+    # Pork (single refrigerated span, unchanged): "3-5 days" -> 3.
+    ("Fresh pork loin chops, bone-in (Thịt ba chỉ, 五花肉): refrigerate "
+     "3-5 days from date of purchase; freeze 4-12 months from date of "
+     "purchase.", 3),
+    # Tomatoes: no refrigerated span with a number -> fallback to the
+    # first non-freezer span, pantry "7 days" -> 7 (not the freezer
+    # "2 months").
+    ("Tomatoes (Cà chua, 番茄): store in the pantry until ripe, then 7 "
+     "days; USDA notes refrigeration may affect flavor and recommends "
+     "pantry storage. Freeze 2 months from date of purchase.", 7),
+    # Milk: only a freezer span ("Freeze 3 months") and no fixed fridge
+    # number -> None (never the freezer life, 90). Falls to Qwen.
+    ("Milk, plain or flavored (Sữa tươi, 鲜牛奶): refrigerate and follow "
+     "the package use-by date; FoodKeeper lists no fixed number of days "
+     "for refrigeration. Freeze 3 months from date of purchase.", None),
+    # Eggs / tofu: weeks convert (3-5 weeks -> 21, 1 week -> 7).
+    ("Eggs in shell (Trứng gà, 鸡蛋): refrigerate 3-5 weeks from date of "
+     "purchase. Freezing is not recommended.", 21),
+    ("Tofu (Đậu phụ, 豆腐): refrigerate 1 week from date of purchase; "
+     "freeze 5 months from date of purchase.", 7),
+    # Onions: refrigerated "2 months" -> 60 (not pantry "1 month").
+    ("Onions, yellow, white or red (Hành tây, 洋葱): store in the pantry "
+     "1 month from date of purchase; refrigerate 2 months from date of "
+     "purchase; freeze 10-12 months from date of purchase.", 60),
+    # Noodles / sugar: no refrigerated span -> first non-freezer span.
+    ("Dry egg noodles (Mì, 面条): store in the pantry 2 years from date "
+     "of purchase; after opening, 1-2 months in the pantry.", 730),
+    ("Granulated sugar: stores indefinitely in the pantry. Sugar never "
+     "spoils, but for best quality use within 2 years of opening.", 730),
+    # Hard cheese: first refrigerated span "6 months" -> 180 (the
+    # "3-4 weeks after opening" span is also refrigerated but later).
+    ("Hard cheese such as cheddar, Swiss and block parmesan: refrigerate "
+     "6 months from date of purchase; after opening, refrigerate 3-4 "
+     "weeks; freeze 6 months from date of purchase.", 180),
+    # No span at all -> None.
+    ("Milk: refrigerate and follow the package use-by date.", None),
+])
+def test_extract_days_from_text_refrigerated(content, days):
+    """Unit test for the corrected extraction rule (§7.3, 2026-11-21).
+
+    Pure function test — no DB, no GPU, no Qwen. Passages are the
+    verbatim FoodKeeper texts from the live seed + test fixture.
+    """
+    from app.rag import _extract_days_from_text
+
+    assert _extract_days_from_text(content) == days
 
 
 # --- Gate E, endpoint validation (§5.1) ------------------------------------
@@ -586,7 +656,8 @@ def test_live_shelf_life_days_for_butter(db_engine):
     ingest_fixture_live()
     found = rag_mod.shelf_life_days_for("butter")
     assert found is not None
-    assert found["days"] == 1
+    # Corrected rule (§7.3, 2026-11-21): refrigerated "1-2 months" -> 30.
+    assert found["days"] == 30
     assert found["source"].startswith(FOODKEEPER_SOURCE)
 
 
