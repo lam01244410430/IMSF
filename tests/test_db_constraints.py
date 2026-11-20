@@ -35,12 +35,19 @@ def _test_url():
     return urlunparse(url._replace(path=f"/{TEST_DB}"))
 
 
+def _admin_url():
+    # Maintenance DB that always exists: the admin connection only issues
+    # CREATE DATABASE, so it must not point at the (not yet created) test DB.
+    url = urlparse(_base_url())
+    return urlunparse(url._replace(path="/postgres"))
+
+
 @pytest.fixture(scope="module")
 def test_engine():
     from alembic import command
     from alembic.config import Config
 
-    admin = sa.create_engine(_base_url(), isolation_level="AUTOCOMMIT")
+    admin = sa.create_engine(_admin_url(), isolation_level="AUTOCOMMIT")
     with admin.connect() as conn:
         exists = conn.execute(
             text("SELECT 1 FROM pg_database WHERE datname = :name"),
