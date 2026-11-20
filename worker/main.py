@@ -58,7 +58,7 @@ from app.ocr_baidu import BaiduNotConfiguredError
 from app.qwen import QwenParseError, parse_receipt_text
 from app.rag import shelf_life_days_for
 from app.reconcile import (check_reconciliation, insert_inventory_item,
-                           resolve_canonical)
+                           match_alias, resolve_canonical)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -118,14 +118,16 @@ def _matched_via(raw_name: str, suggested_canonical_name,
     """Derive the mapping route for one line (Gate F, §9).
 
     'exact' if the normalised raw_name is a canonical name, 'alias'
-    if it is a seeded alias, 'qwen' if Qwen's suggestion matched a
-    canonical name, else 'unmatched'. Mirrors resolve_canonical's
-    order exactly — it is a log label, not a second resolution.
+    if it starts with a seeded alias (see app.reconcile.match_alias —
+    printed lines carry a size suffix, so exact-only alias lookup
+    never fires), 'qwen' if Qwen's suggestion matched a canonical
+    name, else 'unmatched'. Mirrors resolve_canonical's order
+    exactly — it is a log label, not a second resolution.
     """
     norm = _norm(raw_name)
     if norm in master_map:
         return "exact"
-    if norm in alias_map:
+    if match_alias(raw_name, alias_map) is not None:
         return "alias"
     if suggested_canonical_name and _norm(suggested_canonical_name) \
             in master_map:

@@ -8,7 +8,9 @@ two paths can never drift apart:
   extended in Phase 2 Step 5 by design §6.3 / §3.6):
   (a) exact normalised match of the printed ``raw_name`` against
   ``master_ingredients.canonical_name``; (b) normalised ``raw_name``
-  in ``alias_map`` (``master_ingredient_aliases``); (c) Qwen's
+  starting with a seeded alias in ``alias_map``
+  (``master_ingredient_aliases`` — prefix, not exact, because printed
+  lines carry a size suffix; see ``match_alias``); (c) Qwen's
   suggested ``canonical_name`` matched against master_ingredients
   (normalised, case-insensitive); (d) otherwise ``None`` = explicitly
   UNMATCHED.
@@ -46,6 +48,32 @@ def normalize_name(name) -> str:
     return "".join(str(name or "").split()).lower()
 
 
+def match_alias(raw_name, alias_map):
+    """Longest normalised alias that is a prefix of the normalised raw
+    name, or None (Step 5, design §3.6 / §6.3 / §9 Gate F).
+
+    The printed line on a receipt carries a size/quantity suffix
+    (``"农夫山泉 550ml"``, ``"大米 5kg"`` — see the Step 3
+    ground-truth fixtures), so an exact-only alias lookup never fires
+    for those lines and Gate F cannot pass: the line would fall
+    through to Qwen's suggestion instead of the seeded alias. A
+    prefix match is the minimal reading that satisfies Gate F — the
+    brand alias opens the printed name. The longest alias wins when
+    several are prefixes. Exact canonical matches (step a) and the
+    Qwen step (c) are unchanged.
+    """
+    if not alias_map:
+        return None
+    norm = normalize_name(raw_name)
+    best = None
+    for alias, entry in alias_map.items():
+        alias_norm = normalize_name(alias)
+        if norm.startswith(alias_norm) and (
+                best is None or len(alias_norm) > len(best[0])):
+            best = (alias_norm, entry)
+    return best[1] if best else None
+
+
 def resolve_canonical(raw_name, suggested_canonical_name, master_map,
                       *, alias_map=None):
     """Resolve one parsed line to a master_ingredients entry or None.
@@ -61,14 +89,16 @@ def resolve_canonical(raw_name, suggested_canonical_name, master_map,
     not change any existing call.
 
     Order (§3.6 / §6.3): (a) exact normalised raw_name in master_map;
-    (b) normalised raw_name in alias_map; (c) Qwen suggested
-    canonical_name in master_map; (d) None.
+    (b) longest normalised alias that is a prefix of the normalised
+    raw_name (see ``match_alias`` — printed lines carry a size
+    suffix, so exact-only alias lookup never fires for them);
+    (c) Qwen suggested canonical_name in master_map; (d) None.
     """
     entry = master_map.get(normalize_name(raw_name))
     if entry is not None:
         return entry
     if alias_map:
-        entry = alias_map.get(normalize_name(raw_name))
+        entry = match_alias(raw_name, alias_map)
         if entry is not None:
             return entry
     if suggested_canonical_name:
