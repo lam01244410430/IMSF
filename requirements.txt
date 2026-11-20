@@ -10,3 +10,4 @@ pydantic>=2.0
 pyjwt>=2.8
 pytest>=8.0
 pillow>=11.0
+pgvector>=0.3  # bind vector values in app/rag.py + scripts/ingest_knowledge.py (Step 5, §7)

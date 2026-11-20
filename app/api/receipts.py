@@ -38,6 +38,7 @@ from app.auth import Identity, require_auth, require_household_member, require_r
 from app.db import (IDEMPOTENCY_PREFIX, IDEMPOTENCY_TTL_SECONDS, QUEUE_KEY,
                     get_engine, get_redis)
 from app.ledger import insert_receipt_transaction
+from app.rag import shelf_life_days_for
 from app.reconcile import check_reconciliation, insert_inventory_item
 
 router = APIRouter(prefix="/api/v2/receipts", tags=["receipts"])
@@ -341,12 +342,32 @@ def confirm_receipt(receipt_id: uuid.UUID,
                 {"rid": receipt_id},
             ).all()
             added = datetime.now(ZoneInfo("Asia/Shanghai")).date()
+            # Phase 2 Step 5 (§7.3): same expiry logic as the worker —
+            # seed > RAG > +3. RAG is consulted only when the seed shelf
+            # life is NULL, once per canonical name; a RAG failure
+            # degrades to +3 and never fails the confirm. (Twin of
+            # worker.main._rag_shelf_life_days; kept separate so the API
+            # module never imports the Redis worker.)
+            rag_cache: dict = {}
             for ln in lines_now:
                 if ln[7] and ln[2] > 0:
                     canon = master_by_id.get(ln[6])
+                    rag_days = None
+                    if canon is not None \
+                            and canon.get("shelf_life") is None:
+                        name = canon["name"]
+                        if name not in rag_cache:
+                            try:
+                                found = shelf_life_days_for(name)
+                                rag_cache[name] = (
+                                    found["days"] if found else None)
+                            except Exception:
+                                rag_cache[name] = None
+                        rag_days = rag_cache[name]
                     insert_inventory_item(
                         conn, uuid.UUID(str(row[1])), receipt_id, ln[0],
-                        ln[1], canon, ln[2], ln[3], ln[4], ln[5], added)
+                        ln[1], canon, ln[2], ln[3], ln[4], ln[5], added,
+                        rag_shelf_life_days=rag_days)
             # §3.1: the receipt's one ledger row, in the SAME DB
             # transaction as the inventory creation — a receipt
             # completed via confirm gets its ledger row too, and

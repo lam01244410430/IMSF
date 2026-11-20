@@ -7,6 +7,15 @@ Implements §6.2 steps 1-6, including the Step 3 additions:
 - canonical mapping refinement (``app.reconcile.resolve_canonical``):
   raw_name exact match, then Qwen's suggested canonical_name, else
   NULL = explicitly unmatched; matched/unmatched counts are logged.
+- Phase 2 Step 5 (design §3.6 / §6.3): alias lookup between the exact
+  match and the Qwen suggestion (``load_alias_map``), with
+  ``matched_via`` logged per line ('exact' / 'alias' / 'qwen' /
+  'unmatched') — Gate F checks a seeded alias maps without a Qwen
+  call for that line.
+- Phase 2 Step 5 (design §7.3): when a matched ingredient's seed
+  shelf life is NULL, the RAG shelf life (``app.rag``) is used before
+  the +3 day fallback (seed > RAG > +3); a RAG failure never fails
+  the job, it degrades to +3 days.
 - the §6.4 2% reconciliation (``app.reconcile.check_reconciliation``),
   run AFTER persisting receipt_lines and BEFORE creating
   inventory_items. On needs_review the lines ARE persisted (so the user
@@ -47,6 +56,7 @@ from app.ledger import insert_receipt_transaction
 from app.ocr import run_ocr
 from app.ocr_baidu import BaiduNotConfiguredError
 from app.qwen import QwenParseError, parse_receipt_text
+from app.rag import shelf_life_days_for
 from app.reconcile import (check_reconciliation, insert_inventory_item,
                            resolve_canonical)
 
@@ -79,6 +89,67 @@ def load_master_map(conn) -> dict[str, dict]:
         _norm(r[1]): {"id": r[0], "name": r[1], "zone": r[2], "shelf_life": r[3]}
         for r in rows
     }
+
+
+def load_alias_map(conn, master_map: dict[str, dict]) -> dict[str, dict]:
+    """alias (normalised) -> master_ingredients entry (§3.6 / §6.3).
+
+    Reads ``master_ingredient_aliases`` (alias + master_ingredient_id)
+    and maps each alias, normalised with the same ``normalize_name``
+    rule as the canonical names, to the canonical entry it points at.
+    Aliases whose master_ingredient_id is not in ``master_map`` are
+    skipped (stale alias rows must not break the worker).
+    """
+    by_id = {entry["id"]: entry for entry in master_map.values()}
+    rows = conn.execute(
+        text("SELECT alias, master_ingredient_id"
+             " FROM master_ingredient_aliases")
+    ).all()
+    alias_map: dict[str, dict] = {}
+    for alias, ingredient_id in rows:
+        entry = by_id.get(ingredient_id)
+        if entry is not None:
+            alias_map[_norm(alias)] = entry
+    return alias_map
+
+
+def _matched_via(raw_name: str, suggested_canonical_name,
+                 master_map: dict, alias_map: dict) -> str:
+    """Derive the mapping route for one line (Gate F, §9).
+
+    'exact' if the normalised raw_name is a canonical name, 'alias'
+    if it is a seeded alias, 'qwen' if Qwen's suggestion matched a
+    canonical name, else 'unmatched'. Mirrors resolve_canonical's
+    order exactly — it is a log label, not a second resolution.
+    """
+    norm = _norm(raw_name)
+    if norm in master_map:
+        return "exact"
+    if norm in alias_map:
+        return "alias"
+    if suggested_canonical_name and _norm(suggested_canonical_name) \
+            in master_map:
+        return "qwen"
+    return "unmatched"
+
+
+def _rag_shelf_life_days(canonical_name: str, cache: dict) -> int | None:
+    """RAG shelf-life days for one canonical name, cached per job.
+
+    Returns None when RAG has no answer OR when the lookup itself
+    fails (bge-m3 not pulled, Ollama down, Qwen extraction failed):
+    a RAG failure must never fail the receipt job — the caller falls
+    back to +3 days (§7.3: seed > RAG > +3).
+    """
+    if canonical_name not in cache:
+        try:
+            found = shelf_life_days_for(canonical_name)
+            cache[canonical_name] = found["days"] if found else None
+        except Exception as exc:  # noqa: BLE001 — RAG is best-effort here
+            log.warning("RAG shelf-life lookup failed for %r: %s",
+                        canonical_name, exc)
+            cache[canonical_name] = None
+    return cache[canonical_name]
 
 
 def _parse_purchased_at(value):
@@ -172,6 +243,7 @@ def process_job(job: dict) -> str:
         # Step 3: Qwen 14B parse (retry once on invalid JSON, per §6.2).
         with engine.connect() as conn:
             master = load_master_map(conn)
+            aliases = load_alias_map(conn, master)
         parsed = None
         last_error: Exception | None = None
         for attempt_no in range(2):
@@ -188,8 +260,10 @@ def process_job(job: dict) -> str:
             raise QwenParseError(str(last_error))
 
         # Step 4: canonical mapping (order in app.reconcile:
-        # raw_name exact match, then Qwen's suggested canonical_name,
-        # else NULL = explicitly unmatched).
+        # raw_name exact match, then alias (§3.6), then Qwen's suggested
+        # canonical_name, else NULL = explicitly unmatched). The alias
+        # step runs BEFORE any Qwen-suggestion use, so a seeded alias
+        # never costs an LLM call for that line (Gate F, §9).
         lines = parsed.get("lines") or []
         total = parsed.get("total_amount")  # may be None -> §6.4 needs_review
         currency = parsed.get("currency") or "CNY"
@@ -206,6 +280,7 @@ def process_job(job: dict) -> str:
         matched = 0
         unmatched = 0
         inventory_created = 0
+        rag_cache: dict = {}  # canonical_name -> RAG days|None, per job
         with engine.begin() as conn:
             # Header: the real total when Qwen read one; when it did
             # not, the row keeps the upload-time 0.00 placeholder and
@@ -227,7 +302,14 @@ def process_job(job: dict) -> str:
                 price = _dec(ln.get("price"))
                 is_stock = bool(ln.get("is_stock_item", True))
                 canon = resolve_canonical(
-                    raw_name, ln.get("canonical_name"), master)
+                    raw_name, ln.get("canonical_name"), master,
+                    alias_map=aliases)
+                via = _matched_via(raw_name, ln.get("canonical_name"),
+                                   master, aliases)
+                log.info("job receipt=%s line %d raw=%r matched_via=%s"
+                         " canon=%s",
+                         receipt_id, i, raw_name, via,
+                         canon["name"] if canon else None)
                 if canon is not None:
                     matched += 1
                 else:
@@ -274,10 +356,20 @@ def process_job(job: dict) -> str:
                 return "needs_review"
             for line, canon, line_id in resolved:
                 if line["is_stock_item"] and line["quantity"] > 0:
+                    # §7.3 expiry fallback seed > RAG > +3: RAG is
+                    # consulted ONLY when the seed shelf life is NULL,
+                    # and only once per canonical name per job (cache).
+                    # A RAG failure degrades to +3, never fails the job.
+                    rag_days = None
+                    if canon is not None \
+                            and canon.get("shelf_life") is None:
+                        rag_days = _rag_shelf_life_days(
+                            canon["name"], rag_cache)
                     insert_inventory_item(
                         conn, household_id, receipt_id, line_id,
                         line["raw_name"], canon, line["quantity"],
-                        line["unit"], line["price"], currency, added)
+                        line["unit"], line["price"], currency, added,
+                        rag_shelf_life_days=rag_days)
                     inventory_created += 1
             # §3.1: the receipt's one ledger row, in the SAME DB
             # transaction as the inventory creation — a receipt never
