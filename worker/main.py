@@ -43,6 +43,7 @@ from redis.exceptions import TimeoutError as RedisTimeoutError
 from sqlalchemy import bindparam, text
 
 from app.db import QUEUE_KEY, get_engine, get_redis
+from app.ledger import insert_receipt_transaction
 from app.ocr import run_ocr
 from app.ocr_baidu import BaiduNotConfiguredError
 from app.qwen import QwenParseError, parse_receipt_text
@@ -278,6 +279,13 @@ def process_job(job: dict) -> str:
                         line["raw_name"], canon, line["quantity"],
                         line["unit"], line["price"], currency, added)
                     inventory_created += 1
+            # §3.1: the receipt's one ledger row, in the SAME DB
+            # transaction as the inventory creation — a receipt never
+            # completes without it, and ux_transactions_receipt
+            # blocks a second one.
+            insert_receipt_transaction(
+                conn, household_id, receipt_id, _dec(total), currency,
+                purchased_at)
             conn.execute(
                 text("UPDATE receipts SET status='completed',"
                      " error_message=NULL, processed_at=now(),"

@@ -37,6 +37,7 @@ from sqlalchemy import text
 from app.auth import Identity, require_auth, require_household_member, require_receipt_household
 from app.db import (IDEMPOTENCY_PREFIX, IDEMPOTENCY_TTL_SECONDS, QUEUE_KEY,
                     get_engine, get_redis)
+from app.ledger import insert_receipt_transaction
 from app.reconcile import check_reconciliation, insert_inventory_item
 
 router = APIRouter(prefix="/api/v2/receipts", tags=["receipts"])
@@ -346,6 +347,13 @@ def confirm_receipt(receipt_id: uuid.UUID,
                     insert_inventory_item(
                         conn, uuid.UUID(str(row[1])), receipt_id, ln[0],
                         ln[1], canon, ln[2], ln[3], ln[4], ln[5], added)
+            # §3.1: the receipt's one ledger row, in the SAME DB
+            # transaction as the inventory creation — a receipt
+            # completed via confirm gets its ledger row too, and
+            # ux_transactions_receipt blocks a second one.
+            insert_receipt_transaction(
+                conn, uuid.UUID(str(row[1])), receipt_id, row[6], row[7],
+                row[5])
             conn.execute(
                 text("UPDATE receipts SET status='completed',"
                      " error_message=NULL, processed_at=now(),"

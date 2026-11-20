@@ -115,6 +115,26 @@ def require_household_member(household_id: uuid.UUID, ident: Identity) -> None:
         )
 
 
+def require_household_member_403(household_id: uuid.UUID, ident: Identity) -> None:
+    """403 if the household does not belong to the caller.
+
+    Phase 2 design §5.4: the NEW Phase 2 endpoints return 403 here,
+    unlike the Phase 1 ``require_household_member`` (400) which the
+    Phase 1 endpoints keep.
+    """
+    engine = get_engine()
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT 1 FROM household_members "
+                 "WHERE user_id = :u AND household_id = :h"),
+            {"u": ident.user_id, "h": household_id},
+        ).first()
+    if not row:
+        raise HTTPException(
+            status_code=403, detail="household_id does not belong to user"
+        )
+
+
 def require_receipt_household(receipt_household_id: uuid.UUID, ident: Identity) -> None:
     """403 if the receipt belongs to another household (design §5.4)."""
     engine = get_engine()
