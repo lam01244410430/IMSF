@@ -13,6 +13,11 @@
 #   peerOptional `vite@^4` của @tarojs/plugin-framework-react@4.3.3
 #   (ERESOLVE khi cài sạch — đã kiểm chứng Step 6); vite không dùng bởi
 #   build webpack5 nên flag này an toàn.
+# - KHÔNG dùng `--registry=https://registry.npmmirror.com` trên CI:
+#   run đầu (66ae73b) fail ở bước Install trên GitHub runner trong khi cùng
+#   lệnh cài sạch thành công ở Oregon (fresh clone, 25s) — npmmirror từ
+#   mạng GitHub không ổn định; registry mặc định (npmjs) là lựa chọn an
+#   toàn cho runner. (Oregon local vẫn có thể dùng npmmirror khi cài tay.)
 name: Frontend CI
 
 on:
@@ -38,7 +43,7 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Install dependencies
-        run: npm ci --legacy-peer-deps --registry=https://registry.npmmirror.com
+        run: npm ci --legacy-peer-deps
       - name: Typecheck
         run: npm run typecheck
       - name: Theme check
