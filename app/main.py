@@ -7,7 +7,8 @@ Phase 2 Step 2 adds the spending ledger (transactions + summary).
 
 from fastapi import FastAPI
 
-from app.api import auth, households, receipts, transactions
+from app.api import (auth, fridge, households, notifications, receipts,
+                     shopping_lists, transactions)
 
 app = FastAPI(title="IMSF-v2", version="0.1.0")
 
@@ -22,3 +23,6 @@ app.include_router(households.router)
 app.include_router(receipts.router)
 app.include_router(transactions.router)
 app.include_router(transactions.summary_router)
+app.include_router(fridge.router)
+app.include_router(notifications.router)
+app.include_router(shopping_lists.router)

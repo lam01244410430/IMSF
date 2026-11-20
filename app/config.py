@@ -26,6 +26,15 @@ class Settings:
     baidu_secret_key: str = os.environ.get("BAIDU_SECRET_KEY", "")
     wechat_appid: str = os.environ.get("WECHAT_APPID", "")
     wechat_secret: str = os.environ.get("WECHAT_SECRET", "")
+    # WeChat template IDs for Phase 2 notifications (design §8).
+    # Empty = templates not registered yet; app.jobs.send_wechat
+    # skips sending until all four WeChat vars are set.
+    wechat_template_lazy_tracking: str = os.environ.get(
+        "WECHAT_TEMPLATE_LAZY_TRACKING", ""
+    )
+    wechat_template_maintenance: str = os.environ.get(
+        "WECHAT_TEMPLATE_MAINTENANCE", ""
+    )
     # Eval/demo-only service token (never shipped in a client). Empty =
     # service-token auth disabled.
     service_token: str = os.environ.get("IMSF_V2_SERVICE_TOKEN", "")
