@@ -3,12 +3,14 @@
 Phase 1 API lives under /api/v2: WeChat auth, households, receipts
 upload/list/detail/image. POST .../confirm lands in Step 3.
 Phase 2 Step 2 adds the spending ledger (transactions + summary).
+Phase 2 Step 4 adds equipments + maintenance logs.
 """
 
 from fastapi import FastAPI
 
-from app.api import (auth, fridge, households, notifications, receipts,
-                     shopping_lists, transactions)
+from app.api import (auth, equipments, fridge, households,
+                     notifications, receipts, shopping_lists,
+                     transactions)
 
 app = FastAPI(title="IMSF-v2", version="0.1.0")
 
@@ -26,3 +28,4 @@ app.include_router(transactions.summary_router)
 app.include_router(fridge.router)
 app.include_router(notifications.router)
 app.include_router(shopping_lists.router)
+app.include_router(equipments.router)
