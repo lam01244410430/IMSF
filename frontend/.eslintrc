@@ -1,7 +1,1 @@
-{
-  "extends": ["taro/react"],
-  "rules": {
-    "react/jsx-uses-react": "off",
-    "react/react-in-jsx-scope": "off"
-  }
-}
+{"extends":["taro/react"],"overrides":[{"files":["src/ui/primitives/**/*","src/ui/muiTheme.ts","src/ui/nutuiTheme.ts","src/providers.*"],"rules":{"no-restricted-imports":"off"}},{"files":["src/ui/**/*","src/services/**/*"],"rules":{"no-restricted-syntax":["error",{"message":"Không hardcode hex ngoài src/ui/tokens.ts (design doc §2/§3.5).","selector":"Literal[value=/^#[0-9a-fA-F]{3,8}$/]"}]}},{"files":["src/ui/tokens.ts"],"rules":{"no-restricted-syntax":"off"}},{"files":["**/*.test.{ts,tsx}","src/test/setup.ts"],"rules":{"no-restricted-syntax":"off"}}],"rules":{"no-restricted-imports":["error",{"patterns":[{"group":["@mui/*","@nutui/*"],"message":"UI lib chỉ được import trong src/ui/primitives/** (và theme wiring: src/ui/muiTheme.ts, src/ui/nutuiTheme.ts, src/providers.*) — design doc §8.2."}]}],"no-restricted-syntax":["error",{"message":"process.env.TARO_ENV chỉ được dùng trong src/ui/** và src/services/** — design doc §8.2.","selector":"MemberExpression[object.object.name='process'][object.property.name='env'][property.name='TARO_ENV']"},{"message":"Không hardcode hex — giá trị màu chỉ tồn tại trong src/ui/tokens.ts (design doc §2/§3.5).","selector":"Literal[value=/^#[0-9a-fA-F]{3,8}$/]"}],"react/jsx-uses-react":"off","react/react-in-jsx-scope":"off"}}
