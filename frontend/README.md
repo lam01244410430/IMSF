@@ -214,3 +214,59 @@ nhau ở cả 2 platform).
 - **Copy KHÔNG trong doc (ghi vào báo cáo cuối):** header completed
   「小票详情」; message lỗi giá 「请输入金额」/「金额不能为负数」/
   「优惠金额不能为正数」và unit 「请选择单位」 (doc chỉ cho 数量/2dp/raw_name).
+
+## Step 6 — Build + CI + 3 lỗi build H5 (đều là lỗi thật, đã fix + test)
+
+CI: `.github/workflows/frontend.yml` (job riêng, paths `frontend/**`, không
+đụng job Python). Lệch khỏi doc §8.8 (ghi trong header workflow): paths
+`frontend/**` (không phải `imsf-v2-frontend/**`); build H5 trước, weapp sau
+(cả hai cùng ghi `dist/`, weapp phải là artifact cuối cho DevTools); thêm
+`theme:check`; `npm ci --legacy-peer-deps` (vite 8 vs peerOptional vite ^4
+của `@tarojs/plugin-framework-react` — `npm ci` thường fail ERESOLVE).
+
+Ba lỗi chỉ lộ khi chạy H5 build thật trên trình duyệt (build exit 0 nhưng
+bundle không chạy được — `build:weapp`/`build:h5` xanh không đủ, phải parse
+bundle bằng acorn + render thật):
+
+1. **Terser `quote_keys` → `#"e"` (SyntaxError).** Taro 4.3.3 H5 mặc định
+   `output.quote_keys: true`; Terser 5.51.4 quote cả private field, sinh
+   `#"e";` (class `Mutation` của @tanstack/query-core) — V8/Chromium đều
+   reject (acorn: `app.js 2:80049`). Weapp KHÔNG bị (mini defaults không có
+   `quote_keys`; 14/14 file weapp parse OK). Fix: `terser.config.output.
+   quote_keys: false` trong `config/index.ts` (baseConfig — KHÔNG để ở
+   `prod.ts`: config branch theo `NODE_ENV` nhưng Taro ép production mode
+   cho `taro build`, nên build với `NODE_ENV=development` vẫn minify mà
+   không merge prodConfig — đã tái hiện lỗi này). Đã tái hiện tối thiểu
+   bằng Terser trực tiếp trên class `Mutation` trước khi fix.
+2. **MUI error #6 — `responsiveFontSizes` ném lỗi ở module load.**
+   `muiTheme.ts` truyền `lineHeight: "36px"` (chuỗi có đơn vị); MUI yêu cầu
+   lineHeight không đơn vị khi dùng grid alignment. Fix: `unitlessLineHeight
+   (size, lineHeight) = round(lh/size, 4dp)` cho cả 11 variant (h1 36/28…),
+   giữ nguyên token px ở cỡ chữ gốc; `responsiveFontSizes` (doc §3.3 bắt
+   buộc) vẫn được giữ. Regression test `src/ui/muiTheme.test.ts` (3 test —
+   import theme là chạy `responsiveFontSizes`, fail trước fix, pass sau).
+   Lưu ý doc §3.3: "(h1 → 32px ở ≥1024px)" KHÔNG thể đúng với token h1
+   28px — `responsiveFontSizes` chỉ scale-down từ cỡ theme, không vượt quá
+   28px (test assert h1 = 1.75rem ở `@media (min-width:1440px)`); muốn 32px
+   thì token h1 phải là 32 — chờ Lam quyết, không tự đổi token.
+3. **`ReferenceError: process is not defined` (H5).** `src/config/env.ts`
+   đọc `process.env.TARO_APP_API_BASE_URL`; khi biến không có trong `.env*`,
+   Taro không define nó cho DefinePlugin nên biểu thức còn nguyên trong
+   bundle, browser crash (browser không có `process`). Fix: default
+   `env: { TARO_APP_API_BASE_URL: '""' }` trong `config/index.ts` —
+   `patchEnv` gộp `Object.assign({}, config.env, dotenv)` nên giá trị thật
+   từ `.env*`/`.env*.local`/CI secret GHI ĐÈ default, không bao giờ mất
+   (đã verify: build với `.env.production.local` chứa
+   `http://52.13.176.85:8002` → bundle chứa đúng URL đó; file test đã xóa).
+   Sau fix: bundle không còn `process.env.` nào; `API_BASE_URL = ""`.
+
+- **Render proof H5 (Screen 01):** serve `dist/h5` + Chromium headless
+  375×812 — DOM 29KB, 0 console error, screenshot thấy đủ header「拍小票，
+  自动记账入库」, capture card dashed, 2 nút 拍照 / 从相册选择, 最近小票 +
+  login gate「请先登录」/「登录后即可查看最近小票」+ 去登录, tab bar 4 mục +
+  FAB camera. (Logged-out nên empty state「还没有小票」không hiện — đúng
+  theo login gate Step 4.)
+- **Nit chưa fix (cosmetic, H5 375px):** label「从相册选择」wrap 2 dòng trong
+  nút nửa chiều rộng. Button primitive không có style/sx passthrough nên
+  fix cần thêm prop cho adapter (cả 2 platform + twin test) — để follow-up,
+  không sửa lén trong Step 6.

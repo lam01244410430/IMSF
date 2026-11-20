@@ -13,6 +13,16 @@ import { tokens } from './tokens'
 
 const c = tokens.color
 const t = tokens.typography
+/**
+ * `responsiveFontSizes` (§3.3, bắt buộc theo design doc) ném MUI error #6
+ * ("Unsupported non-unitless line height") khi lineHeight không phải số
+ * không đơn vị. Tokens §3.3 cho line-height theo px (vd h1 36px) nên đổi
+ * sang tỉ lệ không đơn vị (lh / size) — chiều cao dòng render ra ở cỡ chữ
+ * gốc vẫn đúng bằng token px.
+ */
+const unitlessLineHeight = (size: number, lineHeight: number): number =>
+  Math.round((lineHeight / size) * 10000) / 10000
+
 
 declare module '@mui/material/styles' {
   interface Theme {
@@ -102,25 +112,25 @@ const themeOptions: MuiThemeOptions = {
     fontFamily: tokens.font.family,
     htmlFontSize: tokens.font.baseSize,
     fontSize: tokens.font.baseSize,
-    h1: { fontSize: t.h1.size, lineHeight: `${t.h1.lineHeight}px`, fontWeight: t.h1.weight },
-    h2: { fontSize: t.h2.size, lineHeight: `${t.h2.lineHeight}px`, fontWeight: t.h2.weight },
-    h3: { fontSize: t.h3.size, lineHeight: `${t.h3.lineHeight}px`, fontWeight: t.h3.weight },
-    h4: { fontSize: t.h4.size, lineHeight: `${t.h4.lineHeight}px`, fontWeight: t.h4.weight },
-    subtitle1: { fontSize: t.subtitle1.size, lineHeight: `${t.subtitle1.lineHeight}px`, fontWeight: t.subtitle1.weight },
-    subtitle2: { fontSize: t.subtitle2.size, lineHeight: `${t.subtitle2.lineHeight}px`, fontWeight: t.subtitle2.weight },
-    body1: { fontSize: t.body1.size, lineHeight: `${t.body1.lineHeight}px`, fontWeight: t.body1.weight },
-    body2: { fontSize: t.body2.size, lineHeight: `${t.body2.lineHeight}px`, fontWeight: t.body2.weight },
+    h1: { fontSize: t.h1.size, lineHeight: unitlessLineHeight(t.h1.size, t.h1.lineHeight), fontWeight: t.h1.weight },
+    h2: { fontSize: t.h2.size, lineHeight: unitlessLineHeight(t.h2.size, t.h2.lineHeight), fontWeight: t.h2.weight },
+    h3: { fontSize: t.h3.size, lineHeight: unitlessLineHeight(t.h3.size, t.h3.lineHeight), fontWeight: t.h3.weight },
+    h4: { fontSize: t.h4.size, lineHeight: unitlessLineHeight(t.h4.size, t.h4.lineHeight), fontWeight: t.h4.weight },
+    subtitle1: { fontSize: t.subtitle1.size, lineHeight: unitlessLineHeight(t.subtitle1.size, t.subtitle1.lineHeight), fontWeight: t.subtitle1.weight },
+    subtitle2: { fontSize: t.subtitle2.size, lineHeight: unitlessLineHeight(t.subtitle2.size, t.subtitle2.lineHeight), fontWeight: t.subtitle2.weight },
+    body1: { fontSize: t.body1.size, lineHeight: unitlessLineHeight(t.body1.size, t.body1.lineHeight), fontWeight: t.body1.weight },
+    body2: { fontSize: t.body2.size, lineHeight: unitlessLineHeight(t.body2.size, t.body2.lineHeight), fontWeight: t.body2.weight },
     button: {
       fontSize: t.button.size,
-      lineHeight: `${t.button.lineHeight}px`,
+      lineHeight: unitlessLineHeight(t.button.size, t.button.lineHeight),
       fontWeight: t.button.weight,
       letterSpacing: t.button.letterSpacing,
       textTransform: 'none',
     },
-    caption: { fontSize: t.caption.size, lineHeight: `${t.caption.lineHeight}px`, fontWeight: t.caption.weight },
+    caption: { fontSize: t.caption.size, lineHeight: unitlessLineHeight(t.caption.size, t.caption.lineHeight), fontWeight: t.caption.weight },
     overline: {
       fontSize: t.overline.size,
-      lineHeight: `${t.overline.lineHeight}px`,
+      lineHeight: unitlessLineHeight(t.overline.size, t.overline.lineHeight),
       fontWeight: t.overline.weight,
       letterSpacing: t.overline.letterSpacing,
     },
