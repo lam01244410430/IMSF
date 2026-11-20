@@ -10,7 +10,7 @@ jobs:
       RECEIPT_STORAGE_DIR: /tmp/imsf-v2-receipts
     services:
       postgres:
-        image: postgres:16
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_DB: imsf_v2
           POSTGRES_USER: imsf_v2
