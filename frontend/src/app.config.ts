@@ -14,7 +14,7 @@ export default defineAppConfig({
     'pages/mine/index',
     'pages/login/index',
     'pages/receipts/index',
-    // Trang chi tiết tiểu phiếu thêm ở Step 5 (pages/receipt/index).
+    'pages/receipt/index',
   ],
   window: {
     backgroundTextStyle: 'light',

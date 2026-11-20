@@ -1,0 +1,19 @@
+/* Pulse cho dot active của checklist Processing (§5.2). */
+@keyframes imsf-pulse {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.imsf-pulse-dot {
+  animation: imsf-pulse 1.2s ease-in-out infinite;
+}

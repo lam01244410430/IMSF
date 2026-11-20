@@ -54,3 +54,8 @@ export function goRecipes(): Promise<unknown> {
 export function goMine(): Promise<unknown> {
   return Taro.switchTab({ url: routes.mine })
 }
+
+/** Back về màn trước trong stack; nếu stack rỗng (deep link cold start) thì về Upload (§5.2). */
+export function goBackOrUpload(): Promise<unknown> {
+  return Taro.navigateBack().catch(() => Taro.switchTab({ url: routes.upload }))
+}

@@ -168,3 +168,49 @@ nhau ở cả 2 platform).
 - **Copy KHÔNG trong doc (ghi vào báo cáo cuối):** recipes placeholder body
   「第一批食材入库后，这里会显示菜谱推荐。」(cấu trúc song song với fridge);
   login「请先登录」/「登录后即可查看最近小票」/「微信登录」/「请使用微信登录以继续」.
+
+## Step 5 — Screens 02 + 03 (một route /receipts/{id}, đổi nội dung theo status)
+
+- **Một page instance, không redirectTo khi needs_review:** Màn 02 và Màn 03
+  là cùng một component đổi nội dung theo `status` — back không bao giờ về
+  spinner cũ vì stack chỉ có một trang receipt (đúng ý đồ doc §5.2; không
+  cần redirectTo). Back dùng `goBackOrUpload()` (deep link cold start không
+  có stack → về Upload).
+- **Màn 02 (§5.2):** checklist 3 bước determinate (KHÔNG % giả) — ánh xạ từ
+  status: pending → bước 1 active; processing → bước 1 xong, bước 2 active,
+  bước 3 chờ (API không có sub-step nên không thể biết chính xác hơn);
+  dot active pulse (CSS keyframes `index.scss`); thanh indeterminate phụ;
+  「已用时 m:ss」tính từ `created_at` (tuổi thật của job), tick mỗi giây;
+  「通常需要 30 秒到 2 分钟，请稍等。」; secondary duy nhất「先去看看别的，
+  好了通知我」. Soft timeout 180s (job age): copy đổi + nút rời thành primary.
+  Hard timeout 300s (job age): dừng polling + panel「处理超时」+ 稍后查看 /
+  重新上传 — KHÔNG đánh failed phía client. Failure: `error_message` nguyên
+  văn + 重新上传 (về Màn 01, camera mở, key mới) + 查看小票图片 (previewImage).
+  Completed tại chỗ: 「识别完成」+「已入库 N 件食材」+ 查看冰箱 / 返回首页.
+- **Màn 03 (§5.3):** header 核对小票 + subtitle; image card (max-height
+  240px, skeleton cùng chiều cao khi load, tap → previewImage, caption
+  「点按图片可放大查看」); mismatch card (warningContainer, border warning
+  40%, icon ⚠ + text) với 3 số + % (1dp) — live theo draft; nếu không lệch
+  mà có dòng chưa map thì card「有 N 行商品未能识别，请确认或修改。」.
+  Line editor: 数量/单位 (picker 8 giá trị)/单价 ¥/小计 tự cập nhật, label
+  nhìn thấy trên mỗi field; chip canonical_name hoặc 未匹配 (tap → input gõ
+  tên chuẩn — xem lưu ý dưới); dòng giảm giá/phí (giá âm hoặc tên khớp
+  优惠/折扣/运费/服务费): border trái secondary 3px + tag 优惠/费用, toggle
+  ẩn; switch 记入冰箱库存 + hint; 删除此行 + thanh undo 5s (「已删除 1 行」
+  + 撤销, render trong action bar cố định — không dùng Toast primitive vì
+  nó không có action). ＋ 添加一行 (dòng trống, raw_name có label 商品名称).
+  Live summary sticky trên action bar, chuyển xanh khi trong 2%.
+  Confirm KHÔNG bao giờ disable; lỗi inline dưới field + cuộn tới lỗi đầu
+  (pageScrollTo) + toast「有 N 项需要修改，请检查标红处」. 422 map từ body
+  FastAPI (loc body/lines/i/field) về slot inline — ApiError giờ mang `data`.
+  409 → refetch + toast「小票状态已更新，请查看最新结果」. Confirm vẫn lệch
+  → ở lại màn, card cập nhật, toast「仍有差额，请继续核对」, KHÔNG reset form
+  (draft chỉ init một lần mỗi receipt, bỏ khi unmount).
+- **Lưu ý D-F3 / canonical name:** ConfirmLine backend chỉ có 5 field
+  (`line_id`, `quantity`, `unit`, `price`, `is_stock_item`) — KHÔNG có
+  `canonical_name` và không có endpoint search ingredient — nên input tên
+  chuẩn cho dòng 未匹配 là display-only (chip đổi theo text gõ) cho tới khi
+  backend thêm field. Payload confirm gửi `price` = tiểu kế (qty × đơn giá).
+- **Copy KHÔNG trong doc (ghi vào báo cáo cuối):** header completed
+  「小票详情」; message lỗi giá 「请输入金额」/「金额不能为负数」/
+  「优惠金额不能为正数」và unit 「请选择单位」 (doc chỉ cho 数量/2dp/raw_name).

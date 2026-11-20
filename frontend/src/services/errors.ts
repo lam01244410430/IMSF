@@ -7,13 +7,16 @@ export class ApiError extends Error {
   readonly status: number
   readonly code: string
   readonly messageZh: string
+  /** Body response thô (dùng cho 422 map lỗi từng dòng, §5.3) — không hiện trực tiếp cho user. */
+  readonly data?: unknown
 
-  constructor(status: number, messageZh: string, code = '') {
+  constructor(status: number, messageZh: string, code = '', data?: unknown) {
     super(messageZh)
     this.name = 'ApiError'
     this.status = status
     this.code = code
     this.messageZh = messageZh
+    this.data = data
   }
 }
 

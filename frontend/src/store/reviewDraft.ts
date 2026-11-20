@@ -79,6 +79,8 @@ interface ReviewDraftState {
   addLine: () => void
   removeLine: (clientKey: string) => void
   undoRemove: () => void
+  /** Ẩn thanh undo sau 5s (§5.3) — không xóa draft. */
+  dismissRemoved: () => void
   clear: () => void
 }
 
@@ -93,9 +95,10 @@ export const useReviewDraftStore = create<ReviewDraftState>()((set, get) => ({
       lines: s.lines.map((l) => {
         if (l.clientKey !== clientKey) return l
         const next = { ...l, ...patch }
-        // Đổi tên thành dòng giảm giá/phí → tự tắt is_stock_item (ẩn toggle).
-        if (patch.rawName !== undefined) {
-          next.isDiscount = isDiscountLine(next.rawName) || next.unitPrice < 0
+        // Đổi tên hoặc đơn giá → tính lại isDiscount (dòng có giá âm là
+        // dòng giảm giá/phí, §5.3) và tự tắt is_stock_item.
+        if (patch.rawName !== undefined || patch.unitPrice !== undefined) {
+          next.isDiscount = isDiscountLine(next.rawName) || draftLineTotal(next) < 0
           if (next.isDiscount) next.isStockItem = false
         }
         return next
@@ -118,6 +121,7 @@ export const useReviewDraftStore = create<ReviewDraftState>()((set, get) => ({
     next.splice(Math.min(lastRemoved.index, next.length), 0, lastRemoved.draft)
     set({ lines: next, lastRemoved: null })
   },
+  dismissRemoved: () => set({ lastRemoved: null }),
   clear: () => set({ receiptId: null, lines: [], lastRemoved: null }),
 }))
 

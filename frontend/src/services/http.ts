@@ -64,7 +64,7 @@ async function doRequest<T>(path: string, opts: RequestOptions): Promise<T> {
   }
   const status = res.statusCode
   if (status >= 200 && status < 300) return res.data as T
-  throw new ApiError(status, apiErrorToZh(status))
+  throw new ApiError(status, apiErrorToZh(status), '', res.data)
 }
 
 export async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
