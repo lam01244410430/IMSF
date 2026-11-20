@@ -7,6 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: postgresql+psycopg://imsf_v2:test@127.0.0.1:5432/imsf_v2
+      RECEIPT_STORAGE_DIR: ${{ runner.temp }}/imsf-v2-receipts
     services:
       postgres:
         image: postgres:16
