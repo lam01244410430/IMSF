@@ -1,38 +1,26 @@
 /**
- * Mine (/app/mine) — account page. Shows the user id from the access
- * token (`sub` claim — the backend issues no display name yet, so the
- * id is shown honestly, the known FE-04 caveat, unchanged) and the
- * email stored at login when available; household info from
- * GET /households; logout button. Links to the receipts list and to
- * equipment maintenance (which has no sidebar item).
+ * Mine (/app/mine) — account page. Shows the stored display name
+ * (from the login/register response, else the email local part --
+ * never the raw user id, Phase 4 F-06) and the email stored at login
+ * when available; household info from GET /households; logout
+ * button. Links to the receipts list and to equipment maintenance
+ * (which has no sidebar item).
  */
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { getAccessToken, getStoredUserEmail, logout } from '../../lib/auth'
+import {
+  getStoredUserEmail,
+  getStoredUserName,
+  logout,
+} from '../../lib/auth'
 import { listHouseholds, type Household } from '../../lib/api'
 import { resolveCurrency } from '../../lib/format'
 
-function getUserIdFromToken(): string | null {
-  const token = getAccessToken()
-  if (!token) return null
-  try {
-    const payload = token.split('.')[1]
-    if (!payload) return null
-    const json = JSON.parse(
-      globalThis.atob(
-        payload.replace(/-/g, '+').replace(/_/g, '/') +
-          '='.repeat((4 - (payload.length % 4)) % 4),
-      ),
-    ) as { sub?: string }
-    return typeof json.sub === 'string' ? json.sub : null
-  } catch {
-    return null
-  }
-}
-
 export function MinePage() {
   const navigate = useNavigate()
-  const userId = getUserIdFromToken()
+  const displayName =
+    getStoredUserName() ??
+    (getStoredUserEmail()?.split('@')[0]?.trim() || null)
   const email = getStoredUserEmail()
   const [households, setHouseholds] = useState<Household[]>([])
   const [loading, setLoading] = useState(true)
@@ -67,8 +55,8 @@ export function MinePage() {
         <h2>账号</h2>
         <dl className="mine-list">
           <div>
-            <dt>用户 ID</dt>
-            <dd>{userId ?? '—'}</dd>
+            <dt>用户</dt>
+            <dd>{displayName ?? '—'}</dd>
           </div>
           <div>
             <dt>邮箱</dt>
@@ -76,7 +64,7 @@ export function MinePage() {
           </div>
         </dl>
         <p className="page-note">
-          暂无显示名称——后端尚未提供昵称字段，这里如实显示用户 ID。
+          显示名称来自上次登录或注册时保存的信息；后端尚未提供昵称字段。
         </p>
       </section>
       <section className="mine-section" aria-label="家庭">

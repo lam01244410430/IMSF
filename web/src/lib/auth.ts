@@ -5,7 +5,8 @@
  * (`/api/v2/...` — no base URL, no CORS needed).
  *
  * - Storage keys: `imsf2.access_token` / `imsf2.refresh_token` /
- *   `imsf2.household_id` (localStorage, same keys as the Taro app).
+ *   `imsf2.household_id` / `imsf2.household_name` (localStorage, same
+ *   keys as the Taro app).
  * - Access token 15 min / refresh token 7 days (backend mint).
  * - Refresh response returns ONLY a new access token — the old refresh
  *   token is kept.
@@ -22,6 +23,9 @@ export const STORAGE_KEYS = {
   access: 'imsf2.access_token',
   refresh: 'imsf2.refresh_token',
   household: 'imsf2.household_id',
+  /** Household name from the login/register response (for the app
+   *  shell footer -- never render the raw household id, Phase 4). */
+  householdName: 'imsf2.household_name',
   /** Email returned by the login/register response (for the 我的 page). */
   email: 'imsf2.user_email',
   /** Display name for the landing header (name, else the email
@@ -126,6 +130,14 @@ export function setStoredHouseholdId(id: string): void {
   storageSet(STORAGE_KEYS.household, id)
 }
 
+export function getStoredHouseholdName(): string | null {
+  return storageGet(STORAGE_KEYS.householdName) || null
+}
+
+export function setStoredHouseholdName(name: string): void {
+  storageSet(STORAGE_KEYS.householdName, name)
+}
+
 export function getStoredUserName(): string | null {
   return storageGet(STORAGE_KEYS.userName) || null
 }
@@ -164,6 +176,7 @@ export function clearTokens(): void {
 export function logout(): void {
   clearTokens()
   storageRemove(STORAGE_KEYS.household)
+  storageRemove(STORAGE_KEYS.householdName)
   storageRemove(STORAGE_KEYS.email)
   storageRemove(STORAGE_KEYS.userName)
 }
@@ -323,6 +336,9 @@ export async function loginWithEmail(
   storeUserName(data.user)
   if (data.households.length > 0) {
     setStoredHouseholdId(data.households[0].id)
+    if (data.households[0].name) {
+      setStoredHouseholdName(data.households[0].name)
+    }
   }
   return data
 }
@@ -353,6 +369,9 @@ export async function registerWithEmail(
   storeUserName(data.user)
   if (data.households.length > 0) {
     setStoredHouseholdId(data.households[0].id)
+    if (data.households[0].name) {
+      setStoredHouseholdName(data.households[0].name)
+    }
   }
   return data
 }

@@ -10,9 +10,10 @@
  * vitest (`textContent`) instead of `toHaveTextContent`.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { AppRoutes } from '../App'
+import { LanguageProvider } from '../lib/LanguageProvider'
 import type { KnowledgeResult } from '../lib/knowledge'
 
 const { mockIsLoggedIn, mockSearch } = vi.hoisted(() => ({
@@ -100,6 +101,29 @@ describe('/knowledge', () => {
     renderAt('/knowledge')
     expect(screen.getByText('输入食材名称开始查询')).toBeDefined()
     expect(mockSearch).not.toHaveBeenCalled()
+  })
+
+  it('switching to Vietnamese renders the knowledge page in Vietnamese (Phase 4, F-02)', async () => {
+    mockIsLoggedIn.mockReturnValue(true)
+    render(
+      <LanguageProvider>
+        <MemoryRouter initialEntries={['/knowledge']}>
+          <AppRoutes />
+        </MemoryRouter>
+      </LanguageProvider>,
+    )
+    expect(
+      await screen.findByRole('heading', { name: '知识查询' }),
+    ).toBeDefined()
+    fireEvent.change(screen.getByLabelText('语言'), {
+      target: { value: 'vi' },
+    })
+    expect(
+      await screen.findByRole('heading', { name: 'Tra cứu kiến thức' }),
+    ).toBeDefined()
+    expect(
+      screen.getByText('Nhập tên nguyên liệu để bắt đầu tra cứu'),
+    ).toBeDefined()
   })
 
   it('a failed search shows the error panel', async () => {

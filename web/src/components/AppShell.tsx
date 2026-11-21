@@ -1,6 +1,6 @@
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
-  getStoredHouseholdId,
+  getStoredHouseholdName,
   getStoredUserEmail,
   getStoredUserName,
   isLoggedIn,
@@ -29,9 +29,15 @@ const NAV_GROUP_2: NavItemDef[] = [
   { to: '/app/spending', label: '消费统计', icon: 'list' },
 ]
 
-function SidebarNavGroup({ items }: { items: NavItemDef[] }) {
+function SidebarNavGroup({
+  items,
+  label,
+}: {
+  items: NavItemDef[]
+  label: string
+}) {
   return (
-    <nav className="app-sidebar-nav-group" aria-label="应用导航">
+    <nav className="app-sidebar-nav-group" aria-label={label}>
       <div className="app-sidebar-nav">
         {items.map((item) => (
           <NavLink
@@ -63,7 +69,7 @@ function SidebarNavGroup({ items }: { items: NavItemDef[] }) {
  */
 export function AppShell() {
   const navigate = useNavigate()
-  const householdId = getStoredHouseholdId()
+  const householdName = getStoredHouseholdName()
   const displayName = getTopbarDisplayName()
 
   return (
@@ -88,8 +94,8 @@ export function AppShell() {
             IMSF
           </Link>
         </div>
-        <SidebarNavGroup items={NAV_GROUP_1} />
-        <SidebarNavGroup items={NAV_GROUP_2} />
+        <SidebarNavGroup items={NAV_GROUP_1} label="应用导航" />
+        <SidebarNavGroup items={NAV_GROUP_2} label="记账导航" />
         <button
           type="button"
           className="app-sidebar-photo"
@@ -98,7 +104,7 @@ export function AppShell() {
           拍照
         </button>
         <div className="app-sidebar-footer">
-          {householdId ? `家庭 ${householdId}` : '家庭'}
+          {householdName ? `家庭 ${householdName}` : '家庭'}
         </div>
       </aside>
 

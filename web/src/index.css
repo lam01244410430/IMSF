@@ -79,6 +79,13 @@ body {
   min-height: 100svh;
 }
 
+/* Placeholder text must meet 4.5:1 (Phase 4, F-01): DaisyUI's default
+ * placeholder colour (~50% base-content, 3.3:1 on white) leaks into
+ * every input. #5F6368 on white is 6.05:1. */
+::placeholder {
+  color: #5f6368;
+}
+
 /* Visible keyboard focus everywhere: 2px solid accent-dark, offset 2px. */
 :focus-visible {
   outline: 2px solid #9a3412;
@@ -473,6 +480,14 @@ select:focus-visible {
   font-size: 14px;
   color: #5f6368;
   white-space: nowrap;
+}
+
+/* Public header auth buttons (desktop only -- below 768px they move
+ * into the drawer, same as the landing header). */
+.public-header-auth {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 @media (max-width: 767px) {
@@ -1175,6 +1190,20 @@ select:focus-visible {
   display: flex;
   gap: 8px;
   margin-left: auto;
+}
+
+/* Plain text link from a fridge row to the knowledge search for that
+ * ingredient (Phase 4, F-09) -- a link, not a button, so it does not
+ * compete with the 1-tap 已用完 / 再放三天 buttons. */
+.fridge-knowledge-link {
+  font-size: 14px;
+  color: #c2410c;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.fridge-knowledge-link:hover {
+  text-decoration: underline;
 }
 
 /* ------------------------------------------------------------------ */
@@ -2475,8 +2504,15 @@ select:focus-visible {
     display: none;
   }
 
-  .landing-header .landing-login,
-  .landing-header .landing-register {
+  .public-header-auth {
+    display: none;
+  }
+
+  /* Direct children only (">"): the drawer's 登录 / 注册 links live
+   * inside .landing-drawer and must stay visible on mobile -- the
+   * old descendant selector hid them too (Phase 4, F-03 fix). */
+  .landing-header > .landing-login,
+  .landing-header > .landing-register {
     display: none;
   }
 
@@ -2540,12 +2576,13 @@ select:focus-visible {
 /* ------------------------------------------------------------------ */
 /* Blog (/blog + /blog/:id, reform plan §6, Phase 3).                  */
 /*                                                                    */
-/* RADIUS NOTE: §6.2 fixes the recipe card radius at 16px, but the    */
-/* imsf-swiss theme rule is 4px everywhere (see the theme comment at  */
-/* the top of this file -- old tokens.shape card 16 was explicitly    */
-/* NOT copied). This page follows §6.2 exactly as instructed; the     */
-/* theme rule and the blog card rule disagree and need one decision   */
-/* in Phase 4. Everything else on the blog uses the 4px theme rule.   */
+/* RADIUS NOTE (Phase 4, DECIDED -- DESIGN.md "Phase 4 rulings"):   */
+/* §6.2 fixes the recipe card radius at 16px, but the imsf-swiss    */
+/* theme rule is 4px everywhere (see the theme comment at the top of  */
+/* this file -- old tokens.shape card 16 was explicitly NOT copied). */
+/* Decision: radius is 4px per the theme rule; the card shadow       */
+/* (elevation 1 rest / 2 hover) is KEPT per plan §6.2. Everything    */
+/* else on the blog uses the 4px theme rule.                          */
 /* ------------------------------------------------------------------ */
 
 .blog-page,

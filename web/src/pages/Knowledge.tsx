@@ -3,6 +3,7 @@ import { Navigate, useSearchParams } from 'react-router-dom'
 import { PublicHeader } from '../components/PublicHeader'
 import { isLoggedIn } from '../lib/auth'
 import { searchKnowledge, type KnowledgeResult } from '../lib/knowledge'
+import { fill, useLanguage } from '../lib/i18n'
 
 /**
  * Knowledge search (/knowledge, reform plan §6.3).
@@ -19,9 +20,10 @@ import { searchKnowledge, type KnowledgeResult } from '../lib/knowledge'
  * - No match above the similarity threshold -> honest empty state:
  *   the knowledge base has nothing on this term, and NO shelf-life
  *   figure is shown (a shelf life is never fabricated, Phase 2 §7.2).
- * - Copy is hardcoded zh, like the blog pages it links from.
+ * - Copy is i18n (zh/vi/en, Phase 4 F-02) via useLanguage.
  */
 export function KnowledgePage() {
+  const { t } = useLanguage()
   const [params, setParams] = useSearchParams()
   const q = (params.get('q') ?? '').trim()
   const [results, setResults] = useState<KnowledgeResult[] | null>(null)
@@ -64,7 +66,7 @@ export function KnowledgePage() {
     return (
       <Navigate
         to={`/login?next=${encodeURIComponent(next)}`}
-        state={{ notice: '请先登录后查看知识库。' }}
+        state={{ notice: t['knowledge.loginFirst'] }}
         replace
       />
     )
@@ -95,12 +97,12 @@ export function KnowledgePage() {
     <div>
       <PublicHeader />
       <main className="blog-page">
-        <h1 className="blog-title">知识查询</h1>
-        <p className="blog-subtitle">查食材的保质期和保存方法，来自知识库原文</p>
+        <h1 className="blog-title">{t['knowledge.title']}</h1>
+        <p className="blog-subtitle">{t['knowledge.subtitle']}</p>
 
         <form className="blog-search" onSubmit={submitSearch} role="search">
           <label className="blog-search-label" htmlFor="knowledge-search-input">
-            按食材搜索
+            {t['blog.searchLabel']}
           </label>
           <input
             key={q}
@@ -109,36 +111,36 @@ export function KnowledgePage() {
             className="blog-search-input"
             type="search"
             defaultValue={q}
-            placeholder="按食材搜索，比如：鸡蛋"
+            placeholder={t['blog.searchPlaceholder']}
           />
           <button type="submit" className="btn btn-primary">
-            搜索
+            {t['blog.search']}
           </button>
         </form>
 
         {q === '' ? (
           <div className="blog-empty">
-            <p className="blog-empty-title">输入食材名称开始查询</p>
+            <p className="blog-empty-title">{t['knowledge.hintTitle']}</p>
             <p className="blog-empty-subtitle">
-              比如「鸡蛋」「牛奶」；结果来自知识库原文，并注明来源。
+              {t['knowledge.hintText']}
             </p>
           </div>
         ) : loading ? (
           <p className="blog-empty-subtitle" role="status">
-            查询中…
+            {t['knowledge.searching']}
           </p>
         ) : error ? (
           <div className="blog-error" role="alert">
-            <p>查询失败，请检查网络后重试。</p>
+            <p>{t['knowledge.searchError']}</p>
             <button type="button" className="btn btn-primary" onClick={retry}>
-              重试
+              {t['blog.retry']}
             </button>
           </div>
         ) : results !== null && results.length === 0 ? (
           <div className="blog-empty">
-            <p className="blog-empty-title">未找到相关知识</p>
+            <p className="blog-empty-title">{t['knowledge.noMatch']}</p>
             <p className="blog-empty-subtitle">
-              知识库中暂无与「{q}」相关的内容，未返回任何保质期信息。
+              {fill(t['knowledge.noMatchText'], { q })}
             </p>
           </div>
         ) : (
@@ -146,7 +148,9 @@ export function KnowledgePage() {
             {(results ?? []).map((result) => (
               <li key={`${result.title}-${result.source}`} className="knowledge-item">
                 <h2 className="knowledge-item-title">{result.title}</h2>
-                <p className="knowledge-item-source">来源：{result.source}</p>
+                <p className="knowledge-item-source">
+                  {fill(t['knowledge.source'], { source: result.source })}
+                </p>
                 <p className="knowledge-item-content">{result.content}</p>
               </li>
             ))}

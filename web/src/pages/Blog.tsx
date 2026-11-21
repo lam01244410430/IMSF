@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { PublicHeader } from '../components/PublicHeader'
+import { fill, useLanguage } from '../lib/i18n'
 import {
   fetchRecipes,
   type RecipeListItem,
@@ -12,27 +13,30 @@ const PAGE_SIZE = 20
 /**
  * Recipe blog list (/blog, reform plan §6.2).
  *
- * - h1 菜谱 + subtitle; search by ingredient (?ingredient=<canonical
+ * - h1 + subtitle; search by ingredient (?ingredient=<canonical
  *   name>); grid 3 cols desktop / 2 tablet / 1 mobile, gap 24px.
  * - Card (§6.2): white bg, 1px hairline #E3E3E4, radius 4px (theme
  *   rule wins over §6.2's 16px -- see RADIUS NOTE below),
- *   shadow elevation 1 at rest / 2 on hover; cover 16:10; title
- *   16px/500 max 2 lines ellipsis; meta row 14px #5F6368 with REAL
- *   fields only (cook_time, ingredient_count, likes_count -- NO
- *   servings, the column does not exist); bottom row author + real
- *   like count (0 when none, never a fake number).
+ *   shadow elevation 1 at rest / 2 on hover (kept per plan §6.2 --
+ *   DESIGN.md "Phase 4 rulings", F-05); cover 16:10; title 16px/500
+ *   max 2 lines ellipsis; meta row 14px #5F6368 with REAL fields
+ *   only (cook_time, ingredient_count, likes_count -- NO servings,
+ *   the column does not exist); bottom row author + real like count
+ *   (0 when none, never a fake number).
  * - No cover -> honest #F7F7F8 frame + outline image icon, NO stock
  *   photo. Loading -> skeleton cards with the same geometry; error ->
- *   error panel + 重试.
- * - EMPTY (the live state, 0 recipes): 还没有菜谱 + 第一道菜，等你来
- *   分享。 -- and NO link to a posting page (posting is deferred).
- * - No-match search: 没有找到使用「X」的菜谱 + clear-filter button.
+ *   error panel + retry button.
+ * - EMPTY (the live state, 0 recipes): honest empty state -- and NO
+ *   link to a posting page (posting is deferred).
+ * - No-match search: no-match message + clear-filter button.
+ * - Copy is i18n (zh/vi/en, Phase 4 F-02) via useLanguage.
  *
  * RADIUS NOTE (Phase 4, DECIDED): §6.2 fixes the card radius at
  * 16px, but the imsf-swiss theme rule is 4px everywhere (DESIGN.md /
  * index.css -- old tokens.shape card 16 was explicitly NOT copied).
  * Decision: the theme rule wins -- the card is now 4px (index.css
- * .blog-card). No other blog layout changed.
+ * .blog-card). The card shadow is KEPT per plan §6.2 (see DESIGN.md
+ * "Phase 4 rulings"). No other blog layout changed.
  */
 
 function ImageIcon() {
@@ -68,11 +72,18 @@ function HeartIcon() {
 }
 
 function RecipeCard({ recipe }: { recipe: RecipeListItem }) {
+  const { t } = useLanguage()
   const metaParts: string[] = []
   if (recipe.cook_time !== null && recipe.cook_time !== undefined) {
-    metaParts.push(`烹饪时间 ${recipe.cook_time}分钟`)
+    metaParts.push(
+      fill(t['blog.cookTime'], { minutes: String(recipe.cook_time) }),
+    )
   }
-  metaParts.push(`${recipe.ingredient_count}种食材`)
+  metaParts.push(
+    fill(t['blog.ingredientCount'], {
+      count: String(recipe.ingredient_count),
+    }),
+  )
   return (
     <article className="blog-card">
       <Link
@@ -123,6 +134,7 @@ function SkeletonCard() {
 }
 
 export function BlogPage() {
+  const { t } = useLanguage()
   const [params, setParams] = useSearchParams()
   const ingredient = params.get('ingredient') ?? ''
   const author = params.get('author') ?? ''
@@ -205,12 +217,12 @@ export function BlogPage() {
     <div>
       <PublicHeader />
       <main className="blog-page">
-        <h1 className="blog-title">菜谱</h1>
-        <p className="blog-subtitle">大家用快过期的食材做了什么菜</p>
+        <h1 className="blog-title">{t['blog.title']}</h1>
+        <p className="blog-subtitle">{t['blog.subtitle']}</p>
 
         <form className="blog-search" onSubmit={submitSearch} role="search">
           <label className="blog-search-label" htmlFor="blog-search-input">
-            按食材搜索
+            {t['blog.searchLabel']}
           </label>
           <input
             key={ingredient}
@@ -219,70 +231,74 @@ export function BlogPage() {
             className="blog-search-input"
             type="search"
             defaultValue={ingredient}
-            placeholder="按食材搜索，比如：鸡蛋"
+            placeholder={t['blog.searchPlaceholder']}
           />
           <button type="submit" className="btn btn-primary">
-            搜索
+            {t['blog.search']}
           </button>
         </form>
 
         {hasFilter && !loading && data !== null && data.total > 0 ? (
           <p className="blog-active-filter">
-            {ingredient ? `食材：${ingredient}` : ''}
+            {ingredient
+              ? fill(t['blog.filterIngredient'], { ingredient })
+              : ''}
             {ingredient && author ? ' · ' : ''}
-            {author ? '按作者筛选' : ''}
+            {author ? t['blog.filterAuthor'] : ''}
             <button
               type="button"
               className="btn btn-ghost btn-sm blog-clear-filter"
               onClick={clearFilter}
             >
-              清除筛选
+              {t['blog.clearFilter']}
             </button>
           </p>
         ) : null}
 
         {loading ? (
-          <div className="blog-grid" aria-label="加载中">
+          <div className="blog-grid" aria-label={t['blog.loading']}>
             {Array.from({ length: 6 }).map((_, index) => (
               <SkeletonCard key={index} />
             ))}
           </div>
         ) : error ? (
           <div className="blog-error" role="alert">
-            <p>加载失败，请检查网络后重试。</p>
+            <p>{t['blog.loadError']}</p>
             <button type="button" className="btn btn-primary" onClick={retry}>
-              重试
+              {t['blog.retry']}
             </button>
           </div>
         ) : data !== null && data.total === 0 ? (
           hasFilter && ingredient ? (
             <div className="blog-empty">
               <p className="blog-empty-title">
-                没有找到使用「{ingredient}」的菜谱
+                {fill(t['blog.noMatch'], { ingredient })}
               </p>
               <button
                 type="button"
                 className="btn btn-primary"
                 onClick={clearFilter}
               >
-                清除筛选
+                {t['blog.clearFilter']}
               </button>
             </div>
           ) : hasFilter && author ? (
             <div className="blog-empty">
-              <p className="blog-empty-title">这位作者还没有发布菜谱</p>
+              <p className="blog-empty-title">{t['blog.authorEmpty']}</p>
               <button
                 type="button"
                 className="btn btn-primary"
                 onClick={clearFilter}
               >
-                清除筛选
+                {t['blog.clearFilter']}
               </button>
             </div>
           ) : (
             <div className="blog-empty">
-              <p className="blog-empty-title">还没有菜谱</p>
-              <p className="blog-empty-subtitle">第一道菜，等你来分享。</p>
+              <p className="blog-empty-title">{t['blog.emptyTitle']}</p>
+              <p className="blog-empty-subtitle">
+                {t['blog.emptySubtitle']}
+              </p>
             </div>
           )
         ) : (
@@ -293,17 +309,20 @@ export function BlogPage() {
               ))}
             </div>
             {data !== null && data.total > PAGE_SIZE ? (
-              <nav className="blog-pager" aria-label="分页">
+              <nav className="blog-pager" aria-label={t['blog.pagerLabel']}>
                 <button
                   type="button"
                   className="btn btn-ghost"
                   disabled={page <= 0}
                   onClick={() => goToPage(page - 1)}
                 >
-                  上一页
+                  {t['blog.prevPage']}
                 </button>
                 <span className="blog-pager-info">
-                  第 {page + 1} 页，共 {data.total} 个菜谱
+                  {fill(t['blog.pagerInfo'], {
+                    page: String(page + 1),
+                    total: String(data.total),
+                  })}
                 </span>
                 <button
                   type="button"
@@ -311,7 +330,7 @@ export function BlogPage() {
                   disabled={page + 1 >= totalPages}
                   onClick={() => goToPage(page + 1)}
                 >
-                  下一页
+                  {t['blog.nextPage']}
                 </button>
               </nav>
             ) : null}

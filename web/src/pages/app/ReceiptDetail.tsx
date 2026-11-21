@@ -143,7 +143,7 @@ export function ReceiptDetailPage() {
       if (status === 409) {
         setConfirmError('这张小票已不在待核对状态，请刷新后查看。')
       } else if (status === 422) {
-        setConfirmError('提交被拒绝（422）：请检查各行的数量、单位与金额。')
+        setConfirmError('提交被拒绝，请检查各行的数量、单位与金额。')
       } else {
         setConfirmError(err instanceof Error ? err.message : '确认失败')
       }

@@ -91,3 +91,5 @@ jobs:
         run: npm run test -- --run
       - name: Build
         run: npm run build
+      - name: Impeccable detect (source)
+        run: npx --yes impeccable@4.10.0 detect --github src/

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { PublicHeader } from '../components/PublicHeader'
 import { ApiError, isLoggedIn } from '../lib/auth'
+import { fill, useLanguage } from '../lib/i18n'
 import {
   createShoppingListFromRecipe,
   fetchRecipe,
@@ -32,8 +33,9 @@ import {
  * - 点赞 / 收藏 with real counts. NOT logged in -> clicking goes to
  *   /login with a clear message (navigation state `notice`, which the
  *   Wave 2 login form renders) -- never silently does nothing.
- * - Comment count shown (real); the comment area shows
- *   评论功能即将上线 (comments DEFERRED -- no comment form).
+ * - Comment count shown (real); the comment area shows the
+ *   comments-coming-soon note (comments DEFERRED -- no comment form).
+ * - Copy is i18n (zh/vi/en, Phase 4 F-02) via useLanguage.
  * - Bottom button 用这道菜生成购物清单 (POST
  *   /api/v2/shopping-lists/from-recipe) -- shown ONLY when logged in.
  */
@@ -86,6 +88,7 @@ function BookmarkIcon({ filled }: { filled: boolean }) {
 }
 
 export function BlogPostPage() {
+  const { t } = useLanguage()
   const { id } = useParams()
   const navigate = useNavigate()
   const [recipe, setRecipe] = useState<RecipeDetail | null>(null)
@@ -137,14 +140,14 @@ export function BlogPostPage() {
 
   function requireLogin(action: string) {
     navigate(`/login?next=${encodeURIComponent(`/blog/${id ?? ''}`)}`, {
-      state: { notice: `请先登录，登录后即可${action}。` },
+      state: { notice: fill(t['blogpost.loginFirst'], { action }) },
     })
   }
 
   async function toggleLike() {
     if (!recipe || !id) return
     if (!isLoggedIn()) {
-      requireLogin('点赞')
+      requireLogin(t['blogpost.loginLikeAction'])
       return
     }
     setActionError(null)
@@ -155,14 +158,14 @@ export function BlogPostPage() {
       setLiked(result.liked)
       setLikesCount(result.likes_count)
     } catch {
-      setActionError('操作失败，请稍后再试。')
+      setActionError(t['blogpost.actionFailed'])
     }
   }
 
   async function toggleSave() {
     if (!recipe || !id) return
     if (!isLoggedIn()) {
-      requireLogin('收藏')
+      requireLogin(t['blogpost.loginSaveAction'])
       return
     }
     setActionError(null)
@@ -170,7 +173,7 @@ export function BlogPostPage() {
       const result = saved ? await unsaveRecipe(id) : await saveRecipe(id)
       setSaved(result.saved)
     } catch {
-      setActionError('操作失败，请稍后再试。')
+      setActionError(t['blogpost.actionFailed'])
     }
   }
 
@@ -180,12 +183,12 @@ export function BlogPostPage() {
     setListMessage(null)
     try {
       await createShoppingListFromRecipe(id)
-      setListMessage('购物清单已生成。')
+      setListMessage(t['blogpost.listCreated'])
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
-        setListMessage('已经有一张未完成的购物清单。')
+        setListMessage(t['blogpost.listExists'])
       } else {
-        setListMessage('生成购物清单失败，请稍后再试。')
+        setListMessage(t['blogpost.listFailed'])
       }
     } finally {
       setListBusy(false)
@@ -198,10 +201,22 @@ export function BlogPostPage() {
     const date = formatDate(recipe.created_at)
     if (date) metaParts.push(date)
     if (recipe.cook_time !== null && recipe.cook_time !== undefined) {
-      metaParts.push(`烹饪时间 ${recipe.cook_time}分钟`)
+      metaParts.push(
+        fill(t['blog.cookTime'], { minutes: String(recipe.cook_time) }),
+      )
     }
-    metaParts.push(`${recipe.ingredient_count}种食材`)
-    metaParts.push(`${likesCount}个赞 · ${recipe.saved_count}个收藏 · ${recipe.comment_count}条评论`)
+    metaParts.push(
+      fill(t['blog.ingredientCount'], {
+        count: String(recipe.ingredient_count),
+      }),
+    )
+    metaParts.push(
+      fill(t['blogpost.counts'], {
+        likes: String(likesCount),
+        saved: String(recipe.saved_count),
+        comments: String(recipe.comment_count),
+      }),
+    )
   }
 
   return (
@@ -210,22 +225,22 @@ export function BlogPostPage() {
       <main className="blog-article">
         {!id || notFound ? (
           <div className="blog-error" role="alert">
-            <p>未找到这道菜谱，它可能已被删除或尚未发布。</p>
+            <p>{t['blogpost.notFound']}</p>
             <Link to="/blog" className="btn btn-primary">
-              返回菜谱列表
+              {t['blogpost.backToList']}
             </Link>
           </div>
         ) : loading ? (
-          <div className="blog-article-skeleton" aria-label="加载中">
+          <div className="blog-article-skeleton" aria-label={t['blog.loading']}>
             <div className="blog-skeleton-cover" />
             <div className="blog-skeleton-line blog-skeleton-title" />
             <div className="blog-skeleton-line blog-skeleton-meta" />
           </div>
         ) : error || recipe === null ? (
           <div className="blog-error" role="alert">
-            <p>加载失败，请检查网络后重试。</p>
+            <p>{t['blog.loadError']}</p>
             <button type="button" className="btn btn-primary" onClick={retry}>
-              重试
+              {t['blog.retry']}
             </button>
           </div>
         ) : (
@@ -249,7 +264,7 @@ export function BlogPostPage() {
 
             <section aria-labelledby="blog-ingredients-heading">
               <h2 id="blog-ingredients-heading" className="blog-section-title">
-                食材
+                {t['blogpost.ingredients']}
               </h2>
               <ul className="blog-ingredients">
                 {recipe.ingredients.map((ingredient, index) => (
@@ -276,7 +291,7 @@ export function BlogPostPage() {
 
             <section aria-labelledby="blog-steps-heading">
               <h2 id="blog-steps-heading" className="blog-section-title">
-                步骤
+                {t['blogpost.steps']}
               </h2>
               <ol className="blog-steps">
                 {recipe.steps.map((step, index) => (
@@ -302,17 +317,19 @@ export function BlogPostPage() {
             {recipe.author ? (
               <section
                 className="blog-author-block"
-                aria-label="作者"
+                aria-label={t['blogpost.authorLabel']}
               >
                 <p className="blog-author-name">{recipe.author.name}</p>
                 <p className="blog-author-count">
-                  已发布 {recipe.author_recipe_count} 个菜谱
+                  {fill(t['blogpost.authorCount'], {
+                    count: String(recipe.author_recipe_count),
+                  })}
                 </p>
                 <Link
                   to={`/blog?author=${encodeURIComponent(recipe.author.id)}`}
                   className="blog-author-link"
                 >
-                  查看TA的其他菜谱
+                  {t['blogpost.authorLink']}
                 </Link>
               </section>
             ) : null}
@@ -325,7 +342,7 @@ export function BlogPostPage() {
                 onClick={toggleLike}
               >
                 <HeartIcon filled={liked} />
-                {liked ? '已点赞' : '点赞'} · {likesCount}
+                {liked ? t['blogpost.liked'] : t['blogpost.like']} · {likesCount}
               </button>
               <button
                 type="button"
@@ -334,10 +351,12 @@ export function BlogPostPage() {
                 onClick={toggleSave}
               >
                 <BookmarkIcon filled={saved} />
-                {saved ? '已收藏' : '收藏'}
+                {saved ? t['blogpost.saved'] : t['blogpost.save']}
               </button>
               <span className="blog-action-count">
-                {recipe.comment_count}条评论
+                {fill(t['blogpost.commentCount'], {
+                  count: String(recipe.comment_count),
+                })}
               </span>
             </div>
             {actionError ? (
@@ -351,9 +370,11 @@ export function BlogPostPage() {
               aria-labelledby="blog-comments-heading"
             >
               <h2 id="blog-comments-heading" className="blog-section-title">
-                评论（{recipe.comment_count}）
+                {fill(t['blogpost.commentsTitle'], {
+                  count: String(recipe.comment_count),
+                })}
               </h2>
-              <p className="blog-comments-upcoming">评论功能即将上线</p>
+              <p className="blog-comments-upcoming">{t['blogpost.commentsSoon']}</p>
             </section>
 
             {isLoggedIn() ? (
@@ -364,7 +385,7 @@ export function BlogPostPage() {
                   disabled={listBusy}
                   onClick={generateShoppingList}
                 >
-                  用这道菜生成购物清单
+                  {t['blogpost.shoppingList']}
                 </button>
                 {listMessage ? (
                   <p className="blog-shopping-list-message" role="status">

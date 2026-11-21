@@ -346,3 +346,17 @@ One open at a time. `aria-expanded` + `aria-controls` on every button.
 - Don't hide information behind hover; don't let `:hover` stick on
   touch.
 - Don't invent reviews, counts, prices, or legal text to fill a layout.
+
+## Phase 4 rulings (2026-11-22, Impeccable audit follow-up)
+
+- **F-05 shadow — blog card shadow KEPT.** The blog card keeps its
+  box-shadow (elevation 1 at rest / 2 on hover) per reform plan §6.2,
+  which explicitly prescribes it. The flat/no-shadow theme rule does
+  not apply to this component. Radius stays 4px per the theme rule.
+- **F-13 CTA — pill exception is header-only.** The hero/final CTA is
+  4px. The rounded-full/pill exception applies ONLY to header buttons
+  (the landing 注册 button).
+- **F-14 overlay panels — exempt from the flat/no-shadow rule.**
+  Functional overlay panels (notification panel, dialogs, drawers)
+  are exempt: their shadow is functional separation from the page,
+  not decoration.

@@ -5,6 +5,7 @@ import {
   getAccessToken,
   getRefreshToken,
   getStoredHouseholdId,
+  getStoredHouseholdName,
   getStoredUserName,
   isLoggedIn,
   loginWithEmail,
@@ -173,6 +174,7 @@ describe('auth client', () => {
     expect(getAccessToken()).toBe('a1')
     expect(getRefreshToken()).toBe('r1')
     expect(getStoredHouseholdId()).toBe('h1')
+    expect(getStoredHouseholdName()).toBe('Home')
   })
 
   it('loginWithEmail stores the email local part as the name when name is missing (Phase 4)', async () => {

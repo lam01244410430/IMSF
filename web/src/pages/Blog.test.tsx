@@ -1,8 +1,9 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from '../App'
 import { logout, resetAuthState } from '../lib/auth'
+import { LanguageProvider } from '../lib/LanguageProvider'
 
 const EMPTY_LIST = { items: [], total: 0, limit: 20, offset: 0 }
 
@@ -128,6 +129,82 @@ describe('blog list', () => {
     expect(img.getAttribute('src')).toBe('https://example.invalid/cover.jpg')
     expect(screen.getByText('烹饪时间 25分钟 · 2种食材')).toBeDefined()
     expect(screen.getByText('5')).toBeDefined()
+  })
+
+  it('public header shows the logo mark, not text-only brand (Phase 4, F-04)', async () => {
+    mockFetch(() => jsonResponse(EMPTY_LIST))
+    renderAt('/blog')
+    await screen.findByRole('heading', { name: '菜谱' })
+    const brand = screen.getByRole('link', { name: 'IMSF' })
+    expect(brand.querySelector('img')).not.toBeNull()
+  })
+
+  it('switching to English renders the blog in English (Phase 4, F-02)', async () => {
+    mockFetch(() => jsonResponse(EMPTY_LIST))
+    render(
+      <LanguageProvider>
+        <MemoryRouter initialEntries={['/blog']}>
+          <AppRoutes />
+        </MemoryRouter>
+      </LanguageProvider>,
+    )
+    expect(await screen.findByRole('heading', { name: '菜谱' })).toBeDefined()
+    const select = screen.getByLabelText('语言') as HTMLSelectElement
+    fireEvent.change(select, { target: { value: 'en' } })
+    expect(await screen.findByRole('heading', { name: 'Recipes' })).toBeDefined()
+    expect(
+      screen.getByText(
+        'See what others cooked from food about to expire',
+      ),
+    ).toBeDefined()
+    expect(
+      screen.getByPlaceholderText('Search by ingredient, e.g. eggs'),
+    ).toBeDefined()
+  })
+
+  it('switching to Vietnamese renders the blog in Vietnamese (Phase 4, F-02)', async () => {
+    mockFetch(() => jsonResponse(EMPTY_LIST))
+    render(
+      <LanguageProvider>
+        <MemoryRouter initialEntries={['/blog']}>
+          <AppRoutes />
+        </MemoryRouter>
+      </LanguageProvider>,
+    )
+    expect(await screen.findByRole('heading', { name: '菜谱' })).toBeDefined()
+    const select = screen.getByLabelText('语言') as HTMLSelectElement
+    fireEvent.change(select, { target: { value: 'vi' } })
+    expect(
+      await screen.findByRole('heading', { name: 'Công thức' }),
+    ).toBeDefined()
+    expect(screen.getByText('Chưa có công thức nào')).toBeDefined()
+  })
+
+  it('mobile drawer: hamburger opens all four menu items, Escape closes it (Phase 4, F-03)', async () => {
+    mockFetch(() => jsonResponse(EMPTY_LIST))
+    const { container } = renderAt('/blog')
+    await screen.findByRole('heading', { name: '菜谱' })
+    fireEvent.click(screen.getByRole('button', { name: '打开菜单' }))
+    const drawer = screen.getByRole('dialog', { name: '菜单' })
+    for (const item of ['功能', '使用方法', '菜谱', '常见问题']) {
+      expect(
+        within(drawer).getByRole('link', { name: item }),
+      ).toBeDefined()
+    }
+    // Auth links live in the drawer too (they must not be hidden by
+    // the mobile header CSS -- Phase 4, F-03 fix).
+    expect(within(drawer).getByRole('link', { name: '登录' })).toBeDefined()
+    expect(within(drawer).getByRole('link', { name: '注册' })).toBeDefined()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: '菜单' })).toBeNull()
+    // Overlay click closes it too.
+    fireEvent.click(screen.getByRole('button', { name: '打开菜单' }))
+    expect(screen.getByRole('dialog', { name: '菜单' })).toBeDefined()
+    const overlay = container.querySelector(
+      '.landing-drawer-overlay',
+    ) as HTMLElement
+    fireEvent.click(overlay)
+    expect(screen.queryByRole('dialog', { name: '菜单' })).toBeNull()
   })
 
   it('load error: error panel + retry refetches', async () => {

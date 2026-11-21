@@ -5,6 +5,8 @@ import { AppShell } from './AppShell'
 import {
   STORAGE_KEYS,
   resetAuthState,
+  setStoredHouseholdId,
+  setStoredHouseholdName,
   setStoredUserName,
   setTokens,
 } from '../lib/auth'
@@ -57,6 +59,36 @@ describe('AppShell topbar display name (Phase 4)', () => {
   it('logged out with nothing stored → 未登录', () => {
     renderShell()
     expect(topbarUserText()).toBe('未登录')
+  })
+
+  it('sidebar footer shows the stored household name, never the id (Phase 4, F-06a)', () => {
+    setTokens('access-1', 'refresh-1')
+    setStoredHouseholdId('11111111-2222-3333-4444-555555555555')
+    setStoredHouseholdName('我家')
+    renderShell()
+    expect(
+      document.querySelector('.app-sidebar-footer')?.textContent,
+    ).toBe('家庭 我家')
+  })
+
+  it('no household name stored → plain 家庭, no UUID (Phase 4, F-06a)', () => {
+    setTokens('access-1', 'refresh-1')
+    setStoredHouseholdId('11111111-2222-3333-4444-555555555555')
+    renderShell()
+    expect(
+      document.querySelector('.app-sidebar-footer')?.textContent,
+    ).toBe('家庭')
+  })
+
+  it('sidebar nav groups have distinct aria-labels (Phase 4, F-12)', () => {
+    renderShell()
+    const labels = Array.from(
+      document.querySelectorAll('.app-sidebar-nav-group'),
+    ).map((el) => el.getAttribute('aria-label'))
+    expect(labels).toHaveLength(2)
+    expect(new Set(labels).size).toBe(2)
+    expect(labels).toContain('应用导航')
+    expect(labels).toContain('记账导航')
   })
 
   it('never shows a UUID from the JWT', () => {

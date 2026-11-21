@@ -105,6 +105,24 @@ describe('TransactionsPage', () => {
     expect(within(receiptRow as HTMLElement).queryByRole('button', { name: '删除' })).toBeNull()
   })
 
+  it('Escape closes the edit dialog; backdrop click closes the delete dialog (Phase 4, F-08)', async () => {
+    const { container } = renderPage()
+    await screen.findByText('¥100')
+
+    fireEvent.click(screen.getByRole('button', { name: '编辑' }))
+    expect(screen.getByRole('dialog', { name: '编辑记账' })).toBeDefined()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: '编辑记账' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+    expect(screen.getByRole('dialog', { name: '确认删除' })).toBeDefined()
+    const backdrop = container.querySelector(
+      '.dialog-backdrop',
+    ) as HTMLElement
+    fireEvent.click(backdrop)
+    expect(screen.queryByRole('dialog', { name: '确认删除' })).toBeNull()
+  })
+
   it('the table sits in a horizontal-scroll wrapper (no page overflow on mobile)', async () => {
     const { container } = renderPage()
     await screen.findByText('¥100')

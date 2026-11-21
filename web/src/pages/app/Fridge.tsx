@@ -9,6 +9,7 @@
  * respond endpoint.
  */
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   consumeFridgeItem,
   extendFridgeItem,
@@ -138,6 +139,18 @@ export function FridgePage() {
                           ? ` · 到期 ${item.auto_expiry_date.slice(0, 10)}`
                           : ''}
                       </span>
+                      {/* Plain text link to the knowledge search for
+                       * this ingredient (Phase 4, F-09) -- the
+                       * "cook from what is about to expire" path.
+                       * Canonical name when present, else the
+                       * display name. A link, not a button, so it
+                       * does not compete with the 1-tap buttons. */}
+                      <Link
+                        className="fridge-knowledge-link"
+                        to={`/knowledge?q=${encodeURIComponent(item.canonical_name ?? name)}`}
+                      >
+                        查保质期
+                      </Link>
                     </div>
                     <StatusChip tone={chip.tone} label={chip.label} />
                     <div className="fridge-actions">

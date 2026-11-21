@@ -98,6 +98,23 @@ export function TransactionsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<Transaction | null>(null)
 
+  // Escape closes either dialog (Phase 4, F-08) -- same pattern as
+  // the landing drawer / notifications panel.
+  useEffect(() => {
+    if (!editing && !pendingDelete) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setEditing(null)
+        setEditForm(null)
+        setPendingDelete(null)
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [editing, pendingDelete])
+
   const [form, setForm] = useState<FormState>({
     amount: '',
     currency: 'CNY',
@@ -375,7 +392,16 @@ export function TransactionsPage() {
       </div>
 
       {editing && editForm && (
-        <div className="dialog-backdrop" role="presentation">
+        <div
+          className="dialog-backdrop"
+          role="presentation"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              setEditing(null)
+              setEditForm(null)
+            }
+          }}
+        >
           <div className="dialog" role="dialog" aria-modal="true" aria-label="编辑记账">
             <h2>编辑记账</h2>
             <form onSubmit={(e) => void submitEdit(e)}>
@@ -449,7 +475,15 @@ export function TransactionsPage() {
       )}
 
       {pendingDelete && (
-        <div className="dialog-backdrop" role="presentation">
+        <div
+          className="dialog-backdrop"
+          role="presentation"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              setPendingDelete(null)
+            }
+          }}
+        >
           <div className="dialog" role="dialog" aria-modal="true" aria-label="确认删除">
             <h2>确认删除？</h2>
             <p>
