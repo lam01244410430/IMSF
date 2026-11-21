@@ -27,6 +27,8 @@ import { tokens } from '../../ui/tokens'
 import { ApiError } from '../../services/errors'
 import {
   CATEGORY_LABELS,
+  CURRENCY_LABELS,
+  TRANSACTION_CURRENCIES,
   TYPE_LABELS,
   deleteTransaction,
   isManualTransaction,
@@ -41,19 +43,23 @@ import { useSessionStore } from '../../store/session'
 import { listHouseholds } from '../../services/households'
 import type { Currency } from '../../utils/format'
 import {
+  CURRENCY_SYMBOL,
   dateToOccurredAt,
   formatAmount,
   formatRelativeDate,
   normalizeAmountInput,
   occurredAtToDate,
+  resolveCurrency,
 } from '../../utils/format'
 
 type CurrencyFilter = 'all' | Currency
 
 const CURRENCY_FILTERS: { key: CurrencyFilter; label: string }[] = [
   { key: 'all', label: '全部' },
-  { key: 'CNY', label: '人民币 ¥' },
-  { key: 'VND', label: '越南盾 ₫' },
+  ...TRANSACTION_CURRENCIES.map((c) => ({
+    key: c as CurrencyFilter,
+    label: `${CURRENCY_LABELS[c]} ${CURRENCY_SYMBOL[c]}`,
+  })),
 ]
 
 function ReceiptChip() {
@@ -85,8 +91,8 @@ export default function Transactions() {
     enabled: isLoggedIn,
   })
   const currentHousehold = householdsQuery.data?.find((h) => h.id === householdId)
-  const defaultCurrency: Currency =
-    currentHousehold?.default_currency === 'VND' ? 'VND' : 'CNY'
+  // default_currency của nhà (14 tiền tệ, P2-06) — mã lạ → CNY.
+  const defaultCurrency: Currency = resolveCurrency(currentHousehold?.default_currency)
   const timezone = currentHousehold?.timezone ?? 'Asia/Shanghai'
 
   const [currencyFilter, setCurrencyFilter] = useState<CurrencyFilter>('all')

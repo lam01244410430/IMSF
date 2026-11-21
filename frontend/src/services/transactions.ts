@@ -15,22 +15,23 @@
  *   `currency` BẮT BUỘC (thiếu → 400). Chỉ tính type='expense'. `group_by`
  *   được validate nhưng KHÔNG lọc response — response luôn mang cả hai nhóm.
  *
- * GIỚI HẠN ĐÃ BIẾT (backend, không workaround ở client — xem design doc §10.2 D-F7):
- * `CURRENCIES = ("CNY", "VND")` — chỉ CNY + VND được chấp nhận; tiền tệ khác → 422
- * "currency must be CNY or VND". Lam yêu cầu "hỗ trợ nhiều định dạng tiền"
- * (2026-11-21) nhưng API hiện tại không đáp ứng — selector chỉ có CNY + VND.
+ * D-F7 ĐÃ GIẢI QUYẾT (P2-06, 2026-11-21): backend `CURRENCIES` mở rộng
+ * thành 14 tiền tệ (CNY, VND, USD, EUR, HKD, THB, MYR, SGD, IDR, PHP, KHR,
+ * LAK, MMK, BND) — xem design doc §10.2. Client offer đủ 14, không cộng
+ * trộn tiền tệ: summary vẫn tính riêng từng tiền tệ, không quy đổi.
  */
 import { request } from './http'
-import type { Currency } from '../utils/format'
+import { SUPPORTED_CURRENCIES, type Currency } from '../utils/format'
 
 export type TransactionType = 'expense' | 'income'
 export type TransactionCategory = 'food' | 'household' | 'maintenance' | 'other'
 
 /**
- * Chỉ hai tiền tệ backend chấp nhận (app/api/transactions.py: CURRENCIES).
- * KHÔNG thêm tiền tệ khác ở client — API trả 422.
+ * 14 tiền tệ backend chấp nhận (app/api/transactions.py: CURRENCIES, P2-06).
+ * Thứ tự + nội dung lấy từ SUPPORTED_CURRENCIES (utils/format.ts) — một
+ * nguồn duy nhất, không liệt kê lại ở đây.
  */
-export const TRANSACTION_CURRENCIES: readonly Currency[] = ['CNY', 'VND']
+export const TRANSACTION_CURRENCIES: readonly Currency[] = SUPPORTED_CURRENCIES
 
 export const TRANSACTION_CATEGORIES: readonly TransactionCategory[] = [
   'food',
@@ -51,6 +52,18 @@ export const CATEGORY_LABELS: Record<TransactionCategory, string> = {
 export const CURRENCY_LABELS: Record<Currency, string> = {
   CNY: '人民币',
   VND: '越南盾',
+  USD: '美元',
+  EUR: '欧元',
+  HKD: '港元',
+  THB: '泰铢',
+  MYR: '马来西亚林吉特',
+  SGD: '新加坡元',
+  IDR: '印度尼西亚盾',
+  PHP: '菲律宾比索',
+  KHR: '柬埔寨瑞尔',
+  LAK: '老挝基普',
+  MMK: '缅甸元',
+  BND: '文莱元',
 }
 
 export const TYPE_LABELS: Record<TransactionType, string> = {

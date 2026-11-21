@@ -1,6 +1,6 @@
 /**
  * Form nhập chi tay — FE-03 (design doc §6 hàng 4): amount, currency
- * (CNY/VND — chỉ hai tiền tệ backend chấp nhận, D-F7), category (4 giá trị
+ * (14 tiền tệ — P2-06, D-F7 đã giải quyết), category (4 giá trị
  * backend), date (occurred_at, mặc định hôm nay), note (khoản gì).
  * Submit → POST /api/v2/transactions với type='expense' (income không lộ
  * ra ở form sổ chi tiêu). Thành công → toast 已记账 + invalidate list/summary.
@@ -32,7 +32,12 @@ import {
   type TransactionCategory,
 } from '../../services/transactions'
 import type { Currency } from '../../utils/format'
-import { dateToOccurredAt, normalizeAmountInput, todayDate } from '../../utils/format'
+import {
+  CURRENCY_SYMBOL,
+  dateToOccurredAt,
+  normalizeAmountInput,
+  todayDate,
+} from '../../utils/format'
 
 export interface ExpenseFormProps {
   householdId: string
@@ -42,7 +47,7 @@ export interface ExpenseFormProps {
 }
 
 const CURRENCY_OPTIONS = TRANSACTION_CURRENCIES.map((c) => ({
-  label: `${CURRENCY_LABELS[c]} ${c === 'CNY' ? '¥' : '₫'}`,
+  label: `${CURRENCY_LABELS[c]} ${CURRENCY_SYMBOL[c]}`,
   value: c,
 }))
 
@@ -171,7 +176,7 @@ export default function ExpenseForm({ householdId, defaultCurrency, timezone, on
       />
       <SelectRow
         label='货币'
-        value={`${CURRENCY_LABELS[currency]} ${currency === 'CNY' ? '¥' : '₫'}`}
+        value={`${CURRENCY_LABELS[currency]} ${CURRENCY_SYMBOL[currency]}`}
         onClick={() => setCurrencyPickerVisible(true)}
       />
       <SelectRow

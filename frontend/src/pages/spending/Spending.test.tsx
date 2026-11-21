@@ -152,4 +152,34 @@ describe('Spending page', () => {
       ),
     )
   })
+
+  it('selector đủ 14 tiền tệ (P2-06, D-F7); đổi sang USD → summary với currency=USD', async () => {
+    renderSpending()
+    await screen.findByText('本月支出')
+    for (const label of [
+      '人民币 ¥',
+      '越南盾 ₫',
+      '美元 $',
+      '欧元 €',
+      '港元 HK$',
+      '泰铢 ฿',
+      '马来西亚林吉特 RM',
+      '新加坡元 S$',
+      '印度尼西亚盾 Rp',
+      '菲律宾比索 ₱',
+      '柬埔寨瑞尔 ៛',
+      '老挝基普 ₭',
+      '缅甸元 K',
+      '文莱元 B$',
+    ]) {
+      expect(screen.getByText(label)).toBeTruthy()
+    }
+    vi.clearAllMocks()
+    fireEvent.click(screen.getByText('美元 $'))
+    await waitFor(() =>
+      expect(taroMock.request).toHaveBeenCalledWith(
+        expect.objectContaining({ url: expect.stringContaining('currency=USD') }),
+      ),
+    )
+  })
 })

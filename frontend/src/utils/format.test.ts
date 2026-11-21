@@ -12,6 +12,7 @@ import {
   normalizeAmountInput,
   occurredAtToDate,
   reconciliationDiff,
+  resolveCurrency,
   round2,
   shiftMonth,
   storeGlyph,
@@ -125,6 +126,47 @@ describe('formatAmount — sổ chi tiêu: bỏ số 0 thừa sau thập phân (
   it('formatMoney KHÔNG đổi — màn receipt vẫn 2dp cố định', () => {
     expect(formatMoney(100)).toBe('¥100.00')
     expect(formatMoney(100.5)).toBe('¥100.50')
+  })
+})
+
+describe('14 tiền tệ (P2-06, D-F7) — formatMoney 2dp + formatAmount bỏ số 0 thừa', () => {
+  it('formatMoney: một số tiền cho mỗi tiền tệ mới (2dp cố định, không đổi)', () => {
+    expect(formatMoney(100.5, 'USD')).toBe('$100.50')
+    expect(formatMoney(1234567.89, 'EUR')).toBe('€1,234,567.89')
+    expect(formatMoney(100, 'HKD')).toBe('HK$100.00')
+    expect(formatMoney(100.5, 'THB')).toBe('฿100.50')
+    expect(formatMoney(100, 'MYR')).toBe('RM100.00')
+    expect(formatMoney(100.5, 'SGD')).toBe('S$100.50')
+    expect(formatMoney(100, 'IDR')).toBe('Rp100.00')
+    expect(formatMoney(100.5, 'PHP')).toBe('₱100.50')
+    expect(formatMoney(100, 'KHR')).toBe('៛100.00')
+    expect(formatMoney(100.5, 'LAK')).toBe('₭100.50')
+    expect(formatMoney(100, 'MMK')).toBe('K100.00')
+    expect(formatMoney(100.5, 'BND')).toBe('B$100.50')
+  })
+  it('formatAmount: số tiền lớn + bỏ số 0 thừa cho từng tiền tệ mới', () => {
+    expect(formatAmount(100.5, 'USD')).toBe('$100.5')
+    expect(formatAmount(1234567.89, 'EUR')).toBe('€1,234,567.89')
+    expect(formatAmount(100, 'IDR')).toBe('Rp100')
+    expect(formatAmount(100, 'HKD')).toBe('HK$100')
+    expect(formatAmount(100.5, 'THB')).toBe('฿100.5')
+    expect(formatAmount(100.5, 'MYR')).toBe('RM100.5')
+    expect(formatAmount(100, 'SGD')).toBe('S$100')
+    expect(formatAmount(1234567.8, 'PHP')).toBe('₱1,234,567.8')
+    expect(formatAmount(100.5, 'KHR')).toBe('៛100.5')
+    expect(formatAmount(100, 'LAK')).toBe('₭100')
+    expect(formatAmount(100.5, 'MMK')).toBe('K100.5')
+    expect(formatAmount(100, 'BND')).toBe('B$100')
+  })
+  it('resolveCurrency: mã trong 14 giữ nguyên, mã lạ/null → CNY', () => {
+    expect(resolveCurrency('USD')).toBe('USD')
+    expect(resolveCurrency('EUR')).toBe('EUR')
+    expect(resolveCurrency('BND')).toBe('BND')
+    expect(resolveCurrency('CNY')).toBe('CNY')
+    expect(resolveCurrency('JPY')).toBe('CNY')
+    expect(resolveCurrency('')).toBe('CNY')
+    expect(resolveCurrency(null)).toBe('CNY')
+    expect(resolveCurrency(undefined)).toBe('CNY')
   })
 })
 

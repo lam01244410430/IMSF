@@ -19,7 +19,7 @@ import {
   useReviewDraftStore,
   type ReviewLineDraft,
 } from '../../store/reviewDraft'
-import { formatMoney } from '../../utils/format'
+import { formatMoney, resolveCurrency } from '../../utils/format'
 
 export interface LineFieldErrors {
   quantity?: string
@@ -117,7 +117,7 @@ export default function LineCard(props: LineCardProps) {
   }
 
   const feeTag = /运费|服务费/.test(draft.rawName) ? '费用' : '优惠'
-  const displayCurrency = currency === 'VND' ? 'VND' : 'CNY'
+  const displayCurrency = resolveCurrency(currency)
 
   return (
     <View
