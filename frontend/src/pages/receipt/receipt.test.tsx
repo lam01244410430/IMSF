@@ -228,3 +228,112 @@ describe('Screen 03 — Needs Review', () => {
     expect(await screen.findByText('伊利纯牛奶 250ml')).toBeTruthy()
   })
 })
+
+/** FE-04 desktop two-column (design doc §12.6). */
+function mockMatchMedia(matches: boolean): void {
+  const createMql = () => ({
+    matches,
+    media: '(min-width: 1024px)',
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  })
+  window.matchMedia = vi.fn(createMql) as unknown as typeof window.matchMedia
+}
+
+const originalMatchMedia = window.matchMedia
+
+/** Walk up from el to the direct child of container (the column it sits in). */
+function directChildOf(el: HTMLElement, container: HTMLElement): HTMLElement | null {
+  let node: HTMLElement | null = el
+  while (node && node.parentElement !== container) {
+    node = node.parentElement as HTMLElement | null
+  }
+  return node
+}
+
+describe('Screen 02 — Processing desktop two-column (FE-04)', () => {
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia
+  })
+
+  it('renders thumbnail + steps side by side on desktop', async () => {
+    mockMatchMedia(true)
+    currentDetail = detail({})
+    renderPage()
+    expect(await screen.findByText('正在识别文字 (OCR)')).toBeTruthy()
+    await waitFor(() => {
+      expect(document.querySelector('img')).toBeTruthy()
+    })
+    const img = document.querySelector('img') as HTMLImageElement
+    const leftCol = img.parentElement as HTMLElement
+    const container = leftCol.parentElement as HTMLElement
+    expect(container.style.flexDirection).toBe('row')
+    expect(container.style.gap).toBe('24px')
+    expect(leftCol.style.width).toBe('480px')
+    const steps = screen.getByText('正在识别文字 (OCR)')
+    const rightCol = directChildOf(steps, container)
+    expect(rightCol).toBeTruthy()
+    expect(rightCol).not.toBe(leftCol)
+  })
+
+  it('keeps the single column on mobile', async () => {
+    mockMatchMedia(false)
+    currentDetail = detail({})
+    renderPage()
+    expect(await screen.findByText('正在识别文字 (OCR)')).toBeTruthy()
+    await waitFor(() => {
+      expect(document.querySelector('img')).toBeTruthy()
+    })
+    const img = document.querySelector('img') as HTMLImageElement
+    const container = img.parentElement?.parentElement as HTMLElement
+    expect(container.style.flexDirection).toBe('column')
+  })
+})
+
+describe('Screen 03 — Needs Review desktop two-column (FE-04)', () => {
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia
+  })
+
+  it('renders image + lines in a row container with a non-fixed action bar on desktop', async () => {
+    mockMatchMedia(true)
+    currentDetail = detail({ status: 'needs_review' })
+    renderPage()
+    expect(await screen.findByText('总价对不上，需要您核对')).toBeTruthy()
+    await waitFor(() => {
+      expect(document.querySelector('img')).toBeTruthy()
+    })
+    const img = document.querySelector('img') as HTMLImageElement
+    const leftCol = img.parentElement?.parentElement?.parentElement as HTMLElement
+    const container = leftCol.parentElement as HTMLElement
+    expect(container.style.flexDirection).toBe('row')
+    expect(container.style.gap).toBe('24px')
+    expect(leftCol.style.width).toBe('480px')
+    const lineText = screen.getByText('伊利纯牛奶 250ml')
+    const rightCol = directChildOf(lineText, container)
+    expect(rightCol).toBeTruthy()
+    expect(rightCol).not.toBe(leftCol)
+    // Action bar is a normal block at the end of the right column on desktop.
+    const confirmBtn = screen.getByText('确认并入库')
+    expect((confirmBtn.parentElement as HTMLElement).style.position).toBe('relative')
+  })
+
+  it('keeps the fixed action bar and single column on mobile', async () => {
+    mockMatchMedia(false)
+    currentDetail = detail({ status: 'needs_review' })
+    renderPage()
+    expect(await screen.findByText('总价对不上，需要您核对')).toBeTruthy()
+    await waitFor(() => {
+      expect(document.querySelector('img')).toBeTruthy()
+    })
+    const img = document.querySelector('img') as HTMLImageElement
+    const container = img.parentElement?.parentElement?.parentElement?.parentElement as HTMLElement
+    expect(container.style.flexDirection).toBe('column')
+    const confirmBtn = screen.getByText('确认并入库')
+    expect((confirmBtn.parentElement as HTMLElement).style.position).toBe('fixed')
+  })
+})

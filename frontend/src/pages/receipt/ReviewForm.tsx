@@ -15,6 +15,7 @@ import Button from '../../ui/primitives/Button'
 import Icon from '../../ui/primitives/Icon'
 import Skeleton from '../../ui/primitives/Skeleton'
 import { useReceiptImage } from './useReceiptImage'
+import { useIsDesktop } from '../../hooks/useIsDesktop'
 import LineCard, { type LineFieldErrors } from './LineCard'
 import {
   confirmReceipt,
@@ -81,6 +82,8 @@ function map422Errors(
 }
 
 export default function ReviewForm({ detail, refetch }: ReviewFormProps) {
+  // FE-04 (§12.6): desktop two columns — image + mismatch left, lines right.
+  const isDesktop = useIsDesktop()
   const imageQuery = useReceiptImage(detail.id)
   const imageSrc = imageQuery.data
   const lines = useReviewDraftStore((s) => s.lines)
@@ -245,209 +248,242 @@ export default function ReviewForm({ detail, refetch }: ReviewFormProps) {
   const showUnmappedCard = diffInfo.withinThreshold && unmappedCount > 0
 
   return (
-    <View style={{ paddingBottom: 170 + safeAreaBottom() }}>
-      {/* Receipt image card */}
-      <View style={{ padding: 16, paddingBottom: 0 }}>
-        {imageQuery.isLoading ? (
-          <Skeleton variant='block' width='100%' height={240} />
-        ) : imageSrc ? (
-          <View
-            onClick={() => void Taro.previewImage({ current: imageSrc, urls: [imageSrc] })}
-            style={{ borderRadius: tokens.shape.card, overflow: 'hidden' }}
+    <View style={{ paddingBottom: isDesktop ? 16 : 170 + safeAreaBottom() }}>
+      <View
+        style={{
+          display: 'flex',
+          flexDirection: isDesktop ? 'row' : 'column',
+          gap: isDesktop ? tokens.desktop.desktopGap : 0,
+          alignItems: isDesktop ? 'flex-start' : 'stretch',
+        }}
+      >
+        {/* FE-04 (§12.6): desktop two columns — image + mismatch left. */}
+        <View
+          style={
+            isDesktop
+              ? {
+                  width: tokens.desktop.receiptPanelWidth,
+                  flexShrink: 0,
+                  display: 'flex',
+                  flexDirection: 'column',
+                }
+              : undefined
+          }
+        >
+        {/* Receipt image card */}
+        <View style={{ padding: 16, paddingBottom: 0 }}>
+          {imageQuery.isLoading ? (
+            <Skeleton variant='block' width='100%' height={240} />
+          ) : imageSrc ? (
+            <View
+              onClick={() => void Taro.previewImage({ current: imageSrc, urls: [imageSrc] })}
+              style={{ borderRadius: tokens.shape.card, overflow: 'hidden' }}
+            >
+              <Image
+                src={imageSrc}
+                mode='widthFix'
+                style={{ width: '100%', maxHeight: 240, borderRadius: tokens.shape.card }}
+              />
+            </View>
+          ) : (
+            <View
+              style={{
+                height: 240,
+                borderRadius: tokens.shape.card,
+                backgroundColor: tokens.color.surfaceVariant,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Text style={{ fontSize: 13, color: tokens.color.onSurfaceVariant }}>图片加载失败</Text>
+            </View>
+          )}
+          <Text
+            style={{
+              fontSize: 13,
+              color: tokens.color.onSurfaceVariant,
+              textAlign: 'center',
+              marginTop: 8,
+            }}
           >
-            <Image
-              src={imageSrc}
-              mode='widthFix'
-              style={{ width: '100%', maxHeight: 240, borderRadius: tokens.shape.card }}
-            />
+            点按图片可放大查看
+          </Text>
+        </View>
+
+        {/* Mismatch / unmapped explanation card */}
+        {showMismatchCard || showUnmappedCard ? (
+          <View style={{ padding: 16, paddingBottom: 0 }}>
+            <View
+              style={{
+                backgroundColor: tokens.color.warningContainer,
+                borderWidth: 1,
+                borderStyle: 'solid',
+                borderColor: withAlpha(tokens.color.warning, 0.4),
+                borderRadius: tokens.shape.base,
+                padding: 12,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+              }}
+            >
+              <View style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Icon name='warning' size={16} color={tokens.color.warning} />
+                <Text style={{ fontSize: 15, fontWeight: 600, color: tokens.color.onSurface }}>
+                  {showMismatchCard ? '总价对不上，需要您核对' : `有 ${unmappedCount} 行商品未能识别，请确认或修改。`}
+                </Text>
+              </View>
+              {showMismatchCard ? (
+                <>
+                  <Text style={{ fontSize: 13, color: tokens.color.onSurface }}>
+                    小票总价 {formatMoney(totalAmount, currency)}，明细合计 {formatMoney(linesSum, currency)}
+                    ，相差 {formatMoney(diffInfo.diff, currency)}（约 {diffInfo.pct.toFixed(1)}%）。超过 2%
+                    的误差不会自动入库，请修改明细或重新识别。
+                  </Text>
+                  <View style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <View style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+                      <Text style={{ fontSize: 13, color: tokens.color.onSurfaceVariant }}>小票总价</Text>
+                      <Text style={{ fontSize: 13, color: tokens.color.onSurface }}>
+                        {formatMoney(totalAmount, currency)}
+                      </Text>
+                    </View>
+                    <View style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+                      <Text style={{ fontSize: 13, color: tokens.color.onSurfaceVariant }}>明细合计</Text>
+                      <Text style={{ fontSize: 13, color: tokens.color.onSurface }}>
+                        {formatMoney(linesSum, currency)}
+                      </Text>
+                    </View>
+                    <View style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+                      <Text style={{ fontSize: 13, color: tokens.color.onSurfaceVariant }}>相差</Text>
+                      <Text style={{ fontSize: 13, color: tokens.color.onSurface }}>
+                        {formatMoney(diffInfo.diff, currency)} ({diffInfo.pct.toFixed(1)}%)
+                      </Text>
+                    </View>
+                  </View>
+                </>
+              ) : null}
+            </View>
           </View>
-        ) : (
+        ) : null}
+        </View>
+
+        {/* FE-04 (§12.6): desktop two columns — lines + summary right. */}
+        <View
+          style={
+            isDesktop
+              ? { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }
+              : undefined
+          }
+        >
+        {/* Line list */}
+        <View
+          style={{
+            padding: 16,
+            paddingBottom: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+          }}
+        >
+          {lines.map((line) => (
+            <LineCard
+              key={line.clientKey}
+              draft={line}
+              currency={currency}
+              forceShowErrors={submitted}
+              errors={fieldErrors[line.clientKey] ?? {}}
+              onErrorsChange={handleErrorsChange}
+              onRemove={handleRemove}
+              canRemove={lines.length > 1}
+            />
+          ))}
+
           <View
             style={{
-              height: 240,
-              borderRadius: tokens.shape.card,
-              backgroundColor: tokens.color.surfaceVariant,
+              height: 48,
+              borderWidth: 1.5,
+              borderStyle: 'dashed',
+              borderColor: tokens.color.accent,
+              borderRadius: tokens.shape.base,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
             }}
+            onClick={() => useReviewDraftStore.getState().addLine()}
           >
-            <Text style={{ fontSize: 13, color: tokens.color.onSurfaceVariant }}>图片加载失败</Text>
-          </View>
-        )}
-        <Text
-          style={{
-            fontSize: 13,
-            color: tokens.color.onSurfaceVariant,
-            textAlign: 'center',
-            marginTop: 8,
-          }}
-        >
-          点按图片可放大查看
-        </Text>
-      </View>
-
-      {/* Mismatch / unmapped explanation card */}
-      {showMismatchCard || showUnmappedCard ? (
-        <View style={{ padding: 16, paddingBottom: 0 }}>
-          <View
-            style={{
-              backgroundColor: tokens.color.warningContainer,
-              borderWidth: 1,
-              borderStyle: 'solid',
-              borderColor: withAlpha(tokens.color.warning, 0.4),
-              borderRadius: tokens.shape.base,
-              padding: 12,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 8,
-            }}
-          >
-            <View style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Icon name='warning' size={16} color={tokens.color.warning} />
-              <Text style={{ fontSize: 15, fontWeight: 600, color: tokens.color.onSurface }}>
-                {showMismatchCard ? '总价对不上，需要您核对' : `有 ${unmappedCount} 行商品未能识别，请确认或修改。`}
-              </Text>
-            </View>
-            {showMismatchCard ? (
-              <>
-                <Text style={{ fontSize: 13, color: tokens.color.onSurface }}>
-                  小票总价 {formatMoney(totalAmount, currency)}，明细合计 {formatMoney(linesSum, currency)}
-                  ，相差 {formatMoney(diffInfo.diff, currency)}（约 {diffInfo.pct.toFixed(1)}%）。超过 2%
-                  的误差不会自动入库，请修改明细或重新识别。
-                </Text>
-                <View style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <View style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
-                    <Text style={{ fontSize: 13, color: tokens.color.onSurfaceVariant }}>小票总价</Text>
-                    <Text style={{ fontSize: 13, color: tokens.color.onSurface }}>
-                      {formatMoney(totalAmount, currency)}
-                    </Text>
-                  </View>
-                  <View style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
-                    <Text style={{ fontSize: 13, color: tokens.color.onSurfaceVariant }}>明细合计</Text>
-                    <Text style={{ fontSize: 13, color: tokens.color.onSurface }}>
-                      {formatMoney(linesSum, currency)}
-                    </Text>
-                  </View>
-                  <View style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
-                    <Text style={{ fontSize: 13, color: tokens.color.onSurfaceVariant }}>相差</Text>
-                    <Text style={{ fontSize: 13, color: tokens.color.onSurface }}>
-                      {formatMoney(diffInfo.diff, currency)} ({diffInfo.pct.toFixed(1)}%)
-                    </Text>
-                  </View>
-                </View>
-              </>
-            ) : null}
+            <Text style={{ fontSize: 15, color: tokens.color.accent }}>＋ 添加一行</Text>
           </View>
         </View>
-      ) : null}
 
-      {/* Line list */}
-      <View
-        style={{
-          padding: 16,
-          paddingBottom: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 12,
-        }}
-      >
-        {lines.map((line) => (
-          <LineCard
-            key={line.clientKey}
-            draft={line}
-            currency={currency}
-            forceShowErrors={submitted}
-            errors={fieldErrors[line.clientKey] ?? {}}
-            onErrorsChange={handleErrorsChange}
-            onRemove={handleRemove}
-            canRemove={lines.length > 1}
-          />
-        ))}
-
+        {/* Action bar cố định: undo (nếu có) + live summary + 确认并入库 */}
         <View
           style={{
-            height: 48,
-            borderWidth: 1.5,
-            borderStyle: 'dashed',
-            borderColor: tokens.color.accent,
-            borderRadius: tokens.shape.base,
+            position: isDesktop ? 'relative' : 'fixed',
+            marginTop: isDesktop ? 16 : 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
+            backgroundColor: tokens.color.surface,
+            borderTopWidth: 1,
+            borderTopStyle: 'solid',
+            borderTopColor: tokens.color.divider,
+            padding: 12,
+            paddingBottom: 12 + safeAreaBottom(),
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            flexDirection: 'column',
+            gap: 8,
+            zIndex: tokens.zIndex.bottomNavigation,
           }}
-          onClick={() => useReviewDraftStore.getState().addLine()}
         >
-          <Text style={{ fontSize: 15, color: tokens.color.accent }}>＋ 添加一行</Text>
-        </View>
-      </View>
-
-      {/* Action bar cố định: undo (nếu có) + live summary + 确认并入库 */}
-      <View
-        style={{
-          position: 'fixed',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          backgroundColor: tokens.color.surface,
-          borderTopWidth: 1,
-          borderTopStyle: 'solid',
-          borderTopColor: tokens.color.divider,
-          padding: 12,
-          paddingBottom: 12 + safeAreaBottom(),
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 8,
-          zIndex: tokens.zIndex.bottomNavigation,
-        }}
-      >
-        {lastRemoved ? (
-          <View
-            style={{
-              backgroundColor: tokens.color.surfaceVariant,
-              borderRadius: tokens.shape.base,
-              padding: 10,
-              display: 'flex',
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
-          >
-            <Text style={{ fontSize: 14, color: tokens.color.onSurface }}>已删除 1 行</Text>
-            <Text
-              style={{ fontSize: 14, fontWeight: 600, color: tokens.color.accent }}
-              onClick={() => useReviewDraftStore.getState().undoRemove()}
-            >
-              撤销
-            </Text>
-          </View>
-        ) : null}
-        <View style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center' }}>
-          {diffInfo.withinThreshold ? (
+          {lastRemoved ? (
             <View
               style={{
+                backgroundColor: tokens.color.surfaceVariant,
+                borderRadius: tokens.shape.base,
+                padding: 10,
                 display: 'flex',
                 flexDirection: 'row',
                 alignItems: 'center',
-                justifyContent: 'center',
-                gap: 4,
+                justifyContent: 'space-between',
               }}
             >
-              <Icon name='check' size={14} color={tokens.color.accent} />
-              <Text style={{ fontSize: 14, fontWeight: 600, color: tokens.color.accent }}>
-                已对上，相差 {formatMoney(diffInfo.diff, currency)}
+              <Text style={{ fontSize: 14, color: tokens.color.onSurface }}>已删除 1 行</Text>
+              <Text
+                style={{ fontSize: 14, fontWeight: 600, color: tokens.color.accent }}
+                onClick={() => useReviewDraftStore.getState().undoRemove()}
+              >
+                撤销
               </Text>
             </View>
-          ) : (
-            <Text style={{ fontSize: 14, color: tokens.color.onSurface }}>
-              明细合计 {formatMoney(linesSum, currency)} · 相差 {formatMoney(diffInfo.diff, currency)} (
-              {diffInfo.pct.toFixed(1)}%)
-            </Text>
-          )}
+          ) : null}
+          <View style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center' }}>
+            {diffInfo.withinThreshold ? (
+              <View
+                style={{
+                  display: 'flex',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 4,
+                }}
+              >
+                <Icon name='check' size={14} color={tokens.color.accent} />
+                <Text style={{ fontSize: 14, fontWeight: 600, color: tokens.color.accent }}>
+                  已对上，相差 {formatMoney(diffInfo.diff, currency)}
+                </Text>
+              </View>
+            ) : (
+              <Text style={{ fontSize: 14, color: tokens.color.onSurface }}>
+                明细合计 {formatMoney(linesSum, currency)} · 相差 {formatMoney(diffInfo.diff, currency)} (
+                {diffInfo.pct.toFixed(1)}%)
+              </Text>
+            )}
+          </View>
+          <Button variant='primary' size='large' block loading={confirming} onClick={() => void handleConfirm()}>
+            确认并入库
+          </Button>
         </View>
-        <Button variant='primary' size='large' block loading={confirming} onClick={() => void handleConfirm()}>
-          确认并入库
-        </Button>
+        </View>
       </View>
     </View>
   )
