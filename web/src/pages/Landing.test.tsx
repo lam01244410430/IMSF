@@ -105,11 +105,23 @@ describe('hero + trust', () => {
     }
   })
 
-  it('uses an honest mock frame for the hero visual, not a fake screenshot', () => {
+  it('renders the hero as a solid dark band with no mock phone frame', () => {
     renderLanding()
-    expect(screen.getByText('应用预览')).toBeTruthy()
-    // The mock label also appears on the five feature mocks.
-    expect(screen.getAllByText('界面预览（示意）').length).toBeGreaterThan(0)
+    const band = document.querySelector('.landing-hero-band') as HTMLElement
+    expect(band).toBeTruthy()
+    expect(document.querySelector('.phone-mock')).toBeNull()
+    expect(screen.queryByText('应用预览')).toBeNull()
+    // Headline, subtitle, value props and CTAs live inside the band.
+    expect(
+      within(band).getByRole('heading', {
+        name: '拍一张小票，冰箱和账本都记好了。',
+      }),
+    ).toBeTruthy()
+    expect(
+      within(band).getByText(
+        'IMSF 帮一家人管好冰箱、记好每一笔支出，快过期的食材还会推荐菜谱。',
+      ),
+    ).toBeTruthy()
     expect(screen.queryByRole('img', { name: /截图|照片/ })).toBeNull()
   })
 
@@ -133,8 +145,8 @@ describe('features + how-it-works', () => {
     ]) {
       expect(screen.getByRole('heading', { name: title })).toBeTruthy()
     }
-    // 5 feature mocks + the hero mock caption.
-    expect(screen.getAllByText('界面预览（示意）')).toHaveLength(6)
+    // 5 feature mocks only — the hero mock is gone (solid band now).
+    expect(screen.getAllByText('界面预览（示意）')).toHaveLength(5)
     expect(
       hrefOf(screen.getByRole('link', { name: '去看看菜谱 →' })),
     ).toBe('/blog')
@@ -203,8 +215,9 @@ describe('FAQ accordion', () => {
 describe('language switching', () => {
   it('switching to English changes the landing copy on the same route', () => {
     renderLanding()
-    const selects = screen.getAllByLabelText('语言')
-    fireEvent.change(selects[0], { target: { value: 'en' } })
+    const triggers = screen.getAllByLabelText('语言')
+    fireEvent.click(triggers[0] as HTMLElement)
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /English/ }))
     expect(
       screen.getByRole('heading', {
         name: 'Snap one receipt — your fridge and ledger are done.',
@@ -221,8 +234,9 @@ describe('language switching', () => {
 
   it('switching to Vietnamese changes the landing copy', () => {
     renderLanding()
-    const selects = screen.getAllByLabelText('语言')
-    fireEvent.change(selects[0], { target: { value: 'vi' } })
+    const triggers = screen.getAllByLabelText('语言')
+    fireEvent.click(triggers[0] as HTMLElement)
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /Tiếng Việt/ }))
     expect(
       screen.getByText(
         'Chụp một tờ hoá đơn, tủ lạnh và sổ chi tiêu đều đã ghi xong.',

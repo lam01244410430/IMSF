@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="88" height="32" viewBox="0 0 88 32" role="img" aria-label="IMSF">
+  <!-- Dark-theme wordmark (Dashboard Phase A, R1): same geometry as
+       logo.svg, name in #EDEDE8 (14.6:1 on the dark header). The accent
+       square is unchanged — do NOT use filter: invert() on logo.svg,
+       it would turn the square cyan. -->
+  <rect x="0" y="6" width="20" height="20" fill="#C2410C"/>
+  <text x="28" y="22" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, -apple-system, Segoe UI, sans-serif" font-size="20" font-weight="600" fill="#EDEDE8">IMSF</text>
+</svg>

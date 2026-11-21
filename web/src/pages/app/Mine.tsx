@@ -15,9 +15,13 @@ import {
 } from '../../lib/auth'
 import { listHouseholds, type Household } from '../../lib/api'
 import { resolveCurrency } from '../../lib/format'
+import { useLanguage } from '../../lib/i18n'
+import { useTheme } from '../../lib/theme'
 
 export function MinePage() {
   const navigate = useNavigate()
+  const { t } = useLanguage()
+  const { theme, setTheme } = useTheme()
   const displayName =
     getStoredUserName() ??
     (getStoredUserEmail()?.split('@')[0]?.trim() || null)
@@ -83,6 +87,29 @@ export function MinePage() {
             </div>
           ))}
         </dl>
+      </section>
+      <section className="mine-section" aria-label={t['theme.label']}>
+        <h2>{t['theme.label']}</h2>
+        <div className="theme-segmented" role="group" aria-label={t['theme.label']}>
+          <button
+            type="button"
+            aria-pressed={theme === 'light'}
+            onClick={() => {
+              setTheme('light')
+            }}
+          >
+            {t['theme.light']}
+          </button>
+          <button
+            type="button"
+            aria-pressed={theme === 'dark'}
+            onClick={() => {
+              setTheme('dark')
+            }}
+          >
+            {t['theme.dark']}
+          </button>
+        </div>
       </section>
       <section className="mine-section" aria-label="更多">
         <h2>更多</h2>

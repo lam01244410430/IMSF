@@ -1,7 +1,8 @@
 /**
  * Self-hosted SVG icons (web/src/assets/icons/). No icon font, no CDN,
  * no emoji. Each file uses stroke="currentColor", so the colour comes
- * from CSS (`color` on the nav item: resting #5F6368, active #C2410C).
+ * from CSS (`color` on the nav item: resting var(--im-muted), active
+ * var(--im-accent-text)).
  * Rendered at 20px from a 24px viewBox; stroke 1.5px.
  */
 import editUrl from '../assets/icons/edit.svg'

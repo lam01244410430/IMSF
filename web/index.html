@@ -5,6 +5,19 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>IMSF — 为一家人管好冰箱和账本</title>
+    <!-- Dashboard Phase A (D2): apply the stored theme BEFORE first
+         paint, so a dark-mode user never sees a light flash. Default
+         is light; prefers-color-scheme is never consulted. If a CSP
+         is ever added, this script needs 'unsafe-inline' or a hash. -->
+    <script>
+      try {
+        var t = window.localStorage.getItem('imsf.theme');
+        document.documentElement.dataset.theme =
+          t === 'dark' ? 'imsf-swiss-dark' : 'imsf-swiss';
+      } catch (e) {
+        document.documentElement.dataset.theme = 'imsf-swiss';
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

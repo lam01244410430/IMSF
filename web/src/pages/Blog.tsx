@@ -15,15 +15,16 @@ const PAGE_SIZE = 20
  *
  * - h1 + subtitle; search by ingredient (?ingredient=<canonical
  *   name>); grid 3 cols desktop / 2 tablet / 1 mobile, gap 24px.
- * - Card (§6.2): white bg, 1px hairline #E3E3E4, radius 4px (theme
- *   rule wins over §6.2's 16px -- see RADIUS NOTE below),
- *   shadow elevation 1 at rest / 2 on hover (kept per plan §6.2 --
- *   DESIGN.md "Phase 4 rulings", F-05); cover 16:10; title 16px/500
- *   max 2 lines ellipsis; meta row 14px #5F6368 with REAL fields
+ * - Card (§6.2): var(--im-surface) bg, 1px hairline var(--im-border),
+ *   radius 4px (theme rule wins over §6.2's 16px -- see RADIUS NOTE
+ *   below), shadow elevation 1 at rest / 2 on hover (kept per plan
+ *   §6.2 -- DESIGN.md "Phase 4 rulings", F-05); cover 16:10; title
+ *   16px/500 max 2 lines ellipsis; meta row 14px var(--im-muted)
+ *   with REAL fields
  *   only (cook_time, ingredient_count, likes_count -- NO servings,
  *   the column does not exist); bottom row author + real like count
  *   (0 when none, never a fake number).
- * - No cover -> honest #F7F7F8 frame + outline image icon, NO stock
+ * - No cover -> honest var(--im-surface-2) frame + outline image icon, NO stock
  *   photo. Loading -> skeleton cards with the same geometry; error ->
  *   error panel + retry button.
  * - EMPTY (the live state, 0 recipes): honest empty state -- and NO

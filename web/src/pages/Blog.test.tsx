@@ -149,8 +149,8 @@ describe('blog list', () => {
       </LanguageProvider>,
     )
     expect(await screen.findByRole('heading', { name: '菜谱' })).toBeDefined()
-    const select = screen.getByLabelText('语言') as HTMLSelectElement
-    fireEvent.change(select, { target: { value: 'en' } })
+    fireEvent.click(screen.getByLabelText('语言'))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /English/ }))
     expect(await screen.findByRole('heading', { name: 'Recipes' })).toBeDefined()
     expect(
       screen.getByText(
@@ -172,8 +172,8 @@ describe('blog list', () => {
       </LanguageProvider>,
     )
     expect(await screen.findByRole('heading', { name: '菜谱' })).toBeDefined()
-    const select = screen.getByLabelText('语言') as HTMLSelectElement
-    fireEvent.change(select, { target: { value: 'vi' } })
+    fireEvent.click(screen.getByLabelText('语言'))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /Tiếng Việt/ }))
     expect(
       await screen.findByRole('heading', { name: 'Công thức' }),
     ).toBeDefined()

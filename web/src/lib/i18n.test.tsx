@@ -65,8 +65,8 @@ describe('LanguageProvider', () => {
         <Probe />
       </LanguageProvider>,
     )
-    const select = screen.getByLabelText('语言') as HTMLSelectElement
-    fireEvent.change(select, { target: { value: 'en' } })
+    fireEvent.click(screen.getByLabelText('语言'))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /English/ }))
     expect(
       screen.getByText('Snap one receipt — your fridge and ledger are done.'),
     ).toBeTruthy()
@@ -79,8 +79,8 @@ describe('LanguageProvider', () => {
         <Probe />
       </LanguageProvider>,
     )
-    const select = screen.getByLabelText('语言') as HTMLSelectElement
-    fireEvent.change(select, { target: { value: 'vi' } })
+    fireEvent.click(screen.getByLabelText('语言'))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /Tiếng Việt/ }))
     expect(
       screen.getByText(
         'Chụp một tờ hoá đơn, tủ lạnh và sổ chi tiêu đều đã ghi xong.',

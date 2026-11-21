@@ -9,6 +9,13 @@
  * - success: text #2E7D32 on bg #E8F5E9 = 4.56:1 (PASS)
  * - accent:  text #C2410C on bg #FDEDE8 = 4.55:1 (PASS)
  * - neutral: text #5F6368 on bg #F7F7F8 = 5.65:1 (PASS)
+ *
+ * Dark pairs (Dashboard Phase A, same variables, dark values):
+ * - error:   text #FF8A80 on bg #2E1B19 = 7.15:1 (PASS)
+ * - warning: text #F59E0B on bg #2E2410 = 7.11:1 (PASS)
+ * - success: text #4CAF50 on bg #1C2B1E = 5.34:1 (PASS)
+ * - accent:  text #F97316 on bg #33200F = 5.53:1 (PASS)
+ * - neutral: text #A8AFA9 on bg #2A2E2C = 6.14:1 (PASS)
  */
 export type ChipTone = 'error' | 'warning' | 'success' | 'accent' | 'neutral'
 

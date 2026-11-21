@@ -115,9 +115,8 @@ describe('/knowledge', () => {
     expect(
       await screen.findByRole('heading', { name: '知识查询' }),
     ).toBeDefined()
-    fireEvent.change(screen.getByLabelText('语言'), {
-      target: { value: 'vi' },
-    })
+    fireEvent.click(screen.getByLabelText('语言'))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /Tiếng Việt/ }))
     expect(
       await screen.findByRole('heading', { name: 'Tra cứu kiến thức' }),
     ).toBeDefined()

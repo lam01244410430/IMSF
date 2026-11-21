@@ -7,6 +7,7 @@ import {
 } from '../lib/auth'
 import { Icon, type IconName } from './Icon'
 import { NotificationsBell } from './NotificationsBell'
+import { ThemeToggle } from './ThemeToggle'
 import logoMarkUrl from '../assets/logo-mark.svg'
 
 interface NavItemDef {
@@ -114,6 +115,7 @@ export function AppShell() {
           <span className="app-topbar-item">CNY</span>
           <span className="app-topbar-item">Asia/Shanghai</span>
           <span className="app-topbar-spacer" />
+          <ThemeToggle />
           <NotificationsBell />
           <span className="app-topbar-user">
             {displayName ?? (isLoggedIn() ? '用户' : '未登录')}

@@ -18,6 +18,7 @@ import { SpendingPage } from './pages/app/Spending'
 import { TransactionsPage } from './pages/app/Transactions'
 import { UploadPage } from './pages/app/Upload'
 import { LanguageProvider } from './lib/LanguageProvider'
+import { ThemeProvider } from './lib/ThemeProvider'
 
 /**
  * Routes (reform plan §3.2):
@@ -105,9 +106,11 @@ export function AppRoutes() {
 export default function App() {
   return (
     <LanguageProvider>
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
+      <ThemeProvider>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </ThemeProvider>
     </LanguageProvider>
   )
 }

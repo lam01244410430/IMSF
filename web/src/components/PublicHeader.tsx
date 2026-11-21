@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import logoUrl from '../assets/logo.svg'
+import logoDarkUrl from '../assets/logo-dark.svg'
 import { isLoggedIn, logout } from '../lib/auth'
 import { useLanguage } from '../lib/i18n'
+import { useTheme } from '../lib/theme'
 import { LanguageSwitcher } from './LanguageSwitcher'
+import { ThemeToggle } from './ThemeToggle'
 
 /**
  * Public header shared by the blog pages (/blog, /blog/:id) and
@@ -20,6 +23,7 @@ import { LanguageSwitcher } from './LanguageSwitcher'
  */
 export function PublicHeader() {
   const { t } = useLanguage()
+  const { theme } = useTheme()
   const authed = isLoggedIn()
   const navigate = useNavigate()
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -42,7 +46,11 @@ export function PublicHeader() {
   return (
     <header className="landing-header">
       <Link to="/" className="landing-brand" aria-label="IMSF">
-        <img src={logoUrl} alt="IMSF" className="landing-logo" />
+        <img
+          src={theme === 'dark' ? logoDarkUrl : logoUrl}
+          alt="IMSF"
+          className="landing-logo"
+        />
       </Link>
       <nav className="landing-menu" aria-label={t['header.menuLabel']}>
         <a href="/#features">{t['nav.features']}</a>
@@ -51,6 +59,7 @@ export function PublicHeader() {
         <a href="/#faq">{t['nav.faq']}</a>
       </nav>
       <span className="landing-header-spacer" />
+      <ThemeToggle />
       <LanguageSwitcher className="lang-switcher landing-lang-desktop" />
       <span className="public-header-auth">
         {authed ? (
@@ -115,6 +124,11 @@ export function PublicHeader() {
             >
               ✕
             </button>
+            <div className="drawer-theme-row">
+              <span>{t['theme.label']}</span>
+              <ThemeToggle />
+            </div>
+            <LanguageSwitcher className="lang-switcher" />
             <nav
               className="landing-drawer-nav"
               aria-label={t['header.menuLabel']}
@@ -132,7 +146,6 @@ export function PublicHeader() {
                 {t['nav.faq']}
               </a>
             </nav>
-            <LanguageSwitcher className="lang-switcher" />
             {authed ? (
               <Link
                 to="/app"

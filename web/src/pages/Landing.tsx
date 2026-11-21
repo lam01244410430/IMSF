@@ -4,8 +4,9 @@
  * placeholder) → FAQ → final CTA → Footer.
  *
  * Honesty rules enforced here, per the plan:
- * - No fake screenshots: hero + feature visuals are grey mock frames
- *   labelled as mocks until real screenshots exist.
+ * - No fake screenshots: feature visuals are grey mock frames
+ *   labelled as mocks until real screenshots exist. The hero is a
+ *   solid dark band (Dashboard Phase A) — no visual, no mock.
  * - No fake reviews: exactly 3 empty slots with the honest text.
  * - No fake video: a 16:9 placeholder, no fake play button.
  * - No fabricated legal text or contact address: legal links go to
@@ -15,9 +16,12 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import logoUrl from '../assets/logo.svg'
+import logoDarkUrl from '../assets/logo-dark.svg'
 import { getStoredUserName, isLoggedIn } from '../lib/auth'
 import { useLanguage, type Dict } from '../lib/i18n'
+import { useTheme } from '../lib/theme'
 import { LanguageSwitcher } from '../components/LanguageSwitcher'
+import { ThemeToggle } from '../components/ThemeToggle'
 
 function CheckIcon() {
   return (
@@ -32,7 +36,7 @@ function CheckIcon() {
     >
       <path
         d="M4 10.5 8.5 15 16 5.5"
-        stroke="#2E7D32"
+        stroke="currentColor"
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -54,7 +58,7 @@ function ChevronIcon({ open }: { open: boolean }) {
     >
       <path
         d="M5 7.5 10 12.5 15 7.5"
-        stroke="#1A1C1A"
+        stroke="currentColor"
         strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -146,6 +150,7 @@ const FAQ_KEYS = [
 
 function LandingHeader() {
   const { t } = useLanguage()
+  const { theme } = useTheme()
   const authed = isLoggedIn()
   const userName = getStoredUserName()
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -168,7 +173,11 @@ function LandingHeader() {
   return (
     <header className="landing-header">
       <Link to="/" className="landing-brand" aria-label="IMSF">
-        <img src={logoUrl} alt="IMSF" className="landing-logo" />
+        <img
+          src={theme === 'dark' ? logoDarkUrl : logoUrl}
+          alt="IMSF"
+          className="landing-logo"
+        />
       </Link>
       <nav className="landing-menu" aria-label={t['header.menuLabel']}>
         <a href="#features">{t['nav.features']}</a>
@@ -177,6 +186,7 @@ function LandingHeader() {
         <a href="#faq">{t['nav.faq']}</a>
       </nav>
       <span className="landing-header-spacer" />
+      <ThemeToggle />
       <LanguageSwitcher className="lang-switcher landing-lang-desktop" />
       {authed ? (
         <>
@@ -232,6 +242,11 @@ function LandingHeader() {
             >
               ✕
             </button>
+            <div className="drawer-theme-row">
+              <span>{t['theme.label']}</span>
+              <ThemeToggle />
+            </div>
+            <LanguageSwitcher className="lang-switcher" />
             <nav
               className="landing-drawer-nav"
               aria-label={t['header.menuLabel']}
@@ -249,7 +264,6 @@ function LandingHeader() {
                 {t['nav.faq']}
               </a>
             </nav>
-            <LanguageSwitcher className="lang-switcher" />
             {authed ? (
               <Link
                 to="/app"
@@ -295,8 +309,8 @@ export function LandingPage() {
       </a>
       <LandingHeader />
       <main id="main">
-        <section className="landing-hero" aria-labelledby="hero-title">
-          <div className="hero-text">
+        <section className="landing-hero-band" aria-labelledby="hero-title">
+          <div className="landing-hero-inner">
             <h1 id="hero-title">{t['hero.title']}</h1>
             <p className="hero-subtitle">{t['hero.subtitle']}</p>
             <ul className="hero-values">
@@ -320,20 +334,6 @@ export function LandingPage() {
               <a href="#how-it-works" className="cta-secondary">
                 {t['hero.ctaSecondary']}
               </a>
-            </div>
-          </div>
-          <div className="hero-visual">
-            <div
-              className="phone-mock"
-              role="img"
-              aria-label={`${t['hero.mockTitle']} — ${t['hero.mockText']}`}
-            >
-              <p className="mock-label">{t['hero.mockTitle']}</p>
-              <div className="mock-block" aria-hidden="true" />
-              <div className="mock-block mock-block-short" aria-hidden="true" />
-              <div className="mock-block" aria-hidden="true" />
-              <div className="mock-block mock-block-short" aria-hidden="true" />
-              <p className="mock-caption">{t['hero.mockText']}</p>
             </div>
           </div>
         </section>

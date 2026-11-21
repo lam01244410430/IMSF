@@ -46,6 +46,48 @@
   --noise: 0;
 }
 
+/* Second theme — Dashboard Phase A (D2): dark mode, default light,
+ * choice stored in localStorage['imsf.theme'], never auto-switched
+ * from the OS (prefersdark: false on both themes). Semantic
+ * *-content flips to dark text for success/warning/error: white text
+ * on those bright semantic colours would be 2.78 / 2.15 / 3.49:1. */
+@plugin "daisyui/theme" {
+  name: "imsf-swiss-dark";
+  default: false;
+  prefersdark: false;
+  color-scheme: "dark";
+
+  --color-base-100: #1a1c1a;
+  --color-base-200: #232625;
+  --color-base-300: #2a2e2c;
+  --color-base-content: #edede8;
+  --color-primary: #c2410c;
+  --color-primary-content: #ffffff;
+  --color-secondary: #c2410c;
+  --color-secondary-content: #ffffff;
+  --color-accent: #c2410c;
+  --color-accent-content: #ffffff;
+  --color-neutral: #2a2e2c;
+  --color-neutral-content: #edede8;
+  --color-info: #c2410c;
+  --color-info-content: #ffffff;
+  --color-success: #4caf50;
+  --color-success-content: #1a1c1a;
+  --color-warning: #f59e0b;
+  --color-warning-content: #1a1c1a;
+  --color-error: #ef5350;
+  --color-error-content: #1a1c1a;
+
+  --radius-selector: 4px;
+  --radius-field: 4px;
+  --radius-box: 4px;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
 /* System fonts ONLY (Lam: no Google Fonts — GFW blocks them).
  * PingFang SC (iOS/macOS), Hiragino Sans GB, Microsoft YaHei (Windows),
  * then the platform sans. No web font is ever fetched. */
@@ -54,8 +96,102 @@
     system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
-:root {
+:root,
+[data-theme="imsf-swiss"] {
   color-scheme: light;
+  --im-bg: #ffffff;
+  --im-surface: #ffffff;
+  --im-surface-2: #f7f7f8;
+  --im-hover: #f7f7f8;
+  --im-hover-on-surface: #f7f7f8;
+  --im-pressed: #e3e3e4;
+  --im-text: #1a1c1a;
+  --im-muted: #5f6368;
+  --im-border: #e3e3e4;
+  /* R7 (documented pre-existing gap): the light input border
+   * is 1.28:1 on white, below WCAG 1.4.11's 3:1 for UI boundaries.
+   * It is kept deliberately — changing it would visibly change the
+   * approved light design. The :focus-visible ring (7.31:1)
+   * is the focused boundary. The dark border is fixed properly
+   * (3.62:1 / 3.22:1). */
+  --im-border-strong: #e3e3e4;
+  --im-accent: #c2410c;
+  --im-accent-hover: #9a3412;
+  --im-accent-text: #c2410c;
+  --im-accent-tint: rgba(194, 65, 12, 0.08);
+  --im-focus: #9a3412;
+  --im-success-text: #2e7d32;
+  --im-error-text: #b71c1c;
+  --im-warning-text: #b45309;
+  --im-chip-error-bg: #fce8e6;
+  --im-chip-warning-bg: #fff7ed;
+  --im-chip-success-bg: #e8f5e9;
+  --im-chip-accent-bg: #fdede8;
+  --im-chip-neutral-bg: #f7f7f8;
+  --im-notice-success-border: #c8e6c9;
+  --im-notice-error-border: #f5c6cb;
+  /* --im-notice-success-text keeps the light value exactly
+   * (7.00:1 on --im-chip-success-bg); dark uses bright green (5.34:1). */
+  --im-notice-success-text: #1b5e20;
+  --im-overlay: rgba(26, 28, 26, 0.4);
+  --im-backdrop: rgba(26, 28, 26, 0.5);
+  --im-shadow: rgba(26, 28, 26, 0.12);
+  --im-hero-bg: #1a1c1a;
+  --im-hero-text: #edede8;
+  --im-hero-muted: #a8afa9;
+  --im-hero-accent-text: #f97316;
+  --im-hero-check: #4caf50;
+  /* Theme-invariant values kept as variables (not literals) so the
+   * zero-hardcoded-hex gate can hold: white text on accent/error
+   * backgrounds, and the solid error red (btn-error, notif badge). */
+  --im-on-accent: #ffffff;
+  --im-error-solid: #b71c1c;
+  --im-error-solid-hover: #9c1b1b;
+}
+
+[data-theme="imsf-swiss-dark"] {
+  color-scheme: dark;
+  --im-bg: #1a1c1a;
+  --im-surface: #232625;
+  --im-surface-2: #2a2e2c;
+  --im-hover: #232625;
+  --im-hover-on-surface: #2a2e2c;
+  --im-pressed: #2a2e2c;
+  --im-text: #edede8;
+  --im-muted: #a8afa9;
+  --im-border: #2a2e2c;
+  --im-border-strong: #6e756e;
+  --im-accent: #c2410c;
+  --im-accent-hover: #9a3412;
+  --im-accent-text: #f97316;
+  --im-accent-tint: rgba(249, 115, 22, 0.12);
+  --im-focus: #f97316;
+  --im-success-text: #4caf50;
+  /* R3 (correction to plan §6.2): the plan's error red is 4.38:1 on
+   * card surfaces — below 4.5:1. Dark error TEXT is a brighter red
+   * (6.69:1 on cards). The plan's red survives only as DaisyUI
+   * --color-error (a background) with dark --color-error-content. */
+  --im-error-text: #ff8a80;
+  --im-warning-text: #f59e0b;
+  --im-chip-error-bg: #2e1b19;
+  --im-chip-warning-bg: #2e2410;
+  --im-chip-success-bg: #1c2b1e;
+  --im-chip-accent-bg: #33200f;
+  --im-chip-neutral-bg: #2a2e2c;
+  --im-notice-success-border: #2e4a2e;
+  --im-notice-error-border: #5a2b28;
+  --im-notice-success-text: #4caf50;
+  --im-overlay: rgba(0, 0, 0, 0.6);
+  --im-backdrop: rgba(0, 0, 0, 0.6);
+  --im-shadow: rgba(0, 0, 0, 0.4);
+  --im-hero-bg: #232625;
+  --im-hero-text: #edede8;
+  --im-hero-muted: #a8afa9;
+  --im-hero-accent-text: #f97316;
+  --im-hero-check: #4caf50;
+  --im-on-accent: #ffffff;
+  --im-error-solid: #b71c1c;
+  --im-error-solid-hover: #9c1b1b;
 }
 
 html,
@@ -65,8 +201,8 @@ body {
 }
 
 body {
-  background: #ffffff;
-  color: #1a1c1a;
+  background: var(--im-bg);
+  color: var(--im-text);
   font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
     system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: 16px;
@@ -81,26 +217,26 @@ body {
 
 /* Placeholder text must meet 4.5:1 (Phase 4, F-01): DaisyUI's default
  * placeholder colour (~50% base-content, 3.3:1 on white) leaks into
- * every input. #5F6368 on white is 6.05:1. */
+ * every input. var(--im-muted) on white is 6.05:1. */
 ::placeholder {
-  color: #5f6368;
+  color: var(--im-muted);
 }
 
 /* Visible keyboard focus everywhere: 2px solid accent-dark, offset 2px. */
 :focus-visible {
-  outline: 2px solid #9a3412;
+  outline: 2px solid var(--im-focus);
   outline-offset: 2px;
 }
 
 /* DaisyUI sets its own outline-color on .btn:focus-visible (base
  * content); pin the accent-dark ring explicitly so the focus ring is
- * the same #9A3412 on buttons, links, inputs and selects alike. */
+ * the same var(--im-focus) on buttons, links, inputs and selects alike. */
 .btn:focus-visible,
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,
 select:focus-visible {
-  outline: 2px solid #9a3412;
+  outline: 2px solid var(--im-focus);
   outline-offset: 2px;
 }
 
@@ -112,15 +248,15 @@ select:focus-visible {
 .app-shell {
   display: flex;
   min-height: 100svh;
-  background: #ffffff;
+  background: var(--im-bg);
 }
 
 .app-sidebar {
   position: fixed;
   inset: 0 auto 0 0;
   width: 240px;
-  background: #ffffff;
-  border-right: 1px solid #e3e3e4;
+  background: var(--im-bg);
+  border-right: 1px solid var(--im-border);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -134,8 +270,8 @@ select:focus-visible {
   padding-left: 24px;
   font-size: 20px;
   font-weight: 600;
-  color: #1a1c1a;
-  border-bottom: 1px solid #e3e3e4;
+  color: var(--im-text);
+  border-bottom: 1px solid var(--im-border);
   flex-shrink: 0;
 }
 
@@ -146,7 +282,7 @@ select:focus-visible {
 }
 
 .app-sidebar-nav-group + .app-sidebar-nav-group {
-  border-top: 1px solid #e3e3e4;
+  border-top: 1px solid var(--im-border);
   margin-top: 8px;
   padding-top: 8px;
 }
@@ -158,8 +294,8 @@ select:focus-visible {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background: #c2410c;
-  color: #ffffff;
+  background: var(--im-accent);
+  color: var(--im-on-accent);
   border: none;
   border-radius: 4px;
   font-size: 14px;
@@ -170,15 +306,15 @@ select:focus-visible {
 }
 
 .app-sidebar-photo:hover {
-  background: #9a3412;
+  background: var(--im-accent-hover);
 }
 
 .app-sidebar-footer {
   margin-top: auto;
   padding: 16px 24px;
   font-size: 13px;
-  color: #5f6368;
-  border-top: 1px solid #e3e3e4;
+  color: var(--im-muted);
+  border-top: 1px solid var(--im-border);
 }
 
 .app-main {
@@ -193,8 +329,8 @@ select:focus-visible {
   position: sticky;
   top: 0;
   height: 64px;
-  background: #ffffff;
-  border-bottom: 1px solid #e3e3e4;
+  background: var(--im-surface);
+  border-bottom: 1px solid var(--im-border);
   display: flex;
   align-items: center;
   gap: 16px;
@@ -208,13 +344,13 @@ select:focus-visible {
 
 .app-topbar-item {
   font-size: 14px;
-  color: #5f6368;
+  color: var(--im-muted);
   white-space: nowrap;
 }
 
 .app-topbar-user {
   font-size: 14px;
-  color: #1a1c1a;
+  color: var(--im-text);
   white-space: nowrap;
 }
 
@@ -227,10 +363,11 @@ select:focus-visible {
 
 /* ------------------------------------------------------------------ */
 /* Sidebar nav item — EXACT spec §5.1 of the reform plan.              */
-/* Rest white; hover #F7F7F8 (text/icon unchanged); active             */
-/* rgba(194,65,12,0.08) + accent text + 3px left bar via ::before;    */
-/* hover+active keeps the active background; focus-visible outline    */
-/* 2px solid #9A3412 offset 2px; pressed :active #E3E3E4; transition  */
+/* Rest var(--im-bg); hover var(--im-hover) (text/icon unchanged);     */
+/* active var(--im-accent-tint) + accent text + 3px left bar via       */
+/* ::before; hover+active keeps the active background; focus-visible  */
+/* outline 2px solid var(--im-focus) offset 2px; pressed :active      */
+/* var(--im-pressed); transition                                       */
 /* background-color/color 150ms ease-out; radius 0; padding-left      */
 /* 24px unchanged at every state so text never jumps.                 */
 /* ------------------------------------------------------------------ */
@@ -244,8 +381,8 @@ select:focus-visible {
   padding-left: 24px;
   padding-right: 16px;
   box-sizing: border-box;
-  background: #ffffff;
-  color: #1a1c1a;
+  background: var(--im-bg);
+  color: var(--im-text);
   font-size: 14px;
   line-height: 1.5;
   text-decoration: none;
@@ -272,7 +409,7 @@ select:focus-visible {
   width: 20px;
   height: 20px;
   flex-shrink: 0;
-  color: #5f6368;
+  color: var(--im-muted);
 }
 
 .sidebar-nav-item .nav-label {
@@ -281,56 +418,56 @@ select:focus-visible {
 }
 
 .sidebar-nav-item:hover {
-  background: #f7f7f8;
-  color: #1a1c1a;
+  background: var(--im-hover);
+  color: var(--im-text);
 }
 
 .sidebar-nav-item:hover .nav-icon {
-  color: #5f6368;
+  color: var(--im-muted);
 }
 
 .sidebar-nav-item.active {
-  background: rgba(194, 65, 12, 0.08);
-  color: #c2410c;
+  background: var(--im-accent-tint);
+  color: var(--im-accent-text);
 }
 
 .sidebar-nav-item.active::before {
-  background: #c2410c;
+  background: var(--im-accent);
 }
 
 .sidebar-nav-item.active .nav-icon {
-  color: #c2410c;
+  color: var(--im-accent-text);
 }
 
 .sidebar-nav-item.active:hover {
-  background: rgba(194, 65, 12, 0.08);
-  color: #c2410c;
+  background: var(--im-accent-tint);
+  color: var(--im-accent-text);
 }
 
 .sidebar-nav-item.active:hover .nav-icon {
-  color: #c2410c;
+  color: var(--im-accent-text);
 }
 
 .sidebar-nav-item:active {
-  background: #e3e3e4;
+  background: var(--im-pressed);
 }
 
 .sidebar-nav-item.active:active {
-  background: #e3e3e4;
+  background: var(--im-pressed);
 }
 
 .sidebar-nav-item:focus-visible {
-  outline: 2px solid #9a3412;
+  outline: 2px solid var(--im-focus);
   outline-offset: 2px;
 }
 
 /* Touch: no hover at all (avoids sticky hover after tap). */
 @media (hover: none) {
   .sidebar-nav-item:hover {
-    background: #ffffff;
+    background: var(--im-bg);
   }
   .sidebar-nav-item.active:hover {
-    background: rgba(194, 65, 12, 0.08);
+    background: var(--im-accent-tint);
   }
 }
 
@@ -366,8 +503,8 @@ select:focus-visible {
     right: 0;
     bottom: 0;
     height: 56px;
-    background: #ffffff;
-    border-top: 1px solid #e3e3e4;
+    background: var(--im-bg);
+    border-top: 1px solid var(--im-border);
     display: flex;
     align-items: stretch;
     z-index: 20;
@@ -380,8 +517,8 @@ select:focus-visible {
     align-items: center;
     justify-content: center;
     gap: 2px;
-    background: #ffffff;
-    color: #5f6368;
+    background: var(--im-bg);
+    color: var(--im-muted);
     font-size: 12px;
     text-decoration: none;
     border: none;
@@ -391,15 +528,15 @@ select:focus-visible {
   .app-bottomnav-item .nav-icon {
     width: 20px;
     height: 20px;
-    color: #5f6368;
+    color: var(--im-muted);
   }
 
   .app-bottomnav-item.active {
-    color: #c2410c;
+    color: var(--im-accent-text);
   }
 
   .app-bottomnav-item.active .nav-icon {
-    color: #c2410c;
+    color: var(--im-accent-text);
   }
 
   .app-fab {
@@ -411,8 +548,8 @@ select:focus-visible {
     height: 56px;
     border-radius: 50%;
     border: none;
-    background: #c2410c;
-    color: #ffffff;
+    background: var(--im-accent);
+    color: var(--im-on-accent);
     font-size: 24px;
     line-height: 1;
     display: flex;
@@ -424,7 +561,7 @@ select:focus-visible {
   }
 
   .app-fab:hover {
-    background: #9a3412;
+    background: var(--im-accent-hover);
   }
 }
 
@@ -436,8 +573,8 @@ select:focus-visible {
   position: sticky;
   top: 0;
   height: 64px;
-  background: #ffffff;
-  border-bottom: 1px solid #e3e3e4;
+  background: var(--im-bg);
+  border-bottom: 1px solid var(--im-border);
   display: flex;
   align-items: center;
   gap: 24px;
@@ -451,7 +588,7 @@ select:focus-visible {
   gap: 8px;
   font-size: 20px;
   font-weight: 600;
-  color: #1a1c1a;
+  color: var(--im-text);
   text-decoration: none;
   white-space: nowrap;
 }
@@ -463,13 +600,13 @@ select:focus-visible {
 
 .landing-menu a {
   font-size: 14px;
-  color: #1a1c1a;
+  color: var(--im-text);
   text-decoration: none;
   white-space: nowrap;
 }
 
 .landing-menu a:hover {
-  color: #c2410c;
+  color: var(--im-accent-text);
 }
 
 .landing-header-spacer {
@@ -478,7 +615,7 @@ select:focus-visible {
 
 .landing-lang {
   font-size: 14px;
-  color: #5f6368;
+  color: var(--im-muted);
   white-space: nowrap;
 }
 
@@ -510,13 +647,13 @@ select:focus-visible {
   font-size: 28px;
   font-weight: 700;
   line-height: 36px;
-  color: #1a1c1a;
+  color: var(--im-text);
   margin: 0 0 8px;
 }
 
 .placeholder-page p {
   font-size: 14px;
-  color: #5f6368;
+  color: var(--im-muted);
   margin: 0;
 }
 
@@ -532,7 +669,7 @@ select:focus-visible {
   font-size: 18px;
   font-weight: 700;
   line-height: 26px;
-  color: #1a1c1a;
+  color: var(--im-text);
   margin: 24px 0 12px;
 }
 
@@ -540,7 +677,7 @@ select:focus-visible {
   font-size: 16px;
   font-weight: 600;
   line-height: 24px;
-  color: #1a1c1a;
+  color: var(--im-text);
   margin: 20px 0 8px;
 }
 
@@ -548,27 +685,29 @@ select:focus-visible {
   font-size: 28px;
   font-weight: 700;
   line-height: 36px;
-  color: #1a1c1a;
+  color: var(--im-text);
   margin: 0 0 16px;
 }
 /* Landing page (Wave 2, reform plan §4) + auth pages (§7.8).          */
-/* Tokens only: accent #C2410C / dark #9A3412, surfaces #FFFFFF /      */
-/* #F7F7F8 / #E3E3E4, text #1A1C1A / #5F6368, success #2E7D32, error    */
-/* #D32F2F on #FCE8E6 (banner text stays #1A1C1A: #D32F2F on #FCE8E6   */
-/* is 4.23:1, below the 4.5:1 bar). No gradients, no cards-in-cards.   */
+/* Colours are var(--im-*) only (Dashboard Phase A): accent           */
+/* var(--im-accent) / var(--im-accent-hover), surfaces var(--im-bg) / */
+/* var(--im-surface-2) / var(--im-border), text var(--im-text) /      */
+/* var(--im-muted), success var(--im-success-text), error              */
+/* var(--im-error-text) on var(--im-chip-error-bg). No gradients,     */
+/* no cards-in-cards.                                                  */
 /* ------------------------------------------------------------------ */
 
 .landing-page {
-  background: #ffffff;
-  color: #1a1c1a;
+  background: var(--im-bg);
+  color: var(--im-text);
 }
 
 .skip-link {
   position: absolute;
   left: -9999px;
   top: 0;
-  background: #ffffff;
-  color: #c2410c;
+  background: var(--im-bg);
+  color: var(--im-accent-text);
   padding: 12px 16px;
   z-index: 100;
   font-size: 14px;
@@ -577,7 +716,7 @@ select:focus-visible {
 .skip-link:focus {
   left: 16px;
   top: 16px;
-  outline: 2px solid #9a3412;
+  outline: 2px solid var(--im-focus);
 }
 
 .landing-logo {
@@ -591,7 +730,7 @@ select:focus-visible {
 }
 
 .landing-login {
-  color: #c2410c;
+  color: var(--im-accent-text);
   background: none;
   border: none;
   font-family: inherit;
@@ -607,12 +746,12 @@ select:focus-visible {
 }
 
 .landing-login:hover {
-  color: #9a3412;
+  color: var(--im-focus);
 }
 
 .landing-register {
-  background: #c2410c;
-  color: #ffffff;
+  background: var(--im-accent);
+  color: var(--im-on-accent);
   border: none;
   border-radius: 20px;
   height: 44px;
@@ -630,13 +769,13 @@ select:focus-visible {
 }
 
 .landing-register:hover {
-  background: #9a3412;
-  color: #ffffff;
+  background: var(--im-accent-hover);
+  color: var(--im-on-accent);
 }
 
 .landing-user-name {
   font-size: 14px;
-  color: #1a1c1a;
+  color: var(--im-text);
   white-space: nowrap;
   max-width: 160px;
   overflow: hidden;
@@ -648,7 +787,7 @@ select:focus-visible {
   background: none;
   border: none;
   font-size: 20px;
-  color: #1a1c1a;
+  color: var(--im-text);
   cursor: pointer;
   min-width: 44px;
   min-height: 44px;
@@ -659,7 +798,7 @@ select:focus-visible {
 .landing-drawer-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(26, 28, 26, 0.4);
+  background: var(--im-overlay);
   z-index: 30;
 }
 
@@ -670,8 +809,8 @@ select:focus-visible {
   bottom: 0;
   width: 280px;
   max-width: 85vw;
-  background: #ffffff;
-  border-left: 1px solid #e3e3e4;
+  background: var(--im-bg);
+  border-left: 1px solid var(--im-border);
   z-index: 31;
   padding: 16px 24px;
   box-sizing: border-box;
@@ -687,7 +826,7 @@ select:focus-visible {
   background: none;
   border: none;
   font-size: 20px;
-  color: #1a1c1a;
+  color: var(--im-text);
   cursor: pointer;
   min-width: 44px;
   min-height: 44px;
@@ -702,7 +841,7 @@ select:focus-visible {
 
 .landing-drawer-nav a {
   font-size: 16px;
-  color: #1a1c1a;
+  color: var(--im-text);
   text-decoration: none;
   min-height: 48px;
   display: flex;
@@ -710,73 +849,43 @@ select:focus-visible {
 }
 
 .landing-drawer-nav a:hover {
-  color: #c2410c;
-}
-
-.lang-switcher select {
-  height: 44px;
-  border: 1px solid #e3e3e4;
-  border-radius: 4px;
-  background: #ffffff;
-  font-family: inherit;
-  font-size: 14px;
-  color: #1a1c1a;
-  padding: 0 8px;
-  cursor: pointer;
-  max-width: 140px;
+  color: var(--im-accent-text);
 }
 
 /* Hero */
 
-.landing-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 560px) 1fr;
-  gap: 48px;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 64px 24px;
-  align-items: center;
-  box-sizing: border-box;
-}
-
-.landing-hero h1 {
-  font-size: 32px;
-  font-weight: 700;
-  line-height: 1.25;
-  color: #1a1c1a;
-  margin: 0 0 16px;
-}
-
 .page-error {
-  color: #b71c1c;
+  color: var(--im-error-text);
   font-size: 14px;
 }
 
 .page-ok {
-  color: #2e7d32;
+  color: var(--im-success-text);
   font-size: 14px;
 }
 
 .page-note {
   font-size: 14px;
-  color: #5f6368;
+  color: var(--im-muted);
   margin: 8px 0;
 }
 
 .page-empty {
   font-size: 14px;
-  color: #5f6368;
+  color: var(--im-muted);
   margin: 12px 0;
 }
 
 .page a {
-  color: #c2410c;
+  color: var(--im-accent-text);
 }
 
-/* Status chip — text + glyph, never colour alone. Contrast measured:
- * error #B71C1C on #FCE8E6 = 5.58:1; warning #B45309 on #FFF7ED = 4.73:1;
- * success #2E7D32 on #E8F5E9 = 4.56:1; accent #C2410C on #FDEDE8 = 4.55:1;
- * neutral #5F6368 on #F7F7F8 = 5.65:1. All ≥ 4.5:1. */
+/* Status chip — text + glyph, never colour alone. Contrast measured
+ * (light): error var(--im-error-text) on var(--im-chip-error-bg) =
+ * 5.58:1; warning 4.73:1; success 4.56:1; accent 4.55:1; neutral
+ * 5.65:1. All ≥ 4.5:1. Dark pairs (same variables, dark
+ * values): error 7.15:1; warning 7.11:1; success 5.34:1;
+ * accent 5.53:1; neutral 6.14:1. */
 .status-chip {
   display: inline-flex;
   align-items: center;
@@ -797,33 +906,33 @@ select:focus-visible {
 }
 
 .status-chip-error {
-  color: #b71c1c;
-  background: #fce8e6;
+  color: var(--im-error-text);
+  background: var(--im-chip-error-bg);
 }
 
 .status-chip-warning {
-  color: #b45309;
-  background: #fff7ed;
+  color: var(--im-warning-text);
+  background: var(--im-chip-warning-bg);
 }
 
 .status-chip-success {
-  color: #2e7d32;
-  background: #e8f5e9;
+  color: var(--im-success-text);
+  background: var(--im-chip-success-bg);
 }
 
 .status-chip-accent {
-  color: #c2410c;
-  background: #fdede8;
+  color: var(--im-accent-text);
+  background: var(--im-chip-accent-bg);
 }
 
 .status-chip-neutral {
-  color: #5f6368;
-  background: #f7f7f8;
+  color: var(--im-muted);
+  background: var(--im-chip-neutral-bg);
 }
 
 /* Notices (honest states, not progress bars). */
 .notice {
-  border: 1px solid #e3e3e4;
+  border: 1px solid var(--im-border);
   border-radius: 4px;
   padding: 12px 16px;
   font-size: 14px;
@@ -832,20 +941,20 @@ select:focus-visible {
 }
 
 .notice-neutral {
-  background: #f7f7f8;
-  color: #1a1c1a;
+  background: var(--im-surface-2);
+  color: var(--im-text);
 }
 
 .notice-success {
-  background: #e8f5e9;
-  color: #1b5e20;
-  border-color: #c8e6c9;
+  background: var(--im-chip-success-bg);
+  color: var(--im-notice-success-text);
+  border-color: var(--im-notice-success-border);
 }
 
 .notice-error {
-  background: #fce8e6;
-  color: #b71c1c;
-  border-color: #f5c6cb;
+  background: var(--im-chip-error-bg);
+  color: var(--im-error-text);
+  border-color: var(--im-notice-error-border);
 }
 
 /* Forms. */
@@ -855,7 +964,7 @@ select:focus-visible {
   gap: 4px;
   font-size: 14px;
   font-weight: 500;
-  color: #1a1c1a;
+  color: var(--im-text);
   margin-bottom: 12px;
 }
 
@@ -863,12 +972,12 @@ select:focus-visible {
 .form-field select {
   height: 44px;
   padding: 0 12px;
-  border: 1px solid #e3e3e4;
+  border: 1px solid var(--im-border-strong);
   border-radius: 4px;
-  background: #ffffff;
+  background: var(--im-surface);
   font-size: 14px;
   font-family: inherit;
-  color: #1a1c1a;
+  color: var(--im-text);
   box-sizing: border-box;
   width: 100%;
 }
@@ -887,23 +996,23 @@ select:focus-visible {
 /* Buttons (DaisyUI btn + local ghost/error variants). */
 .btn-ghost {
   background: transparent;
-  color: #c2410c;
+  color: var(--im-accent-text);
   border: none;
   box-shadow: none;
 }
 
 .btn-ghost:hover {
-  background: rgba(194, 65, 12, 0.08);
+  background: var(--im-accent-tint);
 }
 
 .btn-error {
-  background: #b71c1c;
-  border-color: #b71c1c;
-  color: #ffffff;
+  background: var(--im-error-solid);
+  border-color: var(--im-error-solid);
+  color: var(--im-on-accent);
 }
 
 .btn-error:hover {
-  background: #9c1b1b;
+  background: var(--im-error-solid-hover);
 }
 
 /* Filter chips (receipt list). */
@@ -917,19 +1026,19 @@ select:focus-visible {
 .filter-chip {
   height: 36px;
   padding: 0 16px;
-  border: 1px solid #e3e3e4;
+  border: 1px solid var(--im-border);
   border-radius: 4px;
-  background: #ffffff;
-  color: #1a1c1a;
+  background: var(--im-surface);
+  color: var(--im-text);
   font-size: 14px;
   font-family: inherit;
   cursor: pointer;
 }
 
 .filter-chip-active {
-  background: rgba(194, 65, 12, 0.08);
-  border-color: #c2410c;
-  color: #c2410c;
+  background: var(--im-accent-tint);
+  border-color: var(--im-accent-text);
+  color: var(--im-accent-text);
 }
 
 /* ------------------------------------------------------------------ */
@@ -952,15 +1061,15 @@ select:focus-visible {
 
 .upload-capture-frame {
   height: 320px;
-  border: 1px dashed #e3e3e4;
+  border: 1px dashed var(--im-border);
   border-radius: 4px;
-  background: #f7f7f8;
+  background: var(--im-surface-2);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  color: #5f6368;
+  color: var(--im-muted);
   font-size: 14px;
 }
 
@@ -972,14 +1081,14 @@ select:focus-visible {
 .upload-scan-notice {
   font-size: 14px;
   font-weight: 600;
-  color: #1a1c1a;
+  color: var(--im-text);
   margin: 16px 0 12px;
 }
 
 .upload-scan-note {
   display: block;
   font-weight: 400;
-  color: #5f6368;
+  color: var(--im-muted);
   margin-top: 4px;
 }
 
@@ -996,7 +1105,7 @@ select:focus-visible {
 
 .upload-steps {
   font-size: 14px;
-  color: #1a1c1a;
+  color: var(--im-text);
   line-height: 1.8;
   padding-left: 20px;
   margin: 0 0 12px;
@@ -1004,7 +1113,7 @@ select:focus-visible {
 
 .upload-detail-note {
   font-size: 14px;
-  color: #5f6368;
+  color: var(--im-muted);
   line-height: 1.6;
 }
 
@@ -1020,7 +1129,7 @@ select:focus-visible {
 }
 
 .receipt-row {
-  border-bottom: 1px solid #e3e3e4;
+  border-bottom: 1px solid var(--im-border);
 }
 
 .receipt-row-link {
@@ -1029,11 +1138,11 @@ select:focus-visible {
   gap: 16px;
   padding: 12px 4px;
   text-decoration: none;
-  color: #1a1c1a;
+  color: var(--im-text);
 }
 
 .receipt-row-link:hover {
-  background: #f7f7f8;
+  background: var(--im-hover);
 }
 
 .receipt-store {
@@ -1047,7 +1156,7 @@ select:focus-visible {
 
 .receipt-meta {
   font-size: 14px;
-  color: #5f6368;
+  color: var(--im-muted);
   margin-left: auto;
   white-space: nowrap;
 }
@@ -1059,7 +1168,7 @@ select:focus-visible {
   gap: 12px;
   flex-wrap: wrap;
   font-size: 14px;
-  color: #1a1c1a;
+  color: var(--im-text);
 }
 
 .review-lines,
@@ -1075,14 +1184,14 @@ select:focus-visible {
   gap: 12px;
   flex-wrap: wrap;
   padding: 12px 0;
-  border-bottom: 1px solid #e3e3e4;
+  border-bottom: 1px solid var(--im-border);
 }
 
 .review-line-name {
   flex: 1 1 160px;
   font-size: 14px;
   font-weight: 600;
-  color: #1a1c1a;
+  color: var(--im-text);
 }
 
 .review-field {
@@ -1090,14 +1199,14 @@ select:focus-visible {
   flex-direction: column;
   gap: 4px;
   font-size: 12px;
-  color: #5f6368;
+  color: var(--im-muted);
 }
 
 .review-field input {
   height: 36px;
   width: 96px;
   padding: 0 8px;
-  border: 1px solid #e3e3e4;
+  border: 1px solid var(--im-border-strong);
   border-radius: 4px;
   font-size: 14px;
   font-family: inherit;
@@ -1107,7 +1216,7 @@ select:focus-visible {
 .review-line-subtotal {
   font-size: 14px;
   font-weight: 600;
-  color: #1a1c1a;
+  color: var(--im-text);
   white-space: nowrap;
 }
 
@@ -1116,7 +1225,7 @@ select:focus-visible {
   align-items: center;
   gap: 6px;
   font-size: 14px;
-  color: #1a1c1a;
+  color: var(--im-text);
 }
 
 .review-summary {
@@ -1125,7 +1234,7 @@ select:focus-visible {
   flex-wrap: wrap;
   font-size: 14px;
   font-weight: 600;
-  color: #1a1c1a;
+  color: var(--im-text);
   padding: 12px 0;
 }
 
@@ -1134,7 +1243,7 @@ select:focus-visible {
   gap: 16px;
   align-items: center;
   padding: 12px 0;
-  border-bottom: 1px solid #e3e3e4;
+  border-bottom: 1px solid var(--im-border);
   font-size: 14px;
 }
 
@@ -1144,7 +1253,7 @@ select:focus-visible {
 }
 
 .receipt-line-raw {
-  color: #5f6368;
+  color: var(--im-muted);
   font-size: 12px;
 }
 
@@ -1164,7 +1273,7 @@ select:focus-visible {
   gap: 16px;
   flex-wrap: wrap;
   padding: 12px 0;
-  border-bottom: 1px solid #e3e3e4;
+  border-bottom: 1px solid var(--im-border);
 }
 
 .fridge-info {
@@ -1178,12 +1287,12 @@ select:focus-visible {
 .fridge-name {
   font-size: 14px;
   font-weight: 600;
-  color: #1a1c1a;
+  color: var(--im-text);
 }
 
 .fridge-meta {
   font-size: 13px;
-  color: #5f6368;
+  color: var(--im-muted);
 }
 
 .fridge-actions {
@@ -1197,7 +1306,7 @@ select:focus-visible {
  * compete with the 1-tap 已用完 / 再放三天 buttons. */
 .fridge-knowledge-link {
   font-size: 14px;
-  color: #c2410c;
+  color: var(--im-accent-text);
   text-decoration: none;
   white-space: nowrap;
 }
@@ -1227,10 +1336,10 @@ select:focus-visible {
 .transactions-form-panel {
   position: sticky;
   top: 88px;
-  border: 1px solid #e3e3e4;
+  border: 1px solid var(--im-border);
   border-radius: 4px;
   padding: 16px;
-  background: #ffffff;
+  background: var(--im-surface);
 }
 
 @media (max-width: 1023px) {
@@ -1262,21 +1371,21 @@ select:focus-visible {
   text-align: left;
   font-size: 14px;
   font-weight: 600;
-  color: #5f6368;
+  color: var(--im-muted);
   padding: 8px;
-  border-bottom: 1px solid #e3e3e4;
+  border-bottom: 1px solid var(--im-border);
   white-space: nowrap;
 }
 
 .tx-table td {
   padding: 12px 8px;
-  border-bottom: 1px solid #e3e3e4;
-  color: #1a1c1a;
+  border-bottom: 1px solid var(--im-border);
+  color: var(--im-text);
   vertical-align: middle;
 }
 
 .tx-table tbody tr:hover {
-  background: rgba(194, 65, 12, 0.08);
+  background: var(--im-accent-tint);
 }
 
 .tx-amount {
@@ -1300,7 +1409,7 @@ select:focus-visible {
 
 .tx-receipt-note {
   font-size: 12px;
-  color: #5f6368;
+  color: var(--im-muted);
   white-space: nowrap;
 }
 
@@ -1311,19 +1420,19 @@ select:focus-visible {
 }
 
 .tx-delete {
-  color: #b71c1c;
+  color: var(--im-error-text);
 }
 
 .tx-readonly {
   font-size: 13px;
-  color: #5f6368;
+  color: var(--im-muted);
 }
 
 /* Dialog (edit + delete confirm). */
 .dialog-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(26, 28, 26, 0.5);
+  background: var(--im-backdrop);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1332,7 +1441,7 @@ select:focus-visible {
 }
 
 .dialog {
-  background: #ffffff;
+  background: var(--im-surface);
   border-radius: 4px;
   padding: 24px;
   width: 100%;
@@ -1371,12 +1480,12 @@ select:focus-visible {
 .month-picker input[type="month"] {
   height: 36px;
   padding: 0 8px;
-  border: 1px solid #e3e3e4;
+  border: 1px solid var(--im-border);
   border-radius: 4px;
   font-size: 14px;
   font-family: inherit;
-  color: #1a1c1a;
-  background: #ffffff;
+  color: var(--im-text);
+  background: var(--im-surface);
 }
 
 .spending-dashboard {
@@ -1395,7 +1504,7 @@ select:focus-visible {
 .spending-total-card {
   width: 360px;
   flex-shrink: 0;
-  border: 1px solid #e3e3e4;
+  border: 1px solid var(--im-border);
   border-radius: 4px;
   padding: 20px;
   box-sizing: border-box;
@@ -1415,14 +1524,14 @@ select:focus-visible {
   font-size: 28px;
   font-weight: 700;
   line-height: 36px;
-  color: #1a1c1a;
+  color: var(--im-text);
   margin: 8px 0 0;
   font-variant-numeric: tabular-nums;
 }
 
 .hero-subtitle {
   font-size: 16px;
-  color: #5f6368;
+  color: var(--im-muted);
   margin: 0 0 24px;
 }
 
@@ -1440,11 +1549,12 @@ select:focus-visible {
   align-items: center;
   gap: 8px;
   font-size: 16px;
-  color: #1a1c1a;
+  color: var(--im-text);
 }
 
 .check-icon {
   flex-shrink: 0;
+  color: var(--im-success-text);
 }
 
 .hero-cta {
@@ -1456,8 +1566,8 @@ select:focus-visible {
 }
 
 .cta-primary {
-  background: #c2410c;
-  color: #ffffff;
+  background: var(--im-accent);
+  color: var(--im-on-accent);
   border-radius: 4px;
   height: 44px;
   padding: 0 20px;
@@ -1472,12 +1582,12 @@ select:focus-visible {
 }
 
 .cta-primary:hover {
-  background: #9a3412;
-  color: #ffffff;
+  background: var(--im-accent-hover);
+  color: var(--im-on-accent);
 }
 
 .cta-secondary {
-  color: #c2410c;
+  color: var(--im-accent-text);
   font-size: 14px;
   font-weight: 500;
   text-decoration: none;
@@ -1487,54 +1597,13 @@ select:focus-visible {
 }
 
 .cta-secondary:hover {
-  color: #9a3412;
-}
-
-.hero-visual {
-  display: flex;
-  justify-content: center;
-}
-
-.phone-mock {
-  width: 300px;
-  max-width: 100%;
-  border: 1px solid #e3e3e4;
-  border-radius: 24px;
-  background: #f7f7f8;
-  padding: 24px 16px;
-  box-sizing: border-box;
-}
-
-.mock-label {
-  font-size: 14px;
-  font-weight: 500;
-  color: #1a1c1a;
-  text-align: center;
-  margin: 0 0 8px;
-}
-
-.mock-block {
-  height: 16px;
-  background: #e3e3e4;
-  border-radius: 4px;
-  margin: 12px 0;
-}
-
-.mock-block-short {
-  width: 60%;
-}
-
-.mock-caption {
-  font-size: 14px;
-  color: #5f6368;
-  text-align: center;
-  margin: 16px 0 0;
+  color: var(--im-focus);
 }
 
 /* Trust block */
 
 .landing-trust {
-  background: #f7f7f8;
+  background: var(--im-surface-2);
   padding: 48px 24px;
 }
 
@@ -1549,13 +1618,13 @@ select:focus-visible {
 .trust-title {
   font-size: 16px;
   font-weight: 700;
-  color: #1a1c1a;
+  color: var(--im-text);
   margin: 0 0 8px;
 }
 
 .trust-text {
   font-size: 14px;
-  color: #5f6368;
+  color: var(--im-muted);
   margin: 0;
 }
 
@@ -1573,7 +1642,7 @@ select:focus-visible {
   grid-template-columns: 1fr 1fr;
   gap: 48px;
   padding: 64px 0;
-  border-top: 1px solid #e3e3e4;
+  border-top: 1px solid var(--im-border);
   align-items: center;
 }
 
@@ -1593,38 +1662,38 @@ select:focus-visible {
   font-size: 24px;
   font-weight: 700;
   line-height: 32px;
-  color: #1a1c1a;
+  color: var(--im-text);
   margin: 0 0 12px;
 }
 
 .feature-text p {
   font-size: 16px;
-  color: #5f6368;
+  color: var(--im-muted);
   margin: 0 0 16px;
 }
 
 .feature-link {
-  color: #c2410c;
+  color: var(--im-accent-text);
   font-size: 14px;
   font-weight: 500;
   text-decoration: none;
 }
 
 .feature-link:hover {
-  color: #9a3412;
+  color: var(--im-focus);
 }
 
 .mock-frame {
   aspect-ratio: 16 / 10;
-  background: #f7f7f8;
-  border: 1px solid #e3e3e4;
+  background: var(--im-surface-2);
+  border: 1px solid var(--im-border);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
   box-sizing: border-box;
   text-align: center;
-  color: #5f6368;
+  color: var(--im-muted);
   font-size: 14px;
 }
 
@@ -1634,7 +1703,7 @@ select:focus-visible {
   max-width: 1200px;
   margin: 0 auto;
   padding: 64px 24px;
-  border-top: 1px solid #e3e3e4;
+  border-top: 1px solid var(--im-border);
   box-sizing: border-box;
 }
 
@@ -1645,7 +1714,7 @@ select:focus-visible {
   font-size: 24px;
   font-weight: 700;
   line-height: 32px;
-  color: #1a1c1a;
+  color: var(--im-text);
   margin: 0 0 32px;
 }
 
@@ -1657,7 +1726,7 @@ select:focus-visible {
 
 .how-step {
   padding: 0 32px;
-  border-left: 1px solid #e3e3e4;
+  border-left: 1px solid var(--im-border);
 }
 
 .how-step:first-child {
@@ -1668,20 +1737,20 @@ select:focus-visible {
 .how-num {
   font-size: 28px;
   font-weight: 700;
-  color: #c2410c;
+  color: var(--im-accent-text);
   margin: 0 0 8px;
 }
 
 .how-step h3 {
   font-size: 16px;
   font-weight: 700;
-  color: #1a1c1a;
+  color: var(--im-text);
   margin: 0 0 8px;
 }
 
 .how-step p {
   font-size: 14px;
-  color: #5f6368;
+  color: var(--im-muted);
   margin: 0;
 }
 
@@ -1696,12 +1765,12 @@ select:focus-visible {
 
 .video-slot {
   aspect-ratio: 16 / 9;
-  background: #f7f7f8;
-  border: 1px solid #e3e3e4;
+  background: var(--im-surface-2);
+  border: 1px solid var(--im-border);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #5f6368;
+  color: var(--im-muted);
   font-size: 16px;
 }
 
@@ -1711,7 +1780,7 @@ select:focus-visible {
   max-width: 1200px;
   margin: 0 auto;
   padding: 64px 24px;
-  border-top: 1px solid #e3e3e4;
+  border-top: 1px solid var(--im-border);
   box-sizing: border-box;
 }
 
@@ -1722,8 +1791,8 @@ select:focus-visible {
 }
 
 .review-slot {
-  border: 1px solid #e3e3e4;
-  background: #ffffff;
+  border: 1px solid var(--im-border);
+  background: var(--im-surface);
   padding: 32px 24px;
   min-height: 120px;
   box-sizing: border-box;
@@ -1733,7 +1802,7 @@ select:focus-visible {
 
 .review-slot p {
   font-size: 14px;
-  color: #5f6368;
+  color: var(--im-muted);
   margin: 0;
 }
 
@@ -1743,16 +1812,16 @@ select:focus-visible {
   max-width: 720px;
   margin: 0 auto;
   padding: 64px 24px;
-  border-top: 1px solid #e3e3e4;
+  border-top: 1px solid var(--im-border);
   box-sizing: border-box;
 }
 
 .faq-item {
-  border-bottom: 1px solid #e3e3e4;
+  border-bottom: 1px solid var(--im-border);
 }
 
 .faq-item:first-of-type {
-  border-top: 1px solid #e3e3e4;
+  border-top: 1px solid var(--im-border);
 }
 
 .faq-question {
@@ -1767,7 +1836,7 @@ select:focus-visible {
   font-family: inherit;
   font-size: 16px;
   font-weight: 500;
-  color: #1a1c1a;
+  color: var(--im-text);
   text-align: left;
   cursor: pointer;
   padding: 12px 0;
@@ -1777,6 +1846,7 @@ select:focus-visible {
   width: 20px;
   height: 20px;
   flex-shrink: 0;
+  color: var(--im-text);
   transition: transform 150ms ease-out;
 }
 
@@ -1786,7 +1856,7 @@ select:focus-visible {
 
 .faq-answer {
   font-size: 14px;
-  color: #5f6368;
+  color: var(--im-muted);
   margin: 0;
   padding: 0 0 16px;
   max-width: 640px;
@@ -1798,7 +1868,7 @@ select:focus-visible {
   max-width: 1200px;
   margin: 0 auto;
   padding: 64px 24px;
-  border-top: 1px solid #e3e3e4;
+  border-top: 1px solid var(--im-border);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -1813,7 +1883,7 @@ select:focus-visible {
 /* Footer */
 
 .landing-footer {
-  background: #f7f7f8;
+  background: var(--im-surface-2);
   padding: 48px 24px 32px;
 }
 
@@ -1828,7 +1898,7 @@ select:focus-visible {
 .footer-col-title {
   font-size: 14px;
   font-weight: 500;
-  color: #1a1c1a;
+  color: var(--im-text);
   margin: 0 0 16px;
 }
 
@@ -1843,19 +1913,20 @@ select:focus-visible {
 
 .footer-cols a {
   font-size: 14px;
-  color: #5f6368;
+  color: var(--im-muted);
   text-decoration: none;
 }
 
 .footer-cols a:hover {
-  color: #c2410c;
+  color: var(--im-accent-text);
 }
 
 .footer-bottom {
+  position: relative;
   max-width: 1200px;
   margin: 32px auto 0;
   padding-top: 24px;
-  border-top: 1px solid #e3e3e4;
+  border-top: 1px solid var(--im-border);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1865,7 +1936,7 @@ select:focus-visible {
 
 .footer-tagline {
   font-size: 14px;
-  color: #5f6368;
+  color: var(--im-muted);
   margin: 0;
 }
 
@@ -1873,17 +1944,18 @@ select:focus-visible {
 
 .auth-page {
   min-height: 100svh;
-  background: #ffffff;
-  color: #1a1c1a;
+  background: var(--im-bg);
+  color: var(--im-text);
 }
 
 .auth-header {
+  position: relative;
   height: 64px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 24px;
-  border-bottom: 1px solid #e3e3e4;
+  border-bottom: 1px solid var(--im-border);
   box-sizing: border-box;
 }
 
@@ -1898,21 +1970,21 @@ select:focus-visible {
   font-size: 28px;
   font-weight: 700;
   line-height: 36px;
-  color: #1a1c1a;
+  color: var(--im-text);
   margin: 8px 0 0;
   font-variant-numeric: tabular-nums;
 }
 
 .spending-total-currency {
   font-size: 14px;
-  color: #5f6368;
+  color: var(--im-muted);
   margin: 4px 0 0;
 }
 
 .spending-categories {
   flex: 1;
   min-width: 0;
-  border: 1px solid #e3e3e4;
+  border: 1px solid var(--im-border);
   border-radius: 4px;
   padding: 20px;
   box-sizing: border-box;
@@ -1941,13 +2013,13 @@ select:focus-visible {
   width: 72px;
   flex-shrink: 0;
   font-size: 14px;
-  color: #1a1c1a;
+  color: var(--im-text);
 }
 
 .category-bar-track {
   flex: 1;
   height: 12px;
-  background: #f7f7f8;
+  background: var(--im-surface-2);
   border-radius: 4px;
   overflow: hidden;
   min-width: 0;
@@ -1956,14 +2028,14 @@ select:focus-visible {
 .category-bar-fill {
   display: block;
   height: 100%;
-  background: #c2410c;
+  background: var(--im-accent);
   border-radius: 4px;
 }
 
 .category-bar-value {
   flex-shrink: 0;
   font-size: 14px;
-  color: #1a1c1a;
+  color: var(--im-text);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -1984,23 +2056,23 @@ select:focus-visible {
   width: 100%;
   padding: 12px 4px;
   border: none;
-  border-bottom: 1px solid #e3e3e4;
-  background: #ffffff;
+  border-bottom: 1px solid var(--im-border);
+  background: var(--im-bg);
   font-size: 14px;
   font-family: inherit;
-  color: #1a1c1a;
+  color: var(--im-text);
   cursor: pointer;
   text-align: left;
 }
 
 .month-item:hover {
-  background: #f7f7f8;
+  background: var(--im-hover);
 }
 
 .month-item-active {
-  color: #c2410c;
+  color: var(--im-accent-text);
   font-weight: 600;
-  background: rgba(194, 65, 12, 0.08);
+  background: var(--im-accent-tint);
 }
 
 /* ------------------------------------------------------------------ */
@@ -2032,12 +2104,12 @@ select:focus-visible {
   gap: 2px;
   width: 100%;
   padding: 12px;
-  border: 1px solid #e3e3e4;
+  border: 1px solid var(--im-border);
   border-radius: 4px;
-  background: #ffffff;
+  background: var(--im-surface);
   font-size: 14px;
   font-family: inherit;
-  color: #1a1c1a;
+  color: var(--im-text);
   cursor: pointer;
   text-align: left;
   margin-bottom: 8px;
@@ -2045,12 +2117,12 @@ select:focus-visible {
 }
 
 .equipment-item:hover {
-  background: #f7f7f8;
+  background: var(--im-hover-on-surface);
 }
 
 .equipment-item-active {
-  border-color: #c2410c;
-  background: rgba(194, 65, 12, 0.08);
+  border-color: var(--im-accent-text);
+  background: var(--im-accent-tint);
 }
 
 .equipment-name {
@@ -2059,7 +2131,7 @@ select:focus-visible {
 
 .equipment-meta {
   font-size: 13px;
-  color: #5f6368;
+  color: var(--im-muted);
 }
 
 .maintenance-history {
@@ -2073,13 +2145,13 @@ select:focus-visible {
   gap: 16px;
   flex-wrap: wrap;
   padding: 12px 0;
-  border-bottom: 1px solid #e3e3e4;
+  border-bottom: 1px solid var(--im-border);
   font-size: 14px;
 }
 
 .maintenance-log-note {
   flex-basis: 100%;
-  color: #5f6368;
+  color: var(--im-muted);
   font-size: 13px;
 }
 
@@ -2101,18 +2173,18 @@ select:focus-visible {
 
 .mine-list > div {
   padding: 8px 0;
-  border-bottom: 1px solid #e3e3e4;
+  border-bottom: 1px solid var(--im-border);
   font-size: 14px;
 }
 
 .mine-list dt {
   font-weight: 600;
-  color: #1a1c1a;
+  color: var(--im-text);
 }
 
 .mine-list dd {
   margin: 2px 0 0;
-  color: #5f6368;
+  color: var(--im-muted);
   word-break: break-all;
 }
 
@@ -2124,7 +2196,7 @@ select:focus-visible {
 
 .mine-links li {
   padding: 8px 0;
-  border-bottom: 1px solid #e3e3e4;
+  border-bottom: 1px solid var(--im-border);
   font-size: 14px;
 }
 
@@ -2148,13 +2220,13 @@ select:focus-visible {
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: #5f6368;
+  color: var(--im-muted);
   cursor: pointer;
 }
 
 .notif-bell-btn:hover {
-  background: #f7f7f8;
-  color: #1a1c1a;
+  background: var(--im-hover);
+  color: var(--im-text);
 }
 
 .notif-bell-icon {
@@ -2170,8 +2242,8 @@ select:focus-visible {
   height: 16px;
   padding: 0 4px;
   border-radius: 4px;
-  background: #b71c1c;
-  color: #ffffff;
+  background: var(--im-error-solid);
+  color: var(--im-on-accent);
   font-size: 11px;
   font-weight: 700;
   line-height: 16px;
@@ -2196,10 +2268,10 @@ select:focus-visible {
   max-width: calc(100vw - 32px);
   max-height: 480px;
   overflow-y: auto;
-  background: #ffffff;
-  border: 1px solid #e3e3e4;
+  background: var(--im-surface);
+  border: 1px solid var(--im-border);
   border-radius: 4px;
-  box-shadow: 0 4px 16px rgba(26, 28, 26, 0.12);
+  box-shadow: 0 4px 16px var(--im-shadow);
   z-index: 41;
 }
 
@@ -2209,7 +2281,7 @@ select:focus-visible {
   justify-content: space-between;
   gap: 8px;
   padding: 12px 16px;
-  border-bottom: 1px solid #e3e3e4;
+  border-bottom: 1px solid var(--im-border);
 }
 
 .notif-panel-head h2 {
@@ -2220,20 +2292,20 @@ select:focus-visible {
 
 .notif-panel-note {
   font-size: 12px;
-  color: #5f6368;
+  color: var(--im-muted);
 }
 
 .notif-empty {
   padding: 16px;
   font-size: 14px;
-  color: #5f6368;
+  color: var(--im-muted);
   margin: 0;
 }
 
 .notif-error {
   padding: 16px;
   font-size: 14px;
-  color: #b71c1c;
+  color: var(--im-error-text);
   margin: 0;
 }
 
@@ -2245,7 +2317,7 @@ select:focus-visible {
 
 .notif-item {
   padding: 12px 16px;
-  border-bottom: 1px solid #e3e3e4;
+  border-bottom: 1px solid var(--im-border);
 }
 
 .notif-item-top {
@@ -2253,24 +2325,24 @@ select:focus-visible {
   justify-content: space-between;
   gap: 8px;
   font-size: 12px;
-  color: #5f6368;
+  color: var(--im-muted);
 }
 
 .notif-type {
   font-weight: 600;
-  color: #c2410c;
+  color: var(--im-accent-text);
 }
 
 .notif-text {
   font-size: 14px;
-  color: #1a1c1a;
+  color: var(--im-text);
   margin: 6px 0;
   line-height: 1.5;
 }
 
 .notif-responded {
   font-size: 13px;
-  color: #2e7d32;
+  color: var(--im-success-text);
   margin: 4px 0 0;
 }
 
@@ -2283,7 +2355,7 @@ select:focus-visible {
 
 .auth-note {
   font-size: 14px;
-  color: #5f6368;
+  color: var(--im-muted);
   margin: 0 0 24px;
 }
 
@@ -2297,21 +2369,21 @@ select:focus-visible {
   display: block;
   font-size: 14px;
   font-weight: 500;
-  color: #1a1c1a;
+  color: var(--im-text);
   margin-bottom: 8px;
 }
 
 .auth-field input {
   width: 100%;
   height: 44px;
-  border: 1px solid #e3e3e4;
+  border: 1px solid var(--im-border-strong);
   border-radius: 4px;
   padding: 0 12px;
   font-family: inherit;
   font-size: 16px;
   box-sizing: border-box;
-  background: #ffffff;
-  color: #1a1c1a;
+  background: var(--im-surface);
+  color: var(--im-text);
 }
 
 .password-wrap {
@@ -2329,7 +2401,7 @@ select:focus-visible {
   transform: translateY(-50%);
   background: none;
   border: none;
-  color: #c2410c;
+  color: var(--im-accent-text);
   font-family: inherit;
   font-size: 14px;
   cursor: pointer;
@@ -2339,31 +2411,31 @@ select:focus-visible {
 
 .field-error {
   font-size: 14px;
-  color: #d32f2f;
+  color: var(--im-error-text);
   margin: 8px 0 0;
 }
 
 .auth-banner {
-  background: #fce8e6;
-  border-left: 3px solid #d32f2f;
-  color: #1a1c1a;
+  background: var(--im-chip-error-bg);
+  border-left: 3px solid var(--im-error-text);
+  color: var(--im-text);
   font-size: 14px;
   padding: 12px 16px;
   margin: 0;
 }
 
 .auth-banner a {
-  color: #c2410c;
+  color: var(--im-accent-text);
 }
 
 /* Informational login notice (navigation state, e.g. blog like/save
    redirect). Same geometry as .auth-banner, neutral styling: the red
    banner is reserved for errors. */
 .auth-notice {
-  background: #ffffff;
-  border: 1px solid #e3e3e4;
-  border-left: 3px solid #c2410c;
-  color: #1a1c1a;
+  background: var(--im-surface);
+  border: 1px solid var(--im-border);
+  border-left: 3px solid var(--im-accent-text);
+  color: var(--im-text);
   font-size: 14px;
   padding: 12px 16px;
   margin: 0;
@@ -2381,8 +2453,8 @@ select:focus-visible {
 }
 
 .knowledge-item {
-  background: #ffffff;
-  border: 1px solid #e3e3e4;
+  background: var(--im-surface);
+  border: 1px solid var(--im-border);
   border-radius: 4px;
   padding: 16px;
 }
@@ -2390,27 +2462,27 @@ select:focus-visible {
 .knowledge-item-title {
   font-size: 16px;
   font-weight: 500;
-  color: #1a1c1a;
+  color: var(--im-text);
   margin: 0 0 4px;
 }
 
 .knowledge-item-source {
   font-size: 14px;
-  color: #5f6368;
+  color: var(--im-muted);
   margin: 0 0 8px;
 }
 
 .knowledge-item-content {
   font-size: 14px;
-  color: #1a1c1a;
+  color: var(--im-text);
   margin: 0;
   white-space: pre-wrap;
 }
 
 .auth-submit {
   height: 48px;
-  background: #c2410c;
-  color: #ffffff;
+  background: var(--im-accent);
+  color: var(--im-on-accent);
   border: none;
   border-radius: 4px;
   font-family: inherit;
@@ -2422,18 +2494,18 @@ select:focus-visible {
 }
 
 .auth-submit:hover {
-  background: #9a3412;
+  background: var(--im-accent-hover);
 }
 
 .auth-submit:disabled {
-  background: #c2410c;
+  background: var(--im-accent);
   opacity: 0.55;
   cursor: not-allowed;
 }
 
 .auth-countdown {
   font-size: 14px;
-  color: #d32f2f;
+  color: var(--im-error-text);
   margin: 0;
   text-align: center;
 }
@@ -2441,12 +2513,12 @@ select:focus-visible {
 .auth-switch {
   text-align: center;
   font-size: 14px;
-  color: #5f6368;
+  color: var(--im-muted);
   margin: 24px 0 0;
 }
 
 .auth-switch a {
-  color: #c2410c;
+  color: var(--im-accent-text);
   text-decoration: none;
 }
 
@@ -2465,13 +2537,11 @@ select:focus-visible {
 /* Responsive: tablet 768–1023 uses the mobile layout (plan §5.4). */
 
 @media (max-width: 1023px) {
-  .landing-hero {
-    grid-template-columns: 1fr;
+  .landing-hero-inner {
     padding: 48px 16px;
-    gap: 32px;
   }
 
-  .landing-hero h1 {
+  .landing-hero-band h1 {
     font-size: 28px;
   }
 
@@ -2531,7 +2601,7 @@ select:focus-visible {
   .how-step {
     padding: 24px 0;
     border-left: none;
-    border-top: 1px solid #e3e3e4;
+    border-top: 1px solid var(--im-border);
   }
 
   .how-step:first-child {
@@ -2597,13 +2667,13 @@ select:focus-visible {
   font-size: 28px;
   font-weight: 700;
   line-height: 36px;
-  color: #1a1c1a;
+  color: var(--im-text);
   margin: 0 0 8px;
 }
 
 .blog-subtitle {
   font-size: 14px;
-  color: #5f6368;
+  color: var(--im-muted);
   margin: 0 0 24px;
 }
 
@@ -2618,7 +2688,7 @@ select:focus-visible {
 
 .blog-search-label {
   font-size: 14px;
-  color: #1a1c1a;
+  color: var(--im-text);
   white-space: nowrap;
 }
 
@@ -2628,17 +2698,17 @@ select:focus-visible {
   height: 44px;
   padding: 0 12px;
   box-sizing: border-box;
-  border: 1px solid #e3e3e4;
+  border: 1px solid var(--im-border-strong);
   border-radius: 4px;
-  background: #ffffff;
-  color: #1a1c1a;
+  background: var(--im-surface);
+  color: var(--im-text);
   font-size: 16px;
   font-family: inherit;
 }
 
 .blog-active-filter {
   font-size: 14px;
-  color: #5f6368;
+  color: var(--im-muted);
   margin: 0 0 24px;
   display: flex;
   align-items: center;
@@ -2674,8 +2744,8 @@ select:focus-visible {
  * white, 1px hairline, radius 4px, shadow
  * elevation 1 at rest / 2 on hover. No card-in-card. */
 .blog-card {
-  background: #ffffff;
-  border: 1px solid #e3e3e4;
+  background: var(--im-surface);
+  border: 1px solid var(--im-border);
   border-radius: 4px;
   overflow: hidden;
   box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
@@ -2700,15 +2770,15 @@ select:focus-visible {
   width: 100%;
   aspect-ratio: 16 / 10;
   object-fit: cover;
-  background: #f7f7f8;
+  background: var(--im-surface-2);
 }
 
-/* No cover: honest #F7F7F8 frame + outline image icon, NO stock photo. */
+/* No cover: honest var(--im-surface-2) frame + outline image icon, NO stock photo. */
 .blog-card-cover-empty {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #5f6368;
+  color: var(--im-muted);
 }
 
 .blog-cover-icon {
@@ -2724,7 +2794,7 @@ select:focus-visible {
   font-size: 16px;
   font-weight: 500;
   line-height: 1.5;
-  color: #1a1c1a;
+  color: var(--im-text);
   margin: 0;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -2734,7 +2804,7 @@ select:focus-visible {
 
 .blog-card-meta {
   font-size: 14px;
-  color: #5f6368;
+  color: var(--im-muted);
   margin: 8px 0 0;
 }
 
@@ -2748,7 +2818,7 @@ select:focus-visible {
 }
 
 .blog-card-author {
-  color: #1a1c1a;
+  color: var(--im-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2758,7 +2828,7 @@ select:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: #5f6368;
+  color: var(--im-muted);
   white-space: nowrap;
 }
 
@@ -2770,7 +2840,7 @@ select:focus-visible {
 /* Loading skeletons keep the card geometry (cover + 2 text lines). */
 .blog-skeleton-cover,
 .blog-skeleton-line {
-  background: #f7f7f8;
+  background: var(--im-surface-2);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -2809,9 +2879,9 @@ select:focus-visible {
 .blog-error {
   padding: 48px 16px;
   text-align: center;
-  border: 1px solid #e3e3e4;
+  border: 1px solid var(--im-border);
   border-radius: 4px;
-  background: #ffffff;
+  background: var(--im-surface);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2821,19 +2891,19 @@ select:focus-visible {
 .blog-empty-title {
   font-size: 16px;
   font-weight: 500;
-  color: #1a1c1a;
+  color: var(--im-text);
   margin: 0;
 }
 
 .blog-empty-subtitle {
   font-size: 14px;
-  color: #5f6368;
+  color: var(--im-muted);
   margin: 0;
 }
 
 .blog-error p {
   font-size: 14px;
-  color: #1a1c1a;
+  color: var(--im-text);
   margin: 0;
 }
 
@@ -2847,7 +2917,7 @@ select:focus-visible {
 
 .blog-pager-info {
   font-size: 14px;
-  color: #5f6368;
+  color: var(--im-muted);
   white-space: nowrap;
 }
 
@@ -2860,7 +2930,7 @@ select:focus-visible {
   width: 100%;
   aspect-ratio: 16 / 9;
   object-fit: cover;
-  background: #f7f7f8;
+  background: var(--im-surface-2);
   border-radius: 4px;
   margin-bottom: 24px;
 }
@@ -2874,7 +2944,7 @@ select:focus-visible {
 
 .blog-article-meta {
   font-size: 14px;
-  color: #5f6368;
+  color: var(--im-muted);
   margin: 0 0 32px;
 }
 
@@ -2882,7 +2952,7 @@ select:focus-visible {
   font-size: 20px;
   font-weight: 700;
   line-height: 28px;
-  color: #1a1c1a;
+  color: var(--im-text);
   margin: 0 0 16px;
 }
 
@@ -2898,12 +2968,12 @@ select:focus-visible {
   justify-content: space-between;
   gap: 16px;
   padding: 12px 0;
-  border-bottom: 1px solid #e3e3e4;
+  border-bottom: 1px solid var(--im-border);
   font-size: 16px;
 }
 
 .blog-ingredient a {
-  color: #c2410c;
+  color: var(--im-accent-text);
   text-decoration: none;
 }
 
@@ -2912,7 +2982,7 @@ select:focus-visible {
 }
 
 .blog-ingredient-amount {
-  color: #5f6368;
+  color: var(--im-muted);
   white-space: nowrap;
 }
 
@@ -2926,7 +2996,7 @@ select:focus-visible {
   display: flex;
   gap: 16px;
   padding: 16px 0;
-  border-bottom: 1px solid #e3e3e4;
+  border-bottom: 1px solid var(--im-border);
 }
 
 .blog-step-number {
@@ -2934,7 +3004,7 @@ select:focus-visible {
   font-size: 18px;
   font-weight: 700;
   line-height: 1.5;
-  color: #c2410c;
+  color: var(--im-accent-text);
 }
 
 .blog-step-body {
@@ -2943,7 +3013,7 @@ select:focus-visible {
 
 .blog-step-body p {
   font-size: 16px;
-  color: #1a1c1a;
+  color: var(--im-text);
   margin: 0;
 }
 
@@ -2955,7 +3025,7 @@ select:focus-visible {
 }
 
 .blog-author-block {
-  border: 1px solid #e3e3e4;
+  border: 1px solid var(--im-border);
   border-radius: 4px;
   padding: 16px;
   margin-bottom: 32px;
@@ -2964,19 +3034,19 @@ select:focus-visible {
 .blog-author-name {
   font-size: 16px;
   font-weight: 500;
-  color: #1a1c1a;
+  color: var(--im-text);
   margin: 0 0 4px;
 }
 
 .blog-author-count {
   font-size: 14px;
-  color: #5f6368;
+  color: var(--im-muted);
   margin: 0 0 12px;
 }
 
 .blog-author-link {
   font-size: 14px;
-  color: #c2410c;
+  color: var(--im-accent-text);
   text-decoration: none;
 }
 
@@ -3005,12 +3075,12 @@ select:focus-visible {
 
 .blog-action-count {
   font-size: 14px;
-  color: #5f6368;
+  color: var(--im-muted);
 }
 
 .blog-action-error {
   font-size: 14px;
-  color: #d32f2f;
+  color: var(--im-error-text);
   margin: 0 0 16px;
 }
 
@@ -3020,8 +3090,8 @@ select:focus-visible {
 
 .blog-comments-upcoming {
   font-size: 14px;
-  color: #5f6368;
-  background: #f7f7f8;
+  color: var(--im-muted);
+  background: var(--im-surface-2);
   border-radius: 4px;
   padding: 16px;
   margin: 0;
@@ -3036,7 +3106,7 @@ select:focus-visible {
 
 .blog-shopping-list-message {
   font-size: 14px;
-  color: #5f6368;
+  color: var(--im-muted);
   margin: 0;
 }
 
@@ -3055,4 +3125,317 @@ select:focus-visible {
 .blog-article-skeleton .blog-skeleton-meta {
   height: 16px;
   width: 40%;
+}
+
+/* ------------------------------------------------------------------ */
+/* Dashboard Phase A — header + dark-mode foundation (2026-11-22).     */
+/* Theme toggle, custom language dropdown (âm tường — no shadow,      */
+/* same background as the header, hairline separation only), hero     */
+/* band, and the 我的 appearance control. All colours are             */
+/* var(--im-*) so both themes follow automatically; the only          */
+/* [data-theme="imsf-swiss-dark"] override lives in the section at    */
+/* the very end of this file (hero band bottom edge).                  */
+/* ------------------------------------------------------------------ */
+
+/* Theme toggle: 44px hit target, borderless, icon inherits text colour. */
+.theme-toggle {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--im-text);
+  cursor: pointer;
+  padding: 0;
+}
+
+.theme-toggle:hover {
+  background: var(--im-hover);
+}
+
+.theme-toggle svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Language switcher — custom dropdown (D4). The trigger is borderless
+ * header text + chevron. The panel is âm tường: the wrapper is
+ * position: static, so the panel anchors to the header itself (the
+ * sticky .landing-header, or .auth-header / .footer-bottom, both
+ * position: relative); it shares the header's background variable,
+ * has no shadow and no radius, and is separated only by one hairline
+ * at its bottom edge. */
+.lang-switcher {
+  position: static;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.lang-switcher-btn {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--im-text);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.lang-switcher-btn:hover {
+  background: var(--im-hover);
+}
+
+.lang-switcher-code {
+  font-size: 14px;
+}
+
+.lang-switcher-chevron {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  transition: transform 150ms ease-out;
+}
+
+.lang-switcher-chevron.open {
+  transform: rotate(180deg);
+}
+
+.lang-panel {
+  position: absolute;
+  top: 100%;
+  right: 24px;
+  margin-top: -1px;
+  min-width: 480px;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  background: var(--im-bg);
+  border: none;
+  border-bottom: 1px solid var(--im-border);
+  border-radius: 0;
+  box-shadow: none;
+  z-index: 11;
+}
+
+.lang-panel-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 8px 0;
+}
+
+.lang-option {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 16px;
+  box-sizing: border-box;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lang-option:hover {
+  background: var(--im-hover);
+}
+
+.lang-option-name {
+  font-size: 14px;
+  color: var(--im-text);
+}
+
+.lang-option-code {
+  font-size: 12px;
+  color: var(--im-muted);
+}
+
+.lang-option-tick {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 16px;
+  height: 16px;
+  color: var(--im-accent-text);
+}
+
+/* Footer instance: the panel opens upward (the footer sits at the
+ * bottom of the viewport). */
+.footer-bottom .lang-panel {
+  top: auto;
+  bottom: 100%;
+  right: 0;
+  margin-top: 0;
+  margin-bottom: -1px;
+  border-bottom: none;
+  border-top: 1px solid var(--im-border);
+}
+
+/* Drawer instance (mobile <768px): the panel renders inline inside
+ * the drawer — same background as the drawer, no shadow, one column,
+ * name left, code + tick right. */
+.landing-drawer .lang-switcher {
+  width: 100%;
+}
+
+.landing-drawer .lang-switcher-btn {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.landing-drawer .lang-panel {
+  position: static;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  margin-top: 0;
+  border-top: 1px solid var(--im-border);
+  border-bottom: 1px solid var(--im-border);
+}
+
+.landing-drawer .lang-panel-grid {
+  grid-template-columns: 1fr;
+  padding: 4px 0;
+}
+
+.landing-drawer .lang-option {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.landing-drawer .lang-option-name {
+  flex: 1;
+}
+
+.landing-drawer .lang-option-tick {
+  position: static;
+  flex-shrink: 0;
+}
+
+/* Drawer theme row: label + the same ThemeToggle, full width. */
+.drawer-theme-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  font-size: 14px;
+  color: var(--im-text);
+}
+
+/* Auth header right cluster: theme toggle + language switcher. */
+.auth-header-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Hero band — solid dark band, no gradient, single-column text
+ * (Phase A; the real dashboard screenshot is a Phase B step). The
+ * band is dark in both themes, so its text tokens (--im-hero-*)
+ * do not change with the theme. */
+.landing-hero-band {
+  background: var(--im-hero-bg);
+  color: var(--im-hero-text);
+}
+
+.landing-hero-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 64px 24px;
+  box-sizing: border-box;
+}
+
+.landing-hero-band h1 {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--im-hero-text);
+  margin: 0 0 16px;
+}
+
+.landing-hero-band .hero-subtitle {
+  color: var(--im-hero-muted);
+}
+
+.landing-hero-band .hero-values li {
+  color: var(--im-hero-text);
+}
+
+.landing-hero-band .check-icon {
+  color: var(--im-hero-check);
+}
+
+.landing-hero-band .cta-secondary {
+  color: var(--im-hero-accent-text);
+}
+
+.landing-hero-band .cta-secondary:hover {
+  color: var(--im-hero-text);
+}
+
+/* 我的 — appearance segmented control (D2). */
+.theme-segmented {
+  display: inline-flex;
+  border: 1px solid var(--im-border-strong);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.theme-segmented button {
+  height: 44px;
+  padding: 0 20px;
+  background: var(--im-surface);
+  border: none;
+  color: var(--im-text);
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.theme-segmented button + button {
+  border-left: 1px solid var(--im-border-strong);
+}
+
+.theme-segmented button:hover {
+  background: var(--im-hover-on-surface);
+}
+
+.theme-segmented button[aria-pressed="true"] {
+  background: var(--im-accent);
+  color: var(--im-on-accent);
+}
+
+/* ------------------------------------------------------------------ */
+/* Dark-theme overrides — ONE section, at the end of the file, after  */
+/* every light rule (R11: a dark override placed before its light     */
+/* rule is a silent no-op). Almost everything follows the             */
+/* var(--im-*) definitions automatically; only the rule below needs   */
+/* an explicit dark override.                                          */
+/* ------------------------------------------------------------------ */
+
+/* Hero band: in dark the band sits one step above the page and
+ * below the trust block — the step alone is only 1.25:1,
+ * so the band gets a 1px bottom edge in the strong border colour.
+ * In light no edge is needed (the dark band on a white page is a
+ * hard edge by itself). */
+[data-theme="imsf-swiss-dark"] .landing-hero-band {
+  border-bottom: 1px solid var(--im-border-strong);
 }

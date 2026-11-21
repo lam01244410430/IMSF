@@ -7,7 +7,10 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import logoUrl from '../assets/logo.svg'
+import logoDarkUrl from '../assets/logo-dark.svg'
+import { useTheme } from '../lib/theme'
 import { LanguageSwitcher } from './LanguageSwitcher'
+import { ThemeToggle } from './ThemeToggle'
 
 export function AuthLayout({
   title,
@@ -16,13 +19,21 @@ export function AuthLayout({
   title: string
   children: ReactNode
 }) {
+  const { theme } = useTheme()
   return (
     <div className="auth-page">
       <header className="auth-header">
         <Link to="/" className="landing-brand" aria-label="IMSF">
-          <img src={logoUrl} alt="IMSF" className="landing-logo" />
+          <img
+            src={theme === 'dark' ? logoDarkUrl : logoUrl}
+            alt="IMSF"
+            className="landing-logo"
+          />
         </Link>
-        <LanguageSwitcher className="lang-switcher" />
+        <span className="auth-header-right">
+          <ThemeToggle />
+          <LanguageSwitcher className="lang-switcher" />
+        </span>
       </header>
       <main className="auth-main">
         <h1>{title}</h1>

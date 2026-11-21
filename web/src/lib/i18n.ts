@@ -22,10 +22,10 @@ export type Language = 'zh-CN' | 'vi' | 'en'
 
 export const LANGUAGE_STORAGE_KEY = 'imsf.lang'
 
-export const LANGUAGES: { code: Language; label: string }[] = [
-  { code: 'zh-CN', label: '中文' },
-  { code: 'vi', label: 'Tiếng Việt' },
-  { code: 'en', label: 'English' },
+export const LANGUAGES: { code: Language; label: string; short: string }[] = [
+  { code: 'zh-CN', label: '中文', short: '中文' },
+  { code: 'vi', label: 'Tiếng Việt', short: 'VI' },
+  { code: 'en', label: 'English', short: 'EN' },
 ]
 
 function isLanguage(value: string): value is Language {
@@ -45,6 +45,11 @@ export function getStoredLanguage(): Language {
 const zh = {
   'skip.link': '跳到主要内容',
   'lang.label': '语言',
+  'theme.switchToDark': '切换到深色模式',
+  'theme.switchToLight': '切换到浅色模式',
+  'theme.label': '外观',
+  'theme.light': '浅色',
+  'theme.dark': '深色',
   'nav.features': '功能',
   'nav.how': '使用方法',
   'nav.recipes': '菜谱',
@@ -63,8 +68,6 @@ const zh = {
   'hero.vp3': '一家人，共用一本账',
   'hero.ctaPrimary': '开始免费使用',
   'hero.ctaSecondary': '看看使用方法',
-  'hero.mockTitle': '应用预览',
-  'hero.mockText': '界面预览（示意）',
   'trust.t1': '为家庭而做',
   'trust.d1': '为一家人日常做饭、记账、管理冰箱而设计，不是为企业报表。',
   'trust.t2': '没有广告',
@@ -235,6 +238,11 @@ export type Dict = { [K in keyof typeof zh]: string }
 const vi: Dict = {
   'skip.link': 'Đi tới nội dung chính',
   'lang.label': 'Ngôn ngữ',
+  'theme.switchToDark': 'Chuyển sang giao diện tối',
+  'theme.switchToLight': 'Chuyển sang giao diện sáng',
+  'theme.label': 'Giao diện',
+  'theme.light': 'Sáng',
+  'theme.dark': 'Tối',
   'nav.features': 'Tính năng',
   'nav.how': 'Cách hoạt động',
   'nav.recipes': 'Công thức',
@@ -253,8 +261,6 @@ const vi: Dict = {
   'hero.vp3': 'Cả nhà dùng chung một sổ',
   'hero.ctaPrimary': 'Bắt đầu dùng miễn phí',
   'hero.ctaSecondary': 'Xem cách hoạt động',
-  'hero.mockTitle': 'Xem trước ứng dụng',
-  'hero.mockText': 'Xem trước giao diện (minh hoạ)',
   'trust.t1': 'Làm ra cho gia đình',
   'trust.d1':
     'Thiết kế cho việc nấu ăn, ghi sổ và quản tủ lạnh hằng ngày của một gia đình — không phải cho báo cáo doanh nghiệp.',
@@ -428,6 +434,11 @@ const vi: Dict = {
 const en: Dict = {
   'skip.link': 'Skip to main content',
   'lang.label': 'Language',
+  'theme.switchToDark': 'Switch to dark mode',
+  'theme.switchToLight': 'Switch to light mode',
+  'theme.label': 'Appearance',
+  'theme.light': 'Light',
+  'theme.dark': 'Dark',
   'nav.features': 'Features',
   'nav.how': 'How it works',
   'nav.recipes': 'Recipes',
@@ -446,8 +457,6 @@ const en: Dict = {
   'hero.vp3': 'One family, one shared ledger',
   'hero.ctaPrimary': 'Start using it free',
   'hero.ctaSecondary': 'See how it works',
-  'hero.mockTitle': 'App preview',
-  'hero.mockText': 'Interface preview (mock)',
   'trust.t1': 'Made for families',
   'trust.d1':
     'Designed for a family’s daily cooking, bookkeeping and fridge — not for company reports.',

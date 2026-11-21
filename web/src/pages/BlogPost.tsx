@@ -25,7 +25,8 @@ import {
  * - Ingredients, one line each: canonical name + quantity + unit
  *   (e.g. 鸡蛋 2 个); each name LINKS to /knowledge?q=<canonical
  *   name>. NO 在冰箱里 chip (plan §10 Q11 decided: link only).
- * - Steps: numbered list 1, 2, 3... (numbers in accent #C2410C
+ * - Steps: numbered list 1, 2, 3... (numbers in accent
+ *   var(--im-accent-text)
  *   18px/700, no icon tiles), one short paragraph per step + step
  *   image only if the author provided one (never a fake illustration).
  * - Author block: name + real count of their recipes + link
