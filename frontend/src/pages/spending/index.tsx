@@ -23,6 +23,7 @@ import Icon from '../../ui/primitives/Icon'
 import ListRow from '../../ui/primitives/ListRow'
 import Skeleton from '../../ui/primitives/Skeleton'
 import { tokens } from '../../ui/tokens'
+import { useIsDesktop } from '../../hooks/useIsDesktop'
 import {
   CATEGORY_LABELS,
   CURRENCY_LABELS,
@@ -51,6 +52,7 @@ const CURRENCIES: { key: Currency; label: string }[] = TRANSACTION_CURRENCIES.ma
 }))
 
 export default function Spending() {
+  const isDesktop = useIsDesktop()
   const householdId = useSessionStore((s) => s.currentHouseholdId)
   const isLoggedIn = useSessionStore((s) => s.isLoggedIn)
   // default_currency/timezone lấy từ GET /households (đầy đủ field) — session
@@ -201,6 +203,18 @@ export default function Spending() {
             ) : (
               <>
                 <View
+                  style={
+                    isDesktop
+                      ? {
+                          display: 'flex',
+                          flexDirection: 'row',
+                          gap: tokens.desktop.desktopGap,
+                          alignItems: 'stretch',
+                        }
+                      : { display: 'flex', flexDirection: 'column', gap: 16 }
+                  }
+                >
+                <View
                   style={{
                     backgroundColor: tokens.color.surface,
                     borderRadius: 16,
@@ -208,6 +222,9 @@ export default function Spending() {
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 4,
+                    width: isDesktop ? tokens.desktop.formPanelWidth : undefined,
+                    flexShrink: isDesktop ? 0 : undefined,
+                    height: isDesktop ? '100%' : undefined,
                   }}
                 >
                   <Text style={{ fontSize: 14, color: tokens.color.onSurfaceVariant }}>本月支出</Text>
@@ -218,7 +235,15 @@ export default function Spending() {
                     <Text style={{ fontSize: 14, color: tokens.color.onSurfaceVariant }}>本月还没有支出</Text>
                   ) : null}
                 </View>
-                <View style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <View
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 12,
+                    flex: isDesktop ? 1 : undefined,
+                    minWidth: isDesktop ? 0 : undefined,
+                  }}
+                >
                   <Text style={{ fontSize: 16, fontWeight: 600, color: tokens.color.onSurface }}>分类汇总</Text>
                   {byCategory.length === 0 ? (
                     <Text style={{ fontSize: 14, color: tokens.color.onSurfaceVariant }}>
@@ -275,6 +300,7 @@ export default function Spending() {
                       })}
                     </View>
                   )}
+                </View>
                 </View>
                 <View style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <Text style={{ fontSize: 16, fontWeight: 600, color: tokens.color.onSurface }}>

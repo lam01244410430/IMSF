@@ -182,4 +182,66 @@ describe('Spending page', () => {
       ),
     )
   })
+
+  it('mobile: 本月支出 + 分类汇总 không nằm chung một row (xếp dọc)', async () => {
+    renderSpending()
+    await screen.findByText('本月支出')
+    expect(findDashboardRows().length).toBe(0)
+  })
+})
+
+/** Controllable window.matchMedia — desktop (matches:true), cùng shape với setup.ts. */
+function mockMatchMediaDesktop(): void {
+  const createMql = () => ({
+    matches: true,
+    media: '(min-width: 1024px)',
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  })
+  window.matchMedia = vi.fn(createMql) as unknown as typeof window.matchMedia
+}
+
+/** Các div row (flexDirection row) chứa cả hai card của dashboard. */
+function findDashboardRows(): HTMLElement[] {
+  return Array.from(document.querySelectorAll('div')).filter(
+    (el) =>
+      (el as HTMLElement).style.flexDirection === 'row' &&
+      el.textContent?.includes('本月支出') &&
+      el.textContent?.includes('分类汇总'),
+  )
+}
+
+describe('Spending page — desktop (FE-04)', () => {
+  const originalMatchMedia = window.matchMedia
+
+  beforeEach(() => {
+    mockMatchMediaDesktop()
+  })
+
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia
+  })
+
+  it('desktop: card 本月支出 + 分类汇总 nằm chung một dashboard row', async () => {
+    renderSpending()
+    await screen.findByText('本月支出')
+    expect(screen.getByText('分类汇总')).toBeTruthy()
+    expect(findDashboardRows().length).toBeGreaterThan(0)
+  })
+
+  it('desktop: danh sách tháng trong năm ở dưới row, không nằm trong row', async () => {
+    const thisMonth = currentMonth('Asia/Shanghai')
+    const year = Number(thisMonth.slice(0, 4))
+    renderSpending()
+    expect(await screen.findByText(monthLabel(thisMonth))).toBeTruthy()
+    const rows = findDashboardRows()
+    expect(rows.length).toBeGreaterThan(0)
+    for (const row of rows) {
+      expect(row.textContent).not.toContain(`${year}年各月`)
+    }
+  })
 })

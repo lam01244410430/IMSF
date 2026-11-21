@@ -15,6 +15,7 @@ import PageHeader from '../../components/PageHeader/PageHeader'
 import OfflineBanner from '../../components/OfflineBanner/OfflineBanner'
 import EmptyState from '../../components/EmptyState/EmptyState'
 import ExpenseForm from '../../components/ExpenseForm/ExpenseForm'
+import TransactionTable from '../../components/TransactionTable/TransactionTable'
 import Button from '../../ui/primitives/Button'
 import Dialog, { confirmDialog } from '../../ui/primitives/Dialog'
 import Icon from '../../ui/primitives/Icon'
@@ -24,6 +25,7 @@ import Skeleton from '../../ui/primitives/Skeleton'
 import TextField from '../../ui/primitives/TextField'
 import { showToast } from '../../ui/primitives/Toast'
 import { tokens } from '../../ui/tokens'
+import { useIsDesktop } from '../../hooks/useIsDesktop'
 import { ApiError } from '../../services/errors'
 import {
   CATEGORY_LABELS,
@@ -80,6 +82,7 @@ function ReceiptChip() {
 }
 
 export default function Transactions() {
+  const isDesktop = useIsDesktop()
   const householdId = useSessionStore((s) => s.currentHouseholdId)
   const isLoggedIn = useSessionStore((s) => s.isLoggedIn)
   const queryClient = useQueryClient()
@@ -209,8 +212,34 @@ export default function Transactions() {
             </Button>
           </View>
         ) : (
-          <>
-            <ExpenseForm householdId={householdId} defaultCurrency={defaultCurrency} timezone={timezone} />
+          <View
+            style={
+              isDesktop
+                ? { display: 'flex', flexDirection: 'row', gap: tokens.desktop.desktopGap, alignItems: 'flex-start' }
+                : { display: 'flex', flexDirection: 'column', gap: 16 }
+            }
+          >
+            <View
+              style={
+                isDesktop
+                  ? {
+                      width: tokens.desktop.formPanelWidth,
+                      position: 'sticky',
+                      top: tokens.desktop.topbarHeight + 16,
+                      flexShrink: 0,
+                    }
+                  : undefined
+              }
+            >
+              <ExpenseForm householdId={householdId} defaultCurrency={defaultCurrency} timezone={timezone} />
+            </View>
+            <View
+              style={
+                isDesktop
+                  ? { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }
+                  : { display: 'flex', flexDirection: 'column', gap: 16 }
+              }
+            >
             <View
               style={{
                 display: 'flex',
@@ -261,6 +290,14 @@ export default function Transactions() {
                 title='还没有记账'
                 body='记下第一笔支出，月底可以在消费统计里查看汇总。'
               />
+            ) : isDesktop ? (
+              <TransactionTable
+                transactions={transactions}
+                timezone={timezone}
+                onEdit={openEdit}
+                // 删除 mở dialog sửa hiện có — xem TransactionTableProps.onDeleteRequest.
+                onDeleteRequest={openEdit}
+              />
             ) : (
               <View style={{ backgroundColor: tokens.color.surface, borderRadius: 16 }}>
                 {transactions.map((tx) => {
@@ -284,7 +321,8 @@ export default function Transactions() {
                 })}
               </View>
             )}
-          </>
+            </View>
+          </View>
         )}
       </View>
       <Dialog
