@@ -14,7 +14,7 @@ import { useTabBarSelected } from '../../hooks/useTabBarSelected'
 import { useSessionStore } from '../../store/session'
 import { listHouseholds } from '../../services/households'
 import { logout } from '../../services/auth'
-import { goLogin } from '../../config/routes'
+import { goLogin, goSpending, goTransactions } from '../../config/routes'
 import { tokens } from '../../ui/tokens'
 
 export default function Mine() {
@@ -65,6 +65,11 @@ export default function Mine() {
               <ListRow title='默认货币' subtitle={current?.default_currency ?? 'CNY'} />
               <ListRow title='时区' subtitle={current?.timezone ?? 'Asia/Shanghai'} />
               <ListRow title='语言' subtitle={current?.locale ?? 'zh-CN'} />
+            </View>
+            {/* FE-03: sổ chi tiêu thủ công — entry 记账 trong section 家庭账本 (§6 hàng 4). */}
+            <View style={{ backgroundColor: tokens.color.surface, borderRadius: tokens.shape.base }}>
+              <ListRow title='记账' subtitle='手动记录每一笔支出' onClick={() => void goTransactions()} />
+              <ListRow title='消费统计' subtitle='每月支出汇总' onClick={() => void goSpending()} />
             </View>
             {households.length > 1 ? (
               <View>
