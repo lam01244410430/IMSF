@@ -51,6 +51,7 @@ import redis as redis_lib
 from redis.exceptions import TimeoutError as RedisTimeoutError
 from sqlalchemy import bindparam, text
 
+from app.currencies import SUPPORTED_CURRENCIES
 from app.db import QUEUE_KEY, get_engine, get_redis
 from app.ledger import insert_receipt_transaction
 from app.ocr import run_ocr
@@ -269,7 +270,7 @@ def process_job(job: dict) -> str:
         lines = parsed.get("lines") or []
         total = parsed.get("total_amount")  # may be None -> §6.4 needs_review
         currency = parsed.get("currency") or "CNY"
-        if currency not in ("CNY", "VND"):
+        if currency not in SUPPORTED_CURRENCIES:
             currency = "CNY"
         purchased_at = _parse_purchased_at(parsed.get("purchased_at"))
         store_name = parsed.get("store_name")

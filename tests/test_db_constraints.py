@@ -141,22 +141,29 @@ def mk_inventory(conn, household_id, currency="CNY", quantity="1.00"):
 
 # -- tests ----------------------------------------------------------------
 
-def test_receipt_currency_check_rejects_usd(conn):
+def test_receipt_currency_check_rejects_invalid(conn):
+    """P2-06: receipts currency CHECK accepts USD, rejects an invalid code."""
     household_id = mk_household(conn)
+    mk_receipt(conn, household_id, currency="USD")
+    assert conn.execute(text("SELECT count(*) FROM receipts")).scalar() == 1
     with pytest.raises(IntegrityError):
         with conn.begin_nested():
-            mk_receipt(conn, household_id, currency="USD")
-    # Rolls back cleanly: connection usable, no receipt persisted.
-    assert conn.execute(text("SELECT count(*) FROM receipts")).scalar() == 0
+            mk_receipt(conn, household_id, currency="XXX")
+    # Rolls back cleanly: connection usable, only the USD receipt persisted.
+    assert conn.execute(text("SELECT count(*) FROM receipts")).scalar() == 1
 
 
-def test_inventory_currency_check_rejects_usd(conn):
+def test_inventory_currency_check_rejects_invalid(conn):
+    """P2-06: inventory currency CHECK accepts USD, rejects an invalid code."""
     household_id = mk_household(conn)
-    with pytest.raises(IntegrityError):
-        with conn.begin_nested():
-            mk_inventory(conn, household_id, currency="USD")
+    mk_inventory(conn, household_id, currency="USD")
     assert conn.execute(
-        text("SELECT count(*) FROM inventory_items")).scalar() == 0
+        text("SELECT count(*) FROM inventory_items")).scalar() == 1
+    with pytest.raises(IntegrityError):
+        with conn.begin_nested():
+            mk_inventory(conn, household_id, currency="XXX")
+    assert conn.execute(
+        text("SELECT count(*) FROM inventory_items")).scalar() == 1
 
 
 def test_recipe_ingredient_unit_not_null(conn):

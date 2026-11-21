@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 
 from app.auth import Identity, require_auth
+from app.currencies import SUPPORTED_CURRENCIES
 from app.db import get_engine
 
 router = APIRouter(prefix="/api/v2/households", tags=["households"])
@@ -22,10 +23,10 @@ class HouseholdIn(BaseModel):
 @router.post("", status_code=201)
 def create_household(body: HouseholdIn,
                      ident: Identity = Depends(require_auth)):
-    if body.default_currency not in ("CNY", "VND"):
+    if body.default_currency not in SUPPORTED_CURRENCIES:
         from fastapi import HTTPException
         raise HTTPException(status_code=400,
-                            detail="default_currency must be CNY or VND")
+                            detail=f"default_currency must be one of {', '.join(SUPPORTED_CURRENCIES)}")
     engine = get_engine()
     with engine.begin() as conn:
         hid = conn.execute(

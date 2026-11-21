@@ -25,6 +25,7 @@ from sqlalchemy import text
 
 from app.auth import (Identity, require_auth,
                       require_household_member_403)
+from app.currencies import SUPPORTED_CURRENCIES
 from app.db import get_engine
 
 router = APIRouter(prefix="/api/v2/transactions", tags=["transactions"])
@@ -32,7 +33,7 @@ router = APIRouter(prefix="/api/v2/transactions", tags=["transactions"])
 # under /transactions, so it gets its own router.
 summary_router = APIRouter(prefix="/api/v2/spending", tags=["spending"])
 
-CURRENCIES = ("CNY", "VND")
+CURRENCIES = SUPPORTED_CURRENCIES
 TYPES = ("expense", "income")
 CATEGORIES = ("food", "household", "maintenance", "other")
 
@@ -102,7 +103,7 @@ def _validate_enums(body_type: str | None, currency: str | None,
             status_code=422, detail="type must be 'expense' or 'income'")
     if currency is not None and currency not in CURRENCIES:
         raise HTTPException(
-            status_code=422, detail="currency must be CNY or VND")
+            status_code=422, detail=f"currency must be one of {', '.join(CURRENCIES)}")
     if category is not None and category not in CATEGORIES:
         raise HTTPException(
             status_code=422,

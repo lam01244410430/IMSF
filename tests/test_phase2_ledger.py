@@ -362,7 +362,7 @@ def test_manual_transaction_validation(db_engine):
 
     assert post(amount=0).status_code == 422
     assert post(amount=-5).status_code == 422
-    assert post(currency="USD").status_code == 422
+    assert post(currency="XXX").status_code == 422
     assert post(category="travel").status_code == 422
     assert post(type="transfer").status_code == 422
     body = dict(base)
@@ -507,3 +507,43 @@ def test_transactions_403_other_household(db_engine, monkeypatch):
                       headers=SERVICE_HEADERS).status_code == 403
     # The receipt transaction is untouched.
     assert count_receipt_transactions(db_engine, rid) == 1
+
+
+# --- New currencies (P2-06, D-F7) -------------------------------------------
+
+_NEW_CURRENCIES = ("USD", "EUR", "HKD", "THB", "MYR", "SGD", "IDR", "PHP",
+                   "KHR", "LAK", "MMK", "BND")
+
+
+def test_manual_transaction_new_currencies(db_engine):
+    """P2-06: POST accepts every new currency (201) and stores it."""
+    hid = mk_household()
+    for cur in _NEW_CURRENCIES:
+        r = client.post("/api/v2/transactions",
+                        json={"household_id": hid, "type": "expense",
+                              "amount": 10.00, "currency": cur,
+                              "category": "food",
+                              "occurred_at": "2026-11-10T10:00:00+08:00"},
+                        headers=SERVICE_HEADERS)
+        assert r.status_code == 201, (cur, r.text)
+        assert r.json()["currency"] == cur
+    rows = list_transactions(hid)
+    assert {row["currency"] for row in rows} == set(_NEW_CURRENCIES)
+
+
+def test_spending_summary_usd_only(db_engine):
+    """P2-06: summary for a new currency returns only that currency."""
+    hid = mk_household()
+    for cur, amount in (("USD", 25.00), ("CNY", 100.00)):
+        r = client.post("/api/v2/transactions",
+                        json={"household_id": hid, "type": "expense",
+                              "amount": amount, "currency": cur,
+                              "category": "food",
+                              "occurred_at": "2026-11-10T10:00:00+08:00"},
+                        headers=SERVICE_HEADERS)
+        assert r.status_code == 201, r.text
+    usd = _summary(hid, "USD")
+    assert usd["currency"] == "USD"
+    assert usd["total"] == 25.00
+    cny = _summary(hid, "CNY")
+    assert cny["total"] == 100.00

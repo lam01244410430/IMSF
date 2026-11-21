@@ -60,6 +60,7 @@ from sqlalchemy import text
 
 from app.auth import (Identity, require_auth,
                       require_household_member_403)
+from app.currencies import SUPPORTED_CURRENCIES
 from app.db import get_engine
 
 router = APIRouter(prefix="/api/v2/equipments", tags=["equipments"])
@@ -67,7 +68,7 @@ router = APIRouter(prefix="/api/v2/equipments", tags=["equipments"])
 EQUIPMENT_STATUSES = ("active", "retired")
 USAGE_INTENSITIES = ("low", "medium", "high")
 MAINTENANCE_TYPES = ("cleaning", "filter_replace", "repair", "inspection")
-CURRENCIES = ("CNY", "VND")
+CURRENCIES = SUPPORTED_CURRENCIES
 
 _EQUIPMENT_COLS = (
     "id, household_id, device_type, brand_model, usage_intensity,"
@@ -211,7 +212,7 @@ def _validate_usage_intensity(value: str | None) -> None:
 def _validate_currency(currency: str | None) -> None:
     if currency is not None and currency not in CURRENCIES:
         raise HTTPException(
-            status_code=422, detail="currency must be CNY or VND")
+            status_code=422, detail=f"currency must be one of {', '.join(CURRENCIES)}")
 
 
 @router.get("")

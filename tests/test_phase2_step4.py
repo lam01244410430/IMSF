@@ -353,8 +353,8 @@ def test_maintenance_validation(db_engine):
     # Cost negative -> 400/422.
     r = log_maintenance(eid, cost=-10.00, currency="CNY")
     assert r.status_code in (400, 422), r.text
-    # Bad currency -> 400/422.
-    r = log_maintenance(eid, cost=50.00, currency="USD")
+    # Bad currency -> 400/422 (USD is valid since P2-06).
+    r = log_maintenance(eid, cost=50.00, currency="XXX")
     assert r.status_code in (400, 422), r.text
     # Bad maintenance_type -> 422.
     r = log_maintenance(eid, maintenance_type="deep_clean")

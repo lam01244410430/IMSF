@@ -256,13 +256,43 @@ def test_one_open_lazy_tracking_per_item(conn):
 
 
 def test_transactions_currency_check(conn):
-    """§3.1: currency CHECK rejects anything outside ('CNY','VND')."""
+    """§3.1 (P2-06): currency CHECK accepts the 14 supported currencies
+    and rejects anything outside them."""
     household_id = mk_household(conn)
+    for cur in ("CNY", "VND", "USD", "EUR", "HKD", "THB", "MYR", "SGD",
+                "IDR", "PHP", "KHR", "LAK", "MMK", "BND"):
+        mk_transaction(conn, household_id, currency=cur)
+    assert conn.execute(
+        text("SELECT count(*) FROM transactions")).scalar() == 14
     with pytest.raises(IntegrityError):
         with conn.begin_nested():
-            mk_transaction(conn, household_id, currency="USD")
+            mk_transaction(conn, household_id, currency="XXX")
     assert conn.execute(
-        text("SELECT count(*) FROM transactions")).scalar() == 0
+        text("SELECT count(*) FROM transactions")).scalar() == 14
+
+
+def test_all_currency_checks_accept_new_currencies(conn):
+    """P2-06: the other currency CHECKs (receipts, inventory_items,
+    households) accept a new currency and reject an invalid code.
+    (receipt_lines + maintenance_logs share the same CHECK pattern and
+    are verified by the 0005 migration gate.)"""
+    household_id = mk_household(conn)
+    mk_receipt(conn, household_id, currency="USD")
+    mk_inventory(conn, household_id, currency="EUR")
+    with pytest.raises(IntegrityError):
+        with conn.begin_nested():
+            mk_receipt(conn, household_id, currency="XXX")
+    with pytest.raises(IntegrityError):
+        with conn.begin_nested():
+            mk_inventory(conn, household_id, currency="XXX")
+    conn.execute(
+        text("INSERT INTO households (name, default_currency)"
+             " VALUES ('USD Home', 'USD')"))
+    with pytest.raises(IntegrityError):
+        with conn.begin_nested():
+            conn.execute(
+                text("INSERT INTO households (name, default_currency)"
+                     " VALUES ('Bad Home', 'XXX')"))
 
 
 def test_numeric_accepts_fraction(conn):

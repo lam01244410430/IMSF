@@ -38,7 +38,8 @@ def build_prompt(ocr_text: str, canonical_names: list[str] | None = None) -> str
         "Return ONLY a JSON object with this exact shape:\n"
         '{"store_name": "name or null", '
         '"purchased_at": "ISO 8601 datetime or null", '
-        '"total_amount": number or null, "currency": "CNY", '
+        '"total_amount": number or null, "currency": "ISO 4217 '
+        'code of the receipt (e.g. CNY)", '
         '"lines": [{"raw_name": str, "quantity": number, "unit": str, '
         '"price": number, "canonical_name": str or null, '
         '"is_stock_item": bool}]}\n'
