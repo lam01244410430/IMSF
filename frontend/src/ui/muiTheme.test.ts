@@ -45,20 +45,22 @@ describe('muiTheme', () => {
 
 /**
  * Swiss anchor regression — task/FE-02-swiss-style (2026-11-21, Lam D-F1:
- * no self-guessed info blue #1565C0; one accent only, International Orange
- * #FF4F00; old brand green #2E7D32 is semantic success only).
+ * no self-guessed info blue #1565C0; one accent only, cam đậm #C2410C —
+ * lệch token Swiss gốc International Orange #FF4F00 theo quyết định của Lam
+ * 2026-11-21 13:41 (task/FE-02b-dark-orange): #FF4F00 hơi chói; old brand
+ * green #2E7D32 is semantic success only).
  */
 describe('muiTheme — Swiss anchor', () => {
-  it('uses the single Swiss accent #FF4F00 as primary', () => {
-    expect(muiTheme.palette.primary.main).toBe('#FF4F00')
+  it('uses the single Swiss accent #C2410C as primary', () => {
+    expect(muiTheme.palette.primary.main).toBe('#C2410C')
     expect(muiTheme.palette.primary.main).toBe(tokens.color.accent)
   })
 
-  it('uses dark text on the accent, not white (contrast rule)', () => {
-    // Trắng trên #FF4F00 chỉ 3.30:1 (FAIL 4.5:1); #1A1C1A đạt 5.20:1.
-    expect(muiTheme.palette.primary.contrastText).toBe('#1A1C1A')
+  it('uses white text on the accent, not dark (contrast rule)', () => {
+    // Trắng trên #C2410C = 5.18:1 (PASS 4.5:1); #1A1C1A chỉ 3.31:1 (FAIL).
+    expect(muiTheme.palette.primary.contrastText).toBe('#FFFFFF')
     expect(muiTheme.palette.primary.contrastText).toBe(tokens.color.onAccent)
-    expect(muiTheme.palette.primary.contrastText).not.toBe('#FFFFFF')
+    expect(muiTheme.palette.primary.contrastText).not.toBe('#1A1C1A')
   })
 
   it('has one accent only: secondary === primary', () => {
@@ -75,7 +77,7 @@ describe('muiTheme — Swiss anchor', () => {
   })
 
   it('maps info to the accent — no blue anywhere', () => {
-    expect(muiTheme.palette.info.main).toBe('#FF4F00')
+    expect(muiTheme.palette.info.main).toBe('#C2410C')
     expect(muiTheme.palette.info.main).toBe(muiTheme.palette.primary.main)
   })
 

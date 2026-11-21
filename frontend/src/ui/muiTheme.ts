@@ -5,10 +5,12 @@
  * overrides), §3.7 (cssVariables: true để chuẩn bị dark mode sau này).
  *
  * SWISS ANCHOR — frontend-design skill (Ilm-Alan), 2026-11-21
- * (task/FE-02-swiss-style). Accent duy nhất = International Orange #FF4F00;
- * xanh lá #2E7D32 chỉ là semantic success; KHÔNG còn màu xanh nào (info =
- * accent, xem palette.info). Chữ trên accent là chữ tối #1A1C1A (trắng trên
- * #FF4F00 chỉ 3.30:1, FAIL 4.5:1; tối đạt 5.20:1).
+ * (task/FE-02-swiss-style). Accent duy nhất = cam đậm #C2410C (lệch token
+ * Swiss gốc International Orange #FF4F00 theo quyết định của Lam 2026-11-21
+ * 13:41, task/FE-02b-dark-orange: #FF4F00 hơi chói). Xanh lá #2E7D32 chỉ là
+ * semantic success; KHÔNG còn màu xanh nào (info = accent, xem palette.info).
+ * Chữ trên accent là chữ trắng #FFFFFF (trắng trên #C2410C = 5.18:1, PASS;
+ * tối #1A1C1A chỉ 3.31:1, FAIL). Chữ cam trên trắng cũng 5.18:1 (PASS).
  *
  * Chỉ dùng trên H5 (cần DOM thật). Không bao giờ import vào build weapp —
  * adapter layer §8.2 + platform file ép điều này (ESLint).
@@ -60,8 +62,8 @@ const themeOptions: MuiThemeOptions = {
   palette: {
     mode: 'light',
     // SWISS: MỘT accent duy nhất — MUI primary CHÍNH LÀ accent
-    // (International Orange #FF4F00). contrastText là chữ tối #1A1C1A
-    // (trắng trên accent chỉ 3.30:1, FAIL; tối đạt 5.20:1).
+    // (cam đậm #C2410C). contrastText là chữ trắng #FFFFFF
+    // (trắng trên accent = 5.18:1, PASS; tối chỉ 3.31:1, FAIL).
     primary: {
       main: c.accent,
       light: c.accentLight,

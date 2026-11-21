@@ -32,7 +32,7 @@ const s = tokens.shape
 
 /** [tên biến CSS, giá trị] cho tokens.css (namespace --imsf-*). */
 const imsfVars = [
-  // SWISS: accent duy nhất = International Orange; success = xanh lá semantic.
+  // SWISS: accent duy nhất = cam đậm #C2410C (lệch token Swiss #FF4F00 theo Lam 2026-11-21); success = xanh lá semantic.
   ['--imsf-color-accent', c.accent],
   ['--imsf-color-on-accent', c.onAccent],
   ['--imsf-color-accent-container', c.accentContainer],
@@ -78,7 +78,7 @@ const imsfVars = [
 
 /** [tên biến CSS, giá trị] cho nutui.css (override NutUI, §3.6 + Gate 0). */
 const nutuiVars = [
-  // SWISS: NutUI primary = accent (International Orange).
+  // SWISS: NutUI primary = accent (cam đậm #C2410C).
   ['--nutui-color-primary', c.accent],
   ['--nutui-color-primary-stop-1', c.accentDark],
   ['--nutui-color-primary-stop-2', c.accentDark],

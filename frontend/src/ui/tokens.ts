@@ -7,7 +7,9 @@
  * (task/FE-02-swiss-style; Lam: "không dùng màu xanh tự đoán, sử dụng phong
  * cách https://github.com/Ilm-Alan/frontend-design"). Swiss = mặt trắng
  * #FFFFFF / trung tính #F7F7F8 + sans + hairline 1px + MỘT accent duy nhất
- * (International Orange #FF4F00), dùng có chủ ý. Xanh lá thương hiệu cũ
+ * (cam đậm #C2410C — lệch token Swiss gốc International Orange #FF4F00
+ * theo quyết định của Lam 2026-11-21 13:41: #FF4F00 hơi chói; #C2410C trầm
+ * hơn và chữ cam trên trắng đạt 5.18:1), dùng có chủ ý. Xanh lá thương hiệu cũ
  * #2E7D32 giờ chỉ là màu semantic success. Không còn màu xanh nào trong theme.
  *
  * QUY TẮC: một giá trị hex chỉ tồn tại ở đúng một chỗ — file này. Mọi nơi khác
@@ -35,16 +37,19 @@
 
 export const tokens = {
   color: {
-    // ★ SWISS ACCENT — International Orange #FF4F00 (token Swiss, chính xác).
-    // Swiss Red #E4002B sẽ đụng màu error; Yves Klein Blue #002FA7 là một
-    // màu xanh khác (Lam vừa cấm xanh tự đoán). Secondary cam cũ #FF8F00
-    // được thay bằng token Swiss chính xác.
-    accent: '#FF4F00',
-    // Chữ trắng trên #FF4F00 = 3.30:1 (FAIL 4.5:1) — contrastText phải là
-    // chữ tối. #1A1C1A trên #FF4F00 = 5.20:1 (PASS).
-    onAccent: '#1A1C1A',
-    accentLight: '#FFA726', // Material Orange 400 (cam sáng kề accent)
-    accentDark: '#EF6C00', // Material Orange 800 (cam tối kề accent)
+    // ★ SWISS ACCENT — cam đậm #C2410C (Tailwind Orange 700). Lệch token
+    // Swiss gốc International Orange #FF4F00 theo quyết định của Lam
+    // 2026-11-21 13:41 (task/FE-02b-dark-orange): #FF4F00 hơi chói; #C2410C
+    // trầm hơn và sửa luôn tương phản chữ nhỏ (xem dưới). Swiss Red #E4002B
+    // sẽ đụng màu error; Yves Klein Blue #002FA7 là một màu xanh khác
+    // (Lam cấm xanh tự đoán). Secondary cam cũ #FF8F00 đã thay bằng accent.
+    accent: '#C2410C',
+    // Chữ cam #C2410C trên trắng = 5.18:1 (PASS 4.5:1) — sửa lỗi 3.30:1
+    // của #FF4F00. Chữ trắng trên #C2410C = 5.18:1 (PASS); chữ tối #1A1C1A
+    // trên #C2410C chỉ 3.31:1 (FAIL) nên contrastText PHẢI là trắng.
+    onAccent: '#FFFFFF',
+    accentLight: '#EA580C', // Tailwind Orange 600 (cam sáng kề accent, 1 nấc trên #C2410C)
+    accentDark: '#9A3412', // Tailwind Orange 800 (cam tối kề accent, 1 nấc dưới #C2410C)
     accentContainer: '#FFE0B2', // container cam nhạt (giữ giá trị Figma)
     onAccentContainer: '#1A1C1A', // #FFE0B2 vs #1A1C1A = 13.52:1
     // Xanh lá thương hiệu cũ #2E7D32 giờ CHỈ là màu SEMANTIC success
@@ -88,11 +93,11 @@ export const tokens = {
   },
   action: {
     active: 'rgba(26,28,26,0.54)',
-    hover: 'rgba(255,79,0,0.08)',
-    selected: 'rgba(255,79,0,0.12)',
+    hover: 'rgba(194,65,12,0.08)',
+    selected: 'rgba(194,65,12,0.12)',
     disabled: 'rgba(26,28,26,0.38)',
     disabledBackground: 'rgba(26,28,26,0.12)',
-    focus: 'rgba(255,79,0,0.12)',
+    focus: 'rgba(194,65,12,0.12)',
   },
   font: {
     // SYSTEM FONTS ONLY (Lam 2026-11-21 13:19: "k dùng chuẩn của google vì
@@ -158,7 +163,7 @@ export const tokens = {
     2: '0 2px 8px rgba(26,28,26,0.10)',
     4: '0 4px 16px rgba(26,28,26,0.12)',
     8: '0 8px 24px rgba(26,28,26,0.16)',
-    fab: '0 6px 16px rgba(255,79,0,0.35)',
+    fab: '0 6px 16px rgba(194,65,12,0.35)',
   },
   zIndex: {
     bottomNavigation: 1100,
