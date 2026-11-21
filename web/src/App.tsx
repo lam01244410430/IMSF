@@ -3,6 +3,7 @@ import { AppShell } from './components/AppShell'
 import { PublicOnly, RequireAuth } from './components/guards'
 import { BlogPage } from './pages/Blog'
 import { BlogPostPage } from './pages/BlogPost'
+import { KnowledgePage } from './pages/Knowledge'
 import { LandingPage } from './pages/Landing'
 import { LegalPage } from './pages/Legal'
 import { LoginPage } from './pages/Login'
@@ -27,6 +28,10 @@ import { LanguageProvider } from './lib/LanguageProvider'
  *   /app/*       guarded — unauthenticated → /login?next=<path>
  *   /blog        public recipe list (placeholder; Wave 2)
  *   /blog/:id    public recipe article (placeholder; Wave 2)
+ *   /knowledge   knowledge search (plan §6.3: blog ingredient links
+ *                point here with ?q=<canonical name>; the endpoint
+ *                needs auth, so logged-out visitors are sent to
+ *                /login with a notice — Wave 3 fix)
  *   /privacy /terms /contact — honest placeholder pages (§4.8):
  *                "being written", no fabricated legal text.
  *   *            404 catch-all
@@ -81,6 +86,7 @@ export function AppRoutes() {
       </Route>
       <Route path="/blog" element={<BlogPage />} />
       <Route path="/blog/:id" element={<BlogPostPage />} />
+      <Route path="/knowledge" element={<KnowledgePage />} />
       <Route path="/privacy" element={<LegalPage kind="privacy" />} />
       <Route path="/terms" element={<LegalPage kind="terms" />} />
       <Route path="/contact" element={<LegalPage kind="contact" />} />

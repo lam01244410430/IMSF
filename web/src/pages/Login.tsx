@@ -11,9 +11,13 @@
  * - Never shows raw backend detail in the UI.
  * - On success the auth client has stored tokens + household id;
  *   redirect to `?next=` when present, else /app.
+ * - A `notice` string passed in navigation state (e.g. the blog
+ *   article's like/save buttons redirecting here) is shown as an
+ *   informational notice above the form — it is sender-supplied UI
+ *   copy, rendered as plain text, never an error banner.
  */
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { loginWithEmail } from '../lib/auth'
 import {
   classifyAuthError,
@@ -29,10 +33,23 @@ const LOCK_MS = 15 * 60 * 1000
 export function LoginPage() {
   const { t } = useLanguage()
   const navigate = useNavigate()
+  const location = useLocation()
   const [params] = useSearchParams()
   const nextParam = params.get('next')
   const next =
     nextParam !== null && nextParam.startsWith('/') ? nextParam : '/app'
+
+  // Informational notice carried in navigation state (blog like/save
+  // redirect). Only a plain string is rendered; anything else is
+  // ignored so a malformed state can never inject markup.
+  const state = location.state as { notice?: unknown } | null
+  const notice =
+    state !== null &&
+    typeof state === 'object' &&
+    typeof state.notice === 'string' &&
+    state.notice !== ''
+      ? state.notice
+      : null
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -112,6 +129,11 @@ export function LoginPage() {
   return (
     <AuthLayout title={t['auth.loginTitle']}>
       <p className="auth-note">{t['auth.note']}</p>
+      {notice ? (
+        <p role="status" className="auth-notice">
+          {notice}
+        </p>
+      ) : null}
       <form className="auth-form" onSubmit={handleSubmit} noValidate>
         <div className="auth-field">
           <label htmlFor="login-email">{t['auth.email']}</label>

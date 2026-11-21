@@ -188,6 +188,33 @@ describe('error mapping', () => {
   })
 })
 
+describe('navigation notice', () => {
+  it('renders a notice carried in navigation state (blog like/save redirect)', () => {
+    render(
+      <LanguageProvider>
+        <MemoryRouter
+          initialEntries={[
+            {
+              pathname: '/login',
+              state: { notice: '请先登录，登录后即可点赞。' },
+            },
+          ]}
+        >
+          <LoginPage />
+        </MemoryRouter>
+      </LanguageProvider>,
+    )
+    expect(screen.getByRole('status').textContent).toBe(
+      '请先登录，登录后即可点赞。',
+    )
+  })
+
+  it('renders no notice without navigation state', () => {
+    renderLogin()
+    expect(screen.queryByRole('status')).toBeNull()
+  })
+})
+
 describe('success', () => {
   it('navigates to /app on success', async () => {
     mockLogin.mockResolvedValueOnce({
