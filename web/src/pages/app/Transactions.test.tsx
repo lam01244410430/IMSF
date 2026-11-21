@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TransactionsPage } from './Transactions'
+import { dateToOccurredAt, todayDate } from '../../lib/format'
 
 const HOUSEHOLD = {
   id: '11111111-1111-1111-1111-111111111111',
@@ -137,7 +138,7 @@ describe('TransactionsPage', () => {
       amount: 100.5,
       currency: 'CNY',
       category: 'food',
-      occurred_at: expect.stringMatching(/^2026-11-21T00:00:00\+08:00$/),
+      occurred_at: dateToOccurredAt(todayDate('Asia/Shanghai'), 'Asia/Shanghai'),
       note: '午饭',
     })
   })
