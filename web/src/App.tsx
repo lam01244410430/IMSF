@@ -9,6 +9,7 @@ import { LegalPage } from './pages/Legal'
 import { LoginPage } from './pages/Login'
 import { NotFoundPage } from './pages/NotFound'
 import { RegisterPage } from './pages/Register'
+import { DashboardPage } from './pages/app/Dashboard'
 import { FridgePage } from './pages/app/Fridge'
 import { MaintenancePage } from './pages/app/Maintenance'
 import { MinePage } from './pages/app/Mine'
@@ -37,11 +38,15 @@ import { ThemeProvider } from './lib/ThemeProvider'
  *                "being written", no fabricated legal text.
  *   *            404 catch-all
  *
- * /app redirects to /app/upload (the Mini Program's post-login
- * destination, plan §3.2 Q2 decided) and the 首页 sidebar item points
- * to /app/upload. Recipes live at /blog (plan §5.3); the sidebar
- * 菜谱 item already points there. /recipes and /app/recipes both
- * redirect to /blog (plan §10 Q9) so the old URLs never 404.
+ * /app redirects to /app/dashboard (Dashboard Phase B, D1 — this
+ * changes the reform plan §3.2 Q2 decision: the dashboard, not
+ * /app/upload, is the post-login destination). The sidebar's first
+ * item is 仪表盘 → /app/dashboard (icon 'home'); there is no 首页
+ * nav item any more — /app/upload stays reachable via the sidebar
+ * 拍照 button + the mobile FAB. Recipes live at /blog (plan §5.3);
+ * the sidebar 菜谱 item already points there. /recipes and
+ * /app/recipes both redirect to /blog (plan §10 Q9) so the old URLs
+ * never 404.
  * /app/receipts and /app/receipts/:id are NOT in the sidebar; they are
  * reached from the upload page and from receipt rows.
  * /app/maintenance is NOT in the sidebar; it is linked from 我的.
@@ -75,7 +80,8 @@ export function AppRoutes() {
           </RequireAuth>
         }
       >
-        <Route index element={<Navigate to="/app/upload" replace />} />
+        <Route index element={<Navigate to="/app/dashboard" replace />} />
+        <Route path="dashboard" element={<DashboardPage />} />
         <Route path="upload" element={<UploadPage />} />
         <Route path="fridge" element={<FridgePage />} />
         <Route path="transactions" element={<TransactionsPage />} />

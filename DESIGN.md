@@ -258,6 +258,27 @@ No tertiary colour. Semantic colours below are functional, not brand.
   Never `filter: invert()` on the light logo (it turns the accent
   square cyan).
 
+### User dashboard (`/app/dashboard`, Dashboard Phase B, 2026-11-22)
+
+- **Grid:** 12 columns, 16px gaps, `align-items: start`; row 1
+  spending (span 8) + expiring (span 4); row 2 recent (span 8) +
+  quick actions (span 4, sticky); row 3 fridge + maintenance +
+  notifications (span 4 each). Below 1024px a single column in the
+  same order; below 768px quick actions become one horizontal row.
+- **Cards:** `var(--im-surface)` background, 1px `var(--im-border)`
+  hairline, 4px radius, 16px padding, no shadows. Card headers are
+  a 16px semibold title + a small accent "查看全部" link on the
+  right (Figma "Dashboard (Community)" layout take: KPI row, wide
+  list + narrow panel, consistent card headers — restyled to
+  imsf-swiss; its pale blue-grey backgrounds, soft shadows, large
+  radii and blue/purple accents were deliberately NOT taken).
+- **Type:** 28px page title + spending total, 16px widget titles
+  and count numbers, 14px body; 12px only inside the existing
+  StatusChip (caption). One system font family, one accent
+  (`#C2410C` light / `#F97316` accent text in dark); semantic
+  colours only for expiry/maintenance status, always with text,
+  never colour alone.
+
 ## Typography
 
 - **System fonts only.** `"PingFang SC", "Hiragino Sans GB",

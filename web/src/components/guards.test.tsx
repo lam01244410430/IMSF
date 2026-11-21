@@ -59,16 +59,16 @@ describe('route guards', () => {
     ).not.toBeNull()
   })
 
-  it('authenticated on /login → /app → /app/upload (redirect, plan §3.2 Q2)', () => {
+  it('authenticated on /login → /app → /app/dashboard (redirect, Dashboard Phase B D1)', () => {
     setTokens(fakeJwt(Math.floor(Date.now() / 1000) + 600), 'refresh-1')
     renderAt('/login')
-    expect(screen.getByRole('heading', { name: '拍照' })).toBeDefined()
+    expect(screen.getByRole('heading', { name: '仪表盘' })).toBeDefined()
   })
 
-  it('authenticated on /register → /app → /app/upload', () => {
+  it('authenticated on /register → /app → /app/dashboard', () => {
     setTokens(fakeJwt(Math.floor(Date.now() / 1000) + 600), 'refresh-1')
     renderAt('/register')
-    expect(screen.getByRole('heading', { name: '拍照' })).toBeDefined()
+    expect(screen.getByRole('heading', { name: '仪表盘' })).toBeDefined()
   })
 
   it('unauthenticated /login renders the login page (no redirect loop)', () => {

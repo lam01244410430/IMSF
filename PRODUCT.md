@@ -112,6 +112,22 @@ Around that core, IMSF provides:
   shadow, one hairline — in both themes. The hero is a solid dark
   band (no gradient, no mock screenshot); the real dashboard
   screenshot is a Phase B step.
+- **User dashboard (Dashboard Phase B, 2026-11-22):** `/app/dashboard`
+  is the post-login destination (D1 — replaces the Q2 redirect to
+  `/app/upload`); the sidebar's first item is 仪表盘 (icon `home`),
+  there is no 首页 nav item and no duplicate 拍照 nav item
+  (`/app/upload` stays reachable via the sidebar 拍照 button + the
+  mobile FAB). 7 widgets, all from existing endpoints: monthly
+  spending (household default currency, top 3 categories), expiring
+  soon (Lazy Tracking 1-tap 已用完 / 再放三天), recent transactions
+  (8), quick actions, fridge counts, upcoming maintenance (dated
+  only, overdue first), unread notifications. The notifications
+  widget is non-navigating — there is no notifications page and no
+  mark-as-read endpoint; the unread count reuses the bell's
+  client-side "seen" set (`imsf2.notifications_seen`) and the hint
+  points at the topbar bell. Every widget has an honest empty state
+  for a new household. Layout: desktop 12-column grid (8+4 / 8+4 /
+  4+4+4), mobile 1 column, quick actions a horizontal row.
 - **Dark error-text correction (R3):** the plan's dark error `#EF5350`
   is 4.38:1 on card surfaces (below 4.5:1), so dark error *text* is
   `#FF8A80` (6.69:1 on cards); `#EF5350` survives only as DaisyUI

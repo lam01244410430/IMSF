@@ -1,6 +1,6 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from '../App'
 import { logout, resetAuthState, setTokens } from '../lib/auth'
 
@@ -32,14 +32,49 @@ describe('/app redirect', () => {
   afterEach(() => {
     cleanup()
     logout()
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
   })
 
-  it('authenticated /app redirects to /app/upload', () => {
+  it('authenticated /app redirects to /app/dashboard (Dashboard Phase B, D1)', async () => {
+    // Dashboard fetches on mount; stub every endpoint it calls.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        const body = (data: unknown) =>
+          new Response(JSON.stringify(data), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        if (url.startsWith('/api/v2/households'))
+          return Promise.resolve(
+            body([
+              {
+                id: '11111111-1111-1111-1111-111111111111',
+                name: '我家',
+                default_currency: 'CNY',
+                timezone: 'Asia/Shanghai',
+                locale: 'zh-CN',
+                created_at: null,
+                role: 'owner',
+              },
+            ]),
+          )
+        if (url.startsWith('/api/v2/spending/summary'))
+          return Promise.resolve(
+            body({ currency: 'CNY', total: 0, by_category: [], by_month: [] }),
+          )
+        return Promise.resolve(body([]))
+      }),
+    )
     setTokens(fakeJwt(Math.floor(Date.now() / 1000) + 600), 'refresh-1')
     renderAt('/app')
-    // Upload page heading + honest scan notice.
-    expect(screen.getByRole('heading', { name: '拍照' })).toBeDefined()
-    expect(screen.getByText(/小票自动识别功能暂未开启/)).toBeDefined()
+    // Dashboard heading, not the upload page.
+    expect(await screen.findByRole('heading', { name: '仪表盘' })).toBeDefined()
+    // The heading renders before the fetch resolves — wait for the data.
+    await waitFor(() =>
+      expect(screen.getByText(/本月暂无支出/)).toBeDefined(),
+    )
   })
 
   it('unauthenticated /app/maintenance → /login', () => {

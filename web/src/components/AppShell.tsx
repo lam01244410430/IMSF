@@ -18,8 +18,12 @@ interface NavItemDef {
 }
 
 const NAV_GROUP_1: NavItemDef[] = [
-  // 首页 points to /app/upload: /app itself redirects there (plan §3.2 Q2).
-  { to: '/app/upload', label: '首页', icon: 'home', end: true },
+  // 仪表盘 is the first item (Dashboard Phase B, D1): /app redirects
+  // to /app/dashboard. The 'home' icon moves here from the old 首页
+  // item. There is NO 首页 nav item and NO duplicate 拍照 nav item —
+  // /app/upload stays reachable via the sidebar 拍照 button below +
+  // the mobile FAB (plan §3.2).
+  { to: '/app/dashboard', label: '仪表盘', icon: 'home', end: true },
   { to: '/app/fridge', label: '冰箱', icon: 'fridge' },
   { to: '/blog', label: '菜谱', icon: 'recipes' },
   { to: '/app/mine', label: '我的', icon: 'mine' },

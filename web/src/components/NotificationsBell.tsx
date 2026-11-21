@@ -33,6 +33,15 @@ function loadSeen(): Set<string> {
   }
 }
 
+/**
+ * Read-only view of the same "seen" set, for the dashboard's unread
+ * count — the dashboard never writes it (only the bell marks as seen,
+ * when its panel opens).
+ */
+export function loadSeenNotificationIds(): Set<string> {
+  return loadSeen()
+}
+
 function saveSeen(seen: Set<string>): void {
   try {
     window.localStorage.setItem(SEEN_KEY, JSON.stringify([...seen]))

@@ -107,3 +107,44 @@ describe('AppShell topbar display name (Phase 4)', () => {
     expect(topbarUserText()).not.toContain('11111111')
   })
 })
+
+describe('AppShell sidebar (Dashboard Phase B, D1)', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    resetAuthState()
+  })
+
+  afterEach(() => {
+    cleanup()
+  })
+
+  it('first nav item is 仪表盘 → /app/dashboard, no 首页 item, no duplicate 拍照 item', () => {
+    setTokens('access-1', 'refresh-1')
+    render(
+      <MemoryRouter initialEntries={['/app/dashboard']}>
+        <AppShell />
+      </MemoryRouter>,
+    )
+    const sidebarLabels = Array.from(
+      document.querySelectorAll('.sidebar-nav-item .nav-label'),
+    ).map((el) => el.textContent)
+    expect(sidebarLabels[0]).toBe('仪表盘')
+    expect(sidebarLabels).not.toContain('首页')
+    // /app/upload stays reachable via the sidebar 拍照 button + FAB.
+    expect(
+      document.querySelector('.app-sidebar-photo')?.textContent,
+    ).toBe('拍照')
+    expect(
+      document.querySelector('.sidebar-nav-item[href="/app/dashboard"]'),
+    ).not.toBeNull()
+    expect(
+      document.querySelector('.sidebar-nav-item[href="/app/upload"]'),
+    ).toBeNull()
+    // Bottom nav mirrors NAV_GROUP_1: 仪表盘 first on mobile too.
+    const bottomLabels = Array.from(
+      document.querySelectorAll('.app-bottomnav-item span'),
+    ).map((el) => el.textContent)
+    expect(bottomLabels[0]).toBe('仪表盘')
+    expect(bottomLabels).not.toContain('首页')
+  })
+})
