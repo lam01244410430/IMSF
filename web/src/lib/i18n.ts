@@ -45,6 +45,7 @@ export function getStoredLanguage(): Language {
 const zh = {
   'skip.link': '跳到主要内容',
   'lang.label': '语言',
+  'lang.choose': '选择语言',
   'theme.switchToDark': '切换到深色模式',
   'theme.switchToLight': '切换到浅色模式',
   'theme.label': '外观',
@@ -238,6 +239,7 @@ export type Dict = { [K in keyof typeof zh]: string }
 const vi: Dict = {
   'skip.link': 'Đi tới nội dung chính',
   'lang.label': 'Ngôn ngữ',
+  'lang.choose': 'Chọn ngôn ngữ',
   'theme.switchToDark': 'Chuyển sang giao diện tối',
   'theme.switchToLight': 'Chuyển sang giao diện sáng',
   'theme.label': 'Giao diện',
@@ -434,6 +436,7 @@ const vi: Dict = {
 const en: Dict = {
   'skip.link': 'Skip to main content',
   'lang.label': 'Language',
+  'lang.choose': 'Choose language',
   'theme.switchToDark': 'Switch to dark mode',
   'theme.switchToLight': 'Switch to light mode',
   'theme.label': 'Appearance',

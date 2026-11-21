@@ -3293,6 +3293,12 @@ select:focus-visible {
  * name left, code + tick right. */
 .landing-drawer .lang-switcher {
   width: 100%;
+  /* P1-2: the wrapper is row-direction flex by default, which put
+   * the static panel BESIDE the trigger (111px wide, rows 66px).
+   * Column stacks the panel below the trigger at full drawer width,
+   * 1 column, rows 48px (spec §5.3). Applies to both drawers
+   * (Landing + PublicHeader share .landing-drawer). */
+  flex-direction: column;
 }
 
 .landing-drawer .lang-switcher-btn {
@@ -3345,6 +3351,29 @@ select:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+/* Mobile header (<768px): the desktop language trigger AND the header
+ * theme toggle are hidden — both live in the drawer instead
+ * (DESIGN.md: "Below 768px: logo + hamburger; menu + theme +
+ * language + auth move into a drawer"). This block MUST sit after
+ * the .lang-switcher / .theme-toggle base rules above: the base
+ * `.lang-switcher { display: inline-flex; }` rule would otherwise
+ * override the earlier `@media (max-width: 767px)` hide of
+ * `.landing-lang-desktop` (same specificity, later wins — P1-1
+ * regression vs main). The `>` child combinator is deliberate: the
+ * drawer (with its own ThemeToggle) is nested inside
+ * .landing-header, so a descendant selector would hide the drawer's
+ * toggle too. The auth header (.auth-header) has no drawer, so its
+ * toggle + language switcher stay visible on mobile. */
+@media (max-width: 767px) {
+  .landing-lang-desktop {
+    display: none;
+  }
+
+  .landing-header > .theme-toggle {
+    display: none;
+  }
 }
 
 /* Hero band — solid dark band, no gradient, single-column text

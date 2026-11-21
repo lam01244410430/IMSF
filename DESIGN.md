@@ -203,6 +203,24 @@ No tertiary colour. Semantic colours below are functional, not brand.
   | `--im-success-text` | `#2E7D32` | `#4CAF50` |
   | `--im-error-text` | `#B71C1C` | `#FF8A80` |
   | `--im-warning-text` | `#B45309` | `#F59E0B` |
+  | `--im-hover` (hover bg on page bg) | `#F7F7F8` | `#232625` |
+  | `--im-hover-on-surface` (hover bg on a card/surface) | `#F7F7F8` | `#2A2E2C` |
+  | `--im-pressed` (pressed bg) | `#E3E3E4` | `#2A2E2C` |
+  | `--im-accent-hover` (button hover bg) | `#9A3412` | `#9A3412` |
+  | `--im-chip-error-bg` | `#FCE8E6` | `#2E1B19` |
+  | `--im-chip-warning-bg` | `#FFF7ED` | `#2E2410` |
+  | `--im-chip-success-bg` | `#E8F5E9` | `#1C2B1E` |
+  | `--im-chip-accent-bg` | `#FDEDE8` | `#33200F` |
+  | `--im-chip-neutral-bg` | `#F7F7F8` | `#2A2E2C` |
+  | `--im-notice-success-border` | `#C8E6C9` | `#2E4A2E` |
+  | `--im-notice-error-border` | `#F5C6CB` | `#5A2B28` |
+  | `--im-notice-success-text` (notice success text) | `#1B5E20` | `#4CAF50` |
+  | `--im-overlay` (drawer overlay) | `rgba(26,28,26,0.4)` | `rgba(0,0,0,0.6)` |
+  | `--im-backdrop` (dialog backdrop) | `rgba(26,28,26,0.5)` | `rgba(0,0,0,0.6)` |
+  | `--im-shadow` (`.notif-panel` shadow only) | `rgba(26,28,26,0.12)` | `rgba(0,0,0,0.4)` |
+  | `--im-on-accent` (text on accent bg) | `#FFFFFF` | `#FFFFFF` |
+  | `--im-error-solid` (`.btn-error` bg, notif badge) | `#B71C1C` | `#B71C1C` |
+  | `--im-error-solid-hover` (`.btn-error` hover) | `#9C1B1B` | `#9C1B1B` |
   | `--im-hero-bg` / `--im-hero-text` / `--im-hero-muted` / `--im-hero-accent-text` / `--im-hero-check` | `#1A1C1A` / `#EDEDE8` / `#A8AFA9` / `#F97316` / `#4CAF50` | `#232625` / same / same / same / same |
 - **Two deliberate light unifications:** all light error text is now
   `#B71C1C` (was `#D32F2F` in 4 places — `.field-error`,

@@ -59,7 +59,11 @@ describe('LanguageSwitcher dropdown', () => {
 
   it('opens a 3-option panel with names, short codes and a tick on the current language', () => {
     renderSwitcher()
-    openPanel()
+    const panel = openPanel()
+    // The open menu is named (spec §5.2) with a label DISTINCT from
+    // the trigger's ('语言'), so getByLabelText('语言') still matches
+    // exactly one element.
+    expect(panel.getAttribute('aria-label')).toBe('选择语言')
     expect(trigger().getAttribute('aria-expanded')).toBe('true')
     const options = screen.getAllByRole('menuitemradio')
     expect(options).toHaveLength(3)

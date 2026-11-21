@@ -219,6 +219,7 @@ export function LanguageSwitcher({
           className="lang-panel"
           role="menu"
           id={panelId}
+          aria-label={t['lang.choose']}
         >
           <ul className="lang-panel-grid">
             {LANGUAGES.map((option, i) => (
