@@ -2,7 +2,9 @@
  * Email registration (reform plan §7.8). Web = email only, no WeChat
  * button. Fields: email + password + confirm password (frontend-only
  * match check, never sent to the server) + name (optional, sent as the
- * display name). Frontend validation first: valid email, password ≥ 8
+ * display name) + household name (optional, sent as household_name;
+ * the auth client already sends it as null when empty, §7.3.1).
+ * Frontend validation first: valid email, password ≥ 8
  * chars, passwords match. 409 shows the exact plan string with a link
  * to /login. On success the backend already returned tokens (the auth
  * client stored them), so registration auto-logs-in → /app.
@@ -31,6 +33,7 @@ export function RegisterPage() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [name, setName] = useState('')
+  const [householdName, setHouseholdName] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<{
@@ -60,7 +63,7 @@ export function RegisterPage() {
       await registerWithEmail(
         email.trim(),
         password,
-        undefined,
+        householdName.trim() === '' ? undefined : householdName.trim(),
         name.trim() === '' ? undefined : name.trim(),
       )
       navigate(next, { replace: true })
@@ -188,6 +191,20 @@ export function RegisterPage() {
             value={name}
             onChange={(event) => {
               setName(event.target.value)
+            }}
+          />
+        </div>
+        <div className="auth-field">
+          <label htmlFor="register-household">
+            {t['auth.householdName']}
+          </label>
+          <input
+            id="register-household"
+            type="text"
+            autoComplete="off"
+            value={householdName}
+            onChange={(event) => {
+              setHouseholdName(event.target.value)
             }}
           />
         </div>

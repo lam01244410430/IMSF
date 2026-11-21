@@ -9,6 +9,7 @@ import {
   getStoredUserName,
   isLoggedIn,
   loginWithEmail,
+  registerWithEmail,
   logout,
   refreshAccessToken,
   resetAuthState,
@@ -189,5 +190,44 @@ describe('auth client', () => {
     await loginWithEmail('lam@example.com', 'secret')
     // A stored name is never a full email address.
     expect(getStoredUserName()).toBe('lam')
+  })
+
+  it('registerWithEmail sends household_name and stores the returned household (Phase 5)', async () => {
+    fetchMock().mockResolvedValueOnce(
+      jsonResponse(200, {
+        access_token: 'a1',
+        refresh_token: 'r1',
+        user: { id: 'u1', email: 'a@b.c', name: 'A' },
+        households: [{ id: 'h1', name: '我家' }],
+      }),
+    )
+    const data = await registerWithEmail('a@b.c', 'secret123', '我家')
+    expect(data.households).toEqual([{ id: 'h1', name: '我家' }])
+    const sent = JSON.parse(
+      String(fetchMock().mock.calls[0][1]?.body),
+    ) as Record<string, unknown>
+    expect(sent.household_name).toBe('我家')
+    expect(getStoredHouseholdId()).toBe('h1')
+    expect(getStoredHouseholdName()).toBe('我家')
+  })
+
+  it('registerWithEmail without a household name sends null and stores no household (Phase 5)', async () => {
+    fetchMock().mockResolvedValueOnce(
+      jsonResponse(200, {
+        access_token: 'a1',
+        refresh_token: 'r1',
+        user: { id: 'u1', email: 'a@b.c', name: 'a' },
+        households: [],
+      }),
+    )
+    const data = await registerWithEmail('a@b.c', 'secret123')
+    expect(data.households).toEqual([])
+    const sent = JSON.parse(
+      String(fetchMock().mock.calls[0][1]?.body),
+    ) as Record<string, unknown>
+    expect(sent.household_name).toBeNull()
+    expect(sent.name).toBeNull()
+    expect(getStoredHouseholdId()).toBeNull()
+    expect(getStoredHouseholdName()).toBeNull()
   })
 })

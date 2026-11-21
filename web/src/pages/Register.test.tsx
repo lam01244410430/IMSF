@@ -73,6 +73,7 @@ function fillForm(
   password: string,
   confirm: string,
   name = '',
+  household = '',
 ) {
   fireEvent.change(screen.getByLabelText('邮箱'), {
     target: { value: email },
@@ -86,6 +87,11 @@ function fillForm(
   if (name !== '') {
     fireEvent.change(screen.getByLabelText('姓名（可选）'), {
       target: { value: name },
+    })
+  }
+  if (household !== '') {
+    fireEvent.change(screen.getByLabelText('家庭名称（可选）'), {
+      target: { value: household },
     })
   }
 }
@@ -114,6 +120,13 @@ describe('validation', () => {
     expect(screen.getByText('请输入有效的邮箱地址')).toBeTruthy()
     expect(screen.getByText('密码至少8位')).toBeTruthy()
     expect(registerWithEmail).not.toHaveBeenCalled()
+  })
+
+  it('shows an optional household-name field, empty by default', () => {
+    renderRegister()
+    const input = screen.getByLabelText('家庭名称（可选）')
+    expect(input.getAttribute('value')).toBe('')
+    expect(input.hasAttribute('required')).toBe(false)
   })
 
   it('has no WeChat button anywhere on the web register page', () => {
@@ -194,5 +207,47 @@ describe('success', () => {
     )
     const body = JSON.stringify(mockRegister.mock.calls[0])
     expect(body).not.toContain('different1')
+  })
+
+  it('sends the household name when filled in', async () => {
+    mockRegister.mockResolvedValueOnce({
+      access_token: 'a',
+      refresh_token: 'r',
+      user: { id: 'u1', email: 'a@b.c', name: '小明' },
+      households: [{ id: 'h1', name: '我家' }],
+    })
+    renderRegister()
+    fillForm('a@b.c', 'longenough', 'longenough', '小明', '我家')
+    submit()
+    await waitFor(() => {
+      expect(screen.getByTestId('location').textContent).toBe('/app')
+    })
+    expect(registerWithEmail).toHaveBeenCalledWith(
+      'a@b.c',
+      'longenough',
+      '我家',
+      '小明',
+    )
+  })
+
+  it('register without a household name sends undefined and lands household-less', async () => {
+    mockRegister.mockResolvedValueOnce({
+      access_token: 'a',
+      refresh_token: 'r',
+      user: { id: 'u1', email: 'a@b.c', name: 'a' },
+      households: [],
+    })
+    renderRegister()
+    fillForm('a@b.c', 'longenough', 'longenough')
+    submit()
+    await waitFor(() => {
+      expect(screen.getByTestId('location').textContent).toBe('/app')
+    })
+    expect(registerWithEmail).toHaveBeenCalledWith(
+      'a@b.c',
+      'longenough',
+      undefined,
+      undefined,
+    )
   })
 })
