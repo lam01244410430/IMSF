@@ -335,6 +335,15 @@ export function LandingPage() {
                 {t['hero.ctaSecondary']}
               </a>
             </div>
+            <figure className="hero-shot">
+              <img
+                src="/dashboard-hero.png"
+                alt={t['hero.shotAlt']}
+                width={1280}
+                height={860}
+              />
+              <figcaption>{t['hero.shotCaption']}</figcaption>
+            </figure>
           </div>
         </section>
 

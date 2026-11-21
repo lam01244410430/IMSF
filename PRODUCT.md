@@ -110,8 +110,11 @@ Around that core, IMSF provides:
   (see DESIGN.md); the header follows the page theme. The language
   dropdown panel is âm tường — same background as the header, no
   shadow, one hairline — in both themes. The hero is a solid dark
-  band (no gradient, no mock screenshot); the real dashboard
-  screenshot is a Phase B step.
+  band (no gradient, no mock screenshot) with the real dashboard
+  screenshot inside it: `web/public/dashboard-hero.png` (1280×860,
+  light theme, from the Phase B verification session 2026-11-22 —
+  real `/app/dashboard` data; the milk row was inserted directly
+  into the DB, see the plan note).
 - **User dashboard (Dashboard Phase B, 2026-11-22):** `/app/dashboard`
   is the post-login destination (D1 — replaces the Q2 redirect to
   `/app/upload`); the sidebar's first item is 仪表盘 (icon `home`),
@@ -127,7 +130,9 @@ Around that core, IMSF provides:
   client-side "seen" set (`imsf2.notifications_seen`) and the hint
   points at the topbar bell. Every widget has an honest empty state
   for a new household. Layout: desktop 12-column grid (8+4 / 8+4 /
-  4+4+4), mobile 1 column, quick actions a horizontal row.
+  4+4+4), mobile 1 column, quick actions a 2×2 grid. Hero image:
+  `web/public/dashboard-hero.png` — the 1280 light screenshot from
+  the Phase B verification session (milk row visible, chip 还剩 2 天).
 - **Dark error-text correction (R3):** the plan's dark error `#EF5350`
   is 4.38:1 on card surfaces (below 4.5:1), so dark error *text* is
   `#FF8A80` (6.69:1 on cards); `#EF5350` survives only as DaisyUI
@@ -164,8 +169,7 @@ Constraints that future work must preserve:
   "being written" until real text exists.
 - **Known open gaps (do not paper over):** D-F3 added receipt lines
   return 422 on the current backend (confirm only UPDATEs, never
-  INSERTs — needs a backend change); the topbar shows the user id because
-  no display name exists in the backend yet; SMS OTP H5 login, offline
+  INSERTs — needs a backend change); SMS OTP H5 login, offline
   queue and WebSocket are deferred. (Dark mode shipped in Dashboard
   Phase A; the `#D32F2F` error-text gap is closed too — all light
   error text is now `#B71C1C`.)

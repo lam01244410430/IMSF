@@ -69,6 +69,8 @@ const zh = {
   'hero.vp3': '一家人，共用一本账',
   'hero.ctaPrimary': '开始免费使用',
   'hero.ctaSecondary': '看看使用方法',
+  'hero.shotAlt': 'IMSF 仪表盘实拍：本月支出、快过期食材和最近交易',
+  'hero.shotCaption': '仪表盘实拍 · 演示数据',
   'trust.t1': '为家庭而做',
   'trust.d1': '为一家人日常做饭、记账、管理冰箱而设计，不是为企业报表。',
   'trust.t2': '没有广告',
@@ -311,6 +313,9 @@ const vi: Dict = {
   'hero.vp3': 'Cả nhà dùng chung một sổ',
   'hero.ctaPrimary': 'Bắt đầu dùng miễn phí',
   'hero.ctaSecondary': 'Xem cách hoạt động',
+  'hero.shotAlt':
+    'Ảnh chụp thật bảng điều khiển IMSF: chi tiêu tháng, món sắp hết hạn và giao dịch gần đây',
+  'hero.shotCaption': 'Ảnh chụp thật bảng điều khiển · dữ liệu minh họa',
   'trust.t1': 'Làm ra cho gia đình',
   'trust.d1':
     'Thiết kế cho việc nấu ăn, ghi sổ và quản tủ lạnh hằng ngày của một gia đình — không phải cho báo cáo doanh nghiệp.',
@@ -556,6 +561,9 @@ const en: Dict = {
   'hero.vp3': 'One family, one shared ledger',
   'hero.ctaPrimary': 'Start using it free',
   'hero.ctaSecondary': 'See how it works',
+  'hero.shotAlt':
+    'Real IMSF dashboard screenshot: this month’s spending, expiring food and recent transactions',
+  'hero.shotCaption': 'Real dashboard screenshot · demo data',
   'trust.t1': 'Made for families',
   'trust.d1':
     'Designed for a family’s daily cooking, bookkeeping and fridge — not for company reports.',

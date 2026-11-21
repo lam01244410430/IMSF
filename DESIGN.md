@@ -252,7 +252,16 @@ No tertiary colour. Semantic colours below are functional, not brand.
   gradient), single-column text, in both themes (light band `#1A1C1A`,
   dark band `#232625` + a 1px `#6E756E` bottom edge). The grey
   `.phone-mock` is deleted; no fabricated screenshot. The real
-  dashboard screenshot is a Phase B step.
+  dashboard screenshot is in place since Phase B:
+  `web/public/dashboard-hero.png` (1280×860, light theme — chosen over
+  the dark shot because the light shot separates cleanly from the dark
+  band; the dark shot would blend into it). Shot 2026-11-22 from the
+  live branch build against the Oregon backend, test account, real API
+  data; the milk row was inserted directly into the DB (no POST /fridge
+  endpoint exists). The figure sits inside the band below the CTAs
+  (`.hero-shot`, hairline frame, 4px radius, caption in
+  `--im-hero-muted`); above the fold, so no lazy-loading; width/height
+  set to stop layout shift.
 - **Logo:** `web/src/assets/logo-dark.svg` (same geometry as
   `logo.svg`, text `#EDEDE8`); the header swaps the `src` by theme.
   Never `filter: invert()` on the light logo (it turns the accent
@@ -264,7 +273,8 @@ No tertiary colour. Semantic colours below are functional, not brand.
   spending (span 8) + expiring (span 4); row 2 recent (span 8) +
   quick actions (span 4, sticky); row 3 fridge + maintenance +
   notifications (span 4 each). Below 1024px a single column in the
-  same order; below 768px quick actions become one horizontal row.
+  same order; quick actions are a 2×2 grid at all widths
+  (`.dash-quick-list`).
 - **Cards:** `var(--im-surface)` background, 1px `var(--im-border)`
   hairline, 4px radius, 16px padding, no shadows. Card headers are
   a 16px semibold title + a small accent "查看全部" link on the

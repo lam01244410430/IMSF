@@ -3420,6 +3420,31 @@ select:focus-visible {
   color: var(--im-hero-text);
 }
 
+/* Hero screenshot (Dashboard Phase B, D8): the real dashboard shot
+ * inside the dark band — the light shot on the dark band reads as the
+ * product at first glance. Hairline frame, 4px radius, no shadow.
+ * Above the fold, so no lazy-loading; width/height stop layout shift. */
+.hero-shot {
+  margin: 48px 0 0;
+}
+
+.hero-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--im-border-strong);
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+.hero-shot figcaption {
+  margin-top: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--im-hero-muted);
+  text-align: center;
+}
+
 /* 我的 — appearance segmented control (D2). */
 .theme-segmented {
   display: inline-flex;
