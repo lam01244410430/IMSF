@@ -95,3 +95,26 @@ describe('muiTheme — Swiss anchor', () => {
     walk(muiTheme.palette)
   })
 })
+
+/**
+ * FE-04 regression — Button fontSize phải là px (number), không phải rem:
+ * MUI sizeLarge dùng pxToRem nên bị Taro root font-size kéo phình
+ * (đo được 42.9px ở viewport 1280px, 28.6px ở 500px; medium vẫn 14px
+ * vì kế thừa typography.button). Fix: override fontSize px ở
+ * MuiButton.styleOverrides.sizeLarge/sizeMedium/sizeSmall.
+ */
+describe('muiTheme — Button fontSize is px, not rem (FE-04)', () => {
+  const btn = muiTheme.components?.MuiButton?.styleOverrides as unknown as
+    | Record<string, Record<string, unknown> | undefined>
+    | undefined
+
+  it('sets a px number fontSize for every Button size', () => {
+    expect(btn).toBeDefined()
+    expect(btn?.sizeLarge?.fontSize).toBe(15)
+    expect(btn?.sizeMedium?.fontSize).toBe(14)
+    expect(btn?.sizeSmall?.fontSize).toBe(13)
+    for (const size of ['sizeLarge', 'sizeMedium', 'sizeSmall'] as const) {
+      expect(typeof btn?.[size]?.fontSize).toBe('number')
+    }
+  })
+})

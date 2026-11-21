@@ -244,8 +244,13 @@ const themeOptions: MuiThemeOptions = {
             outlineOffset: '2px',
           },
         },
-        sizeLarge: { paddingLeft: 24, paddingRight: 24 },
-        sizeMedium: { paddingLeft: 16, paddingRight: 16 },
+        // FE-04: fontSize px (không rem) — MUI sizeLarge dùng pxToRem nên
+        // bị Taro root font-size (mobile ~20px, desktop 40px) kéo phình
+        // (large đo được 42.9px ở 1280px, 28.6px ở 500px; medium vẫn 14px
+        // vì kế thừa typography.button). 15/14/13 = giá trị mặc định của MUI.
+        sizeLarge: { fontSize: 15, paddingLeft: 24, paddingRight: 24 },
+        sizeMedium: { fontSize: 14, paddingLeft: 16, paddingRight: 16 },
+        sizeSmall: { fontSize: 13 },
       },
     },
     MuiChip: {
