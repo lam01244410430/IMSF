@@ -99,6 +99,36 @@ def require_auth(
         raise HTTPException(status_code=401, detail="Invalid token")
     return Identity(user_id, via_service_token=False)
 
+def optional_auth(
+    creds: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> Identity | None:
+    """Identity when a valid bearer token is sent, else None.
+
+    For public endpoints (recipe list/detail): anonymous readers are
+    never 401'd. A missing credential is anonymous; an expired /
+    invalid token is also treated as anonymous (the web client
+    refreshes before calling, so a stale token here means the caller
+    is effectively logged out).
+    """
+    if creds is None or not creds.credentials:
+        return None
+    token = creds.credentials
+    service = _service_token()
+    if service and secrets.compare_digest(token, service):
+        return Identity(get_or_create_service_user(),
+                        via_service_token=True)
+    try:
+        payload = jwt.decode(token, _jwt_secret(), algorithms=["HS256"])
+    except jwt.InvalidTokenError:
+        return None
+    if payload.get("typ") != "access":
+        return None
+    try:
+        user_id = uuid.UUID(payload["sub"])
+    except (KeyError, ValueError):
+        return None
+    return Identity(user_id, via_service_token=False)
+
 
 def require_household_member(household_id: uuid.UUID, ident: Identity) -> None:
     """400 if the household does not belong to the caller (design §5.4)."""

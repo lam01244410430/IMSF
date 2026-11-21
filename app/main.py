@@ -10,7 +10,7 @@ Phase 2 Step 5 adds knowledge search (RAG, design §7).
 from fastapi import FastAPI
 
 from app.api import (auth, equipments, fridge, households, knowledge,
-                     notifications, receipts, shopping_lists,
+                     notifications, receipts, recipes, shopping_lists,
                      transactions)
 
 app = FastAPI(title="IMSF", version="0.1.0")
@@ -29,5 +29,6 @@ app.include_router(transactions.summary_router)
 app.include_router(fridge.router)
 app.include_router(notifications.router)
 app.include_router(shopping_lists.router)
+app.include_router(recipes.router)
 app.include_router(equipments.router)
 app.include_router(knowledge.router)

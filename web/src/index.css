@@ -2484,3 +2484,486 @@ select:focus-visible {
     transition: none;
   }
 }
+
+
+/* ------------------------------------------------------------------ */
+/* Blog (/blog + /blog/:id, reform plan §6, Phase 3).                  */
+/*                                                                    */
+/* RADIUS NOTE: §6.2 fixes the recipe card radius at 16px, but the    */
+/* imsf-swiss theme rule is 4px everywhere (see the theme comment at  */
+/* the top of this file -- old tokens.shape card 16 was explicitly    */
+/* NOT copied). This page follows §6.2 exactly as instructed; the     */
+/* theme rule and the blog card rule disagree and need one decision   */
+/* in Phase 4. Everything else on the blog uses the 4px theme rule.   */
+/* ------------------------------------------------------------------ */
+
+.blog-page,
+.blog-article {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.blog-title {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 36px;
+  color: #1a1c1a;
+  margin: 0 0 8px;
+}
+
+.blog-subtitle {
+  font-size: 14px;
+  color: #5f6368;
+  margin: 0 0 24px;
+}
+
+/* Search: visible <label> (a11y §5.4), input + button on one row. */
+.blog-search {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.blog-search-label {
+  font-size: 14px;
+  color: #1a1c1a;
+  white-space: nowrap;
+}
+
+.blog-search-input {
+  flex: 1;
+  min-width: 200px;
+  height: 44px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  border: 1px solid #e3e3e4;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #1a1c1a;
+  font-size: 16px;
+  font-family: inherit;
+}
+
+.blog-active-filter {
+  font-size: 14px;
+  color: #5f6368;
+  margin: 0 0 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* Grid: 3 cols desktop / 2 tablet / 1 mobile, gap 24px (§6.2). */
+.blog-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+}
+
+@media (max-width: 1023px) {
+  .blog-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .blog-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .blog-page,
+  .blog-article {
+    padding: 16px;
+  }
+}
+
+/* Card (§6.2 EXACT): white, 1px hairline, radius 16px, shadow
+ * elevation 1 at rest / 2 on hover. No card-in-card. */
+.blog-card {
+  background: #ffffff;
+  border: 1px solid #e3e3e4;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  transition: box-shadow 150ms ease-out;
+  min-width: 0;
+}
+
+.blog-card:hover {
+  box-shadow:
+    0 4px 6px -1px rgb(0 0 0 / 0.1),
+    0 2px 4px -2px rgb(0 0 0 / 0.1);
+}
+
+.blog-card-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.blog-card-cover {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  background: #f7f7f8;
+}
+
+/* No cover: honest #F7F7F8 frame + outline image icon, NO stock photo. */
+.blog-card-cover-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #5f6368;
+}
+
+.blog-cover-icon {
+  width: 48px;
+  height: 48px;
+}
+
+.blog-card-body {
+  padding: 16px;
+}
+
+.blog-card-title {
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: #1a1c1a;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.blog-card-meta {
+  font-size: 14px;
+  color: #5f6368;
+  margin: 8px 0 0;
+}
+
+.blog-card-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+  margin: 12px 0 0;
+}
+
+.blog-card-author {
+  color: #1a1c1a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.blog-card-likes {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #5f6368;
+  white-space: nowrap;
+}
+
+.blog-heart-icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* Loading skeletons keep the card geometry (cover + 2 text lines). */
+.blog-skeleton-cover,
+.blog-skeleton-line {
+  background: #f7f7f8;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .blog-skeleton-cover,
+  .blog-skeleton-line {
+    animation: blog-skeleton-pulse 1.5s ease-in-out infinite;
+  }
+}
+
+@keyframes blog-skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.blog-skeleton-line {
+  border-radius: 4px;
+  height: 16px;
+}
+
+.blog-skeleton-title {
+  width: 75%;
+  margin-bottom: 8px;
+}
+
+.blog-skeleton-meta {
+  width: 50%;
+}
+
+/* Empty + error states. */
+.blog-empty,
+.blog-error {
+  padding: 48px 16px;
+  text-align: center;
+  border: 1px solid #e3e3e4;
+  border-radius: 4px;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.blog-empty-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: #1a1c1a;
+  margin: 0;
+}
+
+.blog-empty-subtitle {
+  font-size: 14px;
+  color: #5f6368;
+  margin: 0;
+}
+
+.blog-error p {
+  font-size: 14px;
+  color: #1a1c1a;
+  margin: 0;
+}
+
+.blog-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.blog-pager-info {
+  font-size: 14px;
+  color: #5f6368;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ */
+/* Article (/blog/:id, §6.3).                                          */
+/* ------------------------------------------------------------------ */
+
+.blog-article-cover {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background: #f7f7f8;
+  border-radius: 4px;
+  margin-bottom: 24px;
+}
+
+.blog-article-cover.blog-card-cover-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+}
+
+.blog-article-meta {
+  font-size: 14px;
+  color: #5f6368;
+  margin: 0 0 32px;
+}
+
+.blog-section-title {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 28px;
+  color: #1a1c1a;
+  margin: 0 0 16px;
+}
+
+.blog-ingredients {
+  list-style: none;
+  margin: 0 0 32px;
+  padding: 0;
+}
+
+.blog-ingredient {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid #e3e3e4;
+  font-size: 16px;
+}
+
+.blog-ingredient a {
+  color: #c2410c;
+  text-decoration: none;
+}
+
+.blog-ingredient a:hover {
+  text-decoration: underline;
+}
+
+.blog-ingredient-amount {
+  color: #5f6368;
+  white-space: nowrap;
+}
+
+.blog-steps {
+  list-style: none;
+  margin: 0 0 32px;
+  padding: 0;
+}
+
+.blog-step {
+  display: flex;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid #e3e3e4;
+}
+
+.blog-step-number {
+  flex-shrink: 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #c2410c;
+}
+
+.blog-step-body {
+  min-width: 0;
+}
+
+.blog-step-body p {
+  font-size: 16px;
+  color: #1a1c1a;
+  margin: 0;
+}
+
+.blog-step-image {
+  display: block;
+  max-width: 100%;
+  border-radius: 4px;
+  margin-top: 8px;
+}
+
+.blog-author-block {
+  border: 1px solid #e3e3e4;
+  border-radius: 4px;
+  padding: 16px;
+  margin-bottom: 32px;
+}
+
+.blog-author-name {
+  font-size: 16px;
+  font-weight: 500;
+  color: #1a1c1a;
+  margin: 0 0 4px;
+}
+
+.blog-author-count {
+  font-size: 14px;
+  color: #5f6368;
+  margin: 0 0 12px;
+}
+
+.blog-author-link {
+  font-size: 14px;
+  color: #c2410c;
+  text-decoration: none;
+}
+
+.blog-author-link:hover {
+  text-decoration: underline;
+}
+
+.blog-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.blog-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.blog-action-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.blog-action-count {
+  font-size: 14px;
+  color: #5f6368;
+}
+
+.blog-action-error {
+  font-size: 14px;
+  color: #d32f2f;
+  margin: 0 0 16px;
+}
+
+.blog-comments {
+  margin-bottom: 32px;
+}
+
+.blog-comments-upcoming {
+  font-size: 14px;
+  color: #5f6368;
+  background: #f7f7f8;
+  border-radius: 4px;
+  padding: 16px;
+  margin: 0;
+}
+
+.blog-shopping-list {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.blog-shopping-list-message {
+  font-size: 14px;
+  color: #5f6368;
+  margin: 0;
+}
+
+.blog-article-skeleton .blog-skeleton-cover {
+  aspect-ratio: 16 / 9;
+  border-radius: 4px;
+  margin-bottom: 24px;
+}
+
+.blog-article-skeleton .blog-skeleton-title {
+  height: 28px;
+  width: 60%;
+  margin-bottom: 8px;
+}
+
+.blog-article-skeleton .blog-skeleton-meta {
+  height: 16px;
+  width: 40%;
+}
