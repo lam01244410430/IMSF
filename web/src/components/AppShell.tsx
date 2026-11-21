@@ -1,5 +1,10 @@
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { getAccessToken, getStoredHouseholdId } from '../lib/auth'
+import {
+  getStoredHouseholdId,
+  getStoredUserEmail,
+  getStoredUserName,
+  isLoggedIn,
+} from '../lib/auth'
 import { Icon, type IconName } from './Icon'
 import { NotificationsBell } from './NotificationsBell'
 import logoMarkUrl from '../assets/logo-mark.svg'
@@ -52,13 +57,14 @@ function SidebarNavGroup({ items }: { items: NavItemDef[] }) {
  * 1024px the mobile bottom-nav layout (bottom nav + centre FAB, no
  * sidebar). Sidebar hover follows the EXACT §5.1 spec in index.css.
  *
- * Topbar shows the user id for now — no display name exists in the
- * backend yet (recorded FE-04 caveat).
+ * Topbar shows the stored display name (from the login/register
+ * response), falling back to the email local part, then '用户' when
+ * logged in with nothing stored — never the raw user id (Phase 4).
  */
 export function AppShell() {
   const navigate = useNavigate()
   const householdId = getStoredHouseholdId()
-  const userId = getUserIdFromToken()
+  const displayName = getTopbarDisplayName()
 
   return (
     <div className="app-shell">
@@ -104,7 +110,7 @@ export function AppShell() {
           <span className="app-topbar-spacer" />
           <NotificationsBell />
           <span className="app-topbar-user">
-            {userId ? `用户 ${userId}` : '未登录'}
+            {displayName ?? (isLoggedIn() ? '用户' : '未登录')}
           </span>
         </header>
         <main className="app-content">
@@ -139,20 +145,18 @@ export function AppShell() {
   )
 }
 
-function getUserIdFromToken(): string | null {
-  const token = getAccessToken()
-  if (!token) return null
-  try {
-    const payload = token.split('.')[1]
-    if (!payload) return null
-    const json = JSON.parse(
-      globalThis.atob(
-        payload.replace(/-/g, '+').replace(/_/g, '/') +
-          '='.repeat((4 - (payload.length % 4)) % 4),
-      ),
-    ) as { sub?: string }
-    return typeof json.sub === 'string' ? json.sub : null
-  } catch {
-    return null
+/**
+ * Topbar display name (Phase 4): the stored name from the
+ * login/register response, else the email local part — never the raw
+ * user id (UUID) decoded from the JWT.
+ */
+function getTopbarDisplayName(): string | null {
+  const name = getStoredUserName()
+  if (name) return name
+  const email = getStoredUserEmail()
+  if (email) {
+    const local = email.split('@')[0]?.trim()
+    if (local) return local
   }
+  return null
 }

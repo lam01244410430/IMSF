@@ -1429,7 +1429,7 @@ select:focus-visible {
 .cta-primary {
   background: #c2410c;
   color: #ffffff;
-  border-radius: 20px;
+  border-radius: 4px;
   height: 44px;
   padding: 0 20px;
   display: inline-flex;
@@ -2140,7 +2140,7 @@ select:focus-visible {
   min-width: 16px;
   height: 16px;
   padding: 0 4px;
-  border-radius: 8px;
+  border-radius: 4px;
   background: #b71c1c;
   color: #ffffff;
   font-size: 11px;
@@ -2633,12 +2633,13 @@ select:focus-visible {
   }
 }
 
-/* Card (§6.2 EXACT): white, 1px hairline, radius 16px, shadow
+/* Card (§6.2, radius per Phase 4 decision: 4px theme rule wins):
+ * white, 1px hairline, radius 4px, shadow
  * elevation 1 at rest / 2 on hover. No card-in-card. */
 .blog-card {
   background: #ffffff;
   border: 1px solid #e3e3e4;
-  border-radius: 16px;
+  border-radius: 4px;
   overflow: hidden;
   box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   transition: box-shadow 150ms ease-out;

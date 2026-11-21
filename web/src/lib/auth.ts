@@ -24,9 +24,10 @@ export const STORAGE_KEYS = {
   household: 'imsf2.household_id',
   /** Email returned by the login/register response (for the 我的 page). */
   email: 'imsf2.user_email',
-  /** Display name for the landing header (name, else email). The
-   *  backend has no display-name endpoint yet (FE-04 caveat), so the
-   *  name from the last login/register response is kept locally. */
+  /** Display name for the landing header (name, else the email
+   *  local part -- never a full email address). The backend has no
+   *  display-name endpoint yet (FE-04 caveat), so the name from the
+   *  last login/register response is kept locally. */
   userName: 'imsf2.user_name',
 } as const
 
@@ -135,7 +136,13 @@ export function setStoredUserName(name: string): void {
 
 /** Remember the display name from a login/register response. */
 function storeUserName(user: AuthUser): void {
-  const display = (user.name ?? '').trim() || (user.email ?? '').trim()
+  // Belt-and-braces: the backend already defaults user.name to the
+  // email local part, but a stored name must never be a full email
+  // address, so fall back to the local part here too.
+  const display =
+    (user.name ?? '').trim() ||
+    (user.email ?? '').split('@')[0]?.trim() ||
+    ''
   if (display) setStoredUserName(display)
 }
 

@@ -14,7 +14,8 @@ const PAGE_SIZE = 20
  *
  * - h1 菜谱 + subtitle; search by ingredient (?ingredient=<canonical
  *   name>); grid 3 cols desktop / 2 tablet / 1 mobile, gap 24px.
- * - Card (§6.2 EXACT): white bg, 1px hairline #E3E3E4, radius 16px,
+ * - Card (§6.2): white bg, 1px hairline #E3E3E4, radius 4px (theme
+ *   rule wins over §6.2's 16px -- see RADIUS NOTE below),
  *   shadow elevation 1 at rest / 2 on hover; cover 16:10; title
  *   16px/500 max 2 lines ellipsis; meta row 14px #5F6368 with REAL
  *   fields only (cook_time, ingredient_count, likes_count -- NO
@@ -27,11 +28,11 @@ const PAGE_SIZE = 20
  *   分享。 -- and NO link to a posting page (posting is deferred).
  * - No-match search: 没有找到使用「X」的菜谱 + clear-filter button.
  *
- * RADIUS NOTE (Phase 4 to reconcile): §6.2 fixes the card radius at
+ * RADIUS NOTE (Phase 4, DECIDED): §6.2 fixes the card radius at
  * 16px, but the imsf-swiss theme rule is 4px everywhere (DESIGN.md /
  * index.css -- old tokens.shape card 16 was explicitly NOT copied).
- * This page follows §6.2 exactly as instructed; the theme rule and
- * the blog card rule disagree and need one decision in Phase 4.
+ * Decision: the theme rule wins -- the card is now 4px (index.css
+ * .blog-card). No other blog layout changed.
  */
 
 function ImageIcon() {

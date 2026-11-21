@@ -5,6 +5,7 @@ import {
   getAccessToken,
   getRefreshToken,
   getStoredHouseholdId,
+  getStoredUserName,
   isLoggedIn,
   loginWithEmail,
   logout,
@@ -172,5 +173,19 @@ describe('auth client', () => {
     expect(getAccessToken()).toBe('a1')
     expect(getRefreshToken()).toBe('r1')
     expect(getStoredHouseholdId()).toBe('h1')
+  })
+
+  it('loginWithEmail stores the email local part as the name when name is missing (Phase 4)', async () => {
+    fetchMock().mockResolvedValueOnce(
+      jsonResponse(200, {
+        access_token: 'a1',
+        refresh_token: 'r1',
+        user: { id: 'u1', email: 'lam@example.com' },
+        households: [{ id: 'h1', name: 'Home' }],
+      }),
+    )
+    await loginWithEmail('lam@example.com', 'secret')
+    // A stored name is never a full email address.
+    expect(getStoredUserName()).toBe('lam')
   })
 })
