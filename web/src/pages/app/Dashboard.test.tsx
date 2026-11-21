@@ -413,6 +413,92 @@ describe('DashboardPage', () => {
     expect(screen.getByText('牛奶')).toBeDefined()
   })
 
+  it('recent transactions show each row in its own currency', async () => {
+    stubFetch({
+      transactions: [
+        ...TRANSACTIONS,
+        {
+          id: 'tx-usd',
+          household_id: HOUSEHOLD.id,
+          receipt_id: null,
+          type: 'expense',
+          amount: 12.34,
+          currency: 'USD',
+          category: 'food',
+          occurred_at: '2026-11-19T00:00:00+08:00',
+          note: '咖啡',
+          created_at: null,
+          updated_at: null,
+        },
+      ],
+    })
+    const { container } = renderPage()
+    await waitFor(() => expect(screen.getByText('咖啡')).toBeDefined())
+    // The USD row must show $ — not the household default ¥ (defect 1).
+    const amounts = Array.from(
+      container.querySelectorAll('.dash-tx-amount'),
+    ).map((el) => el.textContent)
+    expect(amounts).toContain('支出 $12.34')
+    expect(amounts).not.toContain('支出 ¥12.34')
+    // Same in the accessible name.
+    expect(
+      screen.getByRole('link', { name: '2026-11-19 餐饮 $12.34' }),
+    ).toBeDefined()
+  })
+
+  it('notifications widget lists unread only, not merely open', async () => {
+    // notif-1 is open but already seen — it must leave the list and
+    // the count (defect 4).
+    window.localStorage.setItem(
+      'imsf2.notifications_seen',
+      JSON.stringify(['notif-1']),
+    )
+    stubFetch()
+    renderPage()
+    const notif = await waitFor(() =>
+      screen.getByRole('region', { name: '未读通知' }),
+    )
+    expect(notif.textContent).toContain('1')
+    expect(screen.getByText('牛奶已过期。')).toBeDefined()
+    expect(
+      screen.queryByText('鸡蛋快过期了，请确认是否已用完。'),
+    ).toBeNull()
+  })
+
+  it('refreshes the unread list when the bell marks notifications seen', async () => {
+    stubFetch()
+    renderPage()
+    await waitFor(() =>
+      expect(
+        screen.getByText('鸡蛋快过期了，请确认是否已用完。'),
+      ).toBeDefined(),
+    )
+    window.localStorage.setItem(
+      'imsf2.notifications_seen',
+      JSON.stringify(['notif-1', 'notif-2']),
+    )
+    window.dispatchEvent(new Event('imsf:notifications-seen'))
+    await waitFor(() =>
+      expect(screen.getByText(/暂无未读通知/)).toBeDefined(),
+    )
+  })
+
+  it('fridge zero counts render neutral, not alarming', async () => {
+    stubFetch({ fridge: [FRIDGE[2]] }) // only fresh rice: 0 expired, 0 soon
+    const { container } = renderPage()
+    await waitFor(() =>
+      expect(container.querySelector('.dash-total')?.textContent).toBe(
+        '¥1,234.5',
+      ),
+    )
+    const fridge = screen.getByRole('region', { name: '冰箱' })
+    const nums = fridge.querySelectorAll('.dash-count-num')
+    expect(nums[0]?.textContent).toBe('0')
+    expect(nums[0]?.className).not.toContain('dash-count-error')
+    expect(nums[1]?.textContent).toBe('0')
+    expect(nums[1]?.className).not.toContain('dash-count-warning')
+  })
+
   it('spending summary is requested in the household default currency only', async () => {
     const calls = stubFetch()
     renderPage()

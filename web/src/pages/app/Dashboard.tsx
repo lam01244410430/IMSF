@@ -9,14 +9,20 @@
  * /app/spending are NOT replaced — the dashboard summarises and
  * links to them.
  *
- * Currency: one currency per widget, the household default, never
- * summed across currencies (P2-06 rule).
+ * Currency: the spending widget uses the household default (the
+ * summary API returns totals in the requested currency); recent
+ * transactions show each row in its own currency. Never summed
+ * across currencies (P2-06 rule).
  *
  * Notifications widget decision (no notifications page, no
  * mark-as-read endpoint): the widget is non-navigating. The unread
- * count reuses the bell's client-side "seen" set (localStorage
- * `imsf2.notifications_seen`, see NotificationsBell) and the hint
- * points at the topbar bell, which is the entry point.
+ * count AND the list reuse the bell's client-side "seen" set
+ * (localStorage `imsf2.notifications_seen`, see NotificationsBell):
+ * the list shows the latest 2 *unread* notifications, not merely
+ * open ones. The seen set is re-read whenever notifications reload
+ * and whenever the bell marks items seen (window event
+ * `imsf:notifications-seen`); the hint points at the topbar bell,
+ * which is the entry point.
  *
  * Maintenance widget decision (from the Maintenance page pattern):
  * equipments with no next_maintenance_date are skipped; overdue ones
@@ -57,6 +63,7 @@ import {
   formatAmount,
   formatRelativeDate,
   monthRange,
+  resolveCurrency,
 } from '../../lib/format'
 import { fill, useLanguage, type Dict, type Language } from '../../lib/i18n'
 
@@ -188,7 +195,7 @@ export function DashboardPage() {
   const [loaded, setLoaded] = useState(false)
   const [actingId, setActingId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
-  const [seenIds] = useState<Set<string>>(() => loadSeenNotificationIds())
+  const [seenIds, setSeenIds] = useState<Set<string>>(() => loadSeenNotificationIds())
 
   const month = currentMonth(timezone)
   const loadErrorText = t['dash.loadError']
@@ -239,6 +246,10 @@ export function DashboardPage() {
       if (no.status === 'fulfilled') {
         setNotifications(no.value)
         setNotificationsError(null)
+        // The bell marks notifications seen client-side; re-read the
+        // set whenever notifications reload so count and list stay
+        // in sync (fix round: defect 4).
+        setSeenIds(loadSeenNotificationIds())
       } else {
         setNotificationsError(
           no.reason instanceof Error ? no.reason.message : loadErrorText,
@@ -251,6 +262,15 @@ export function DashboardPage() {
   useEffect(() => {
     loadAll()
   }, [loadAll])
+
+  // The bell marks notifications seen when its panel opens; re-read
+  // the client-side seen set so the unread count + list update live
+  // (fix round: defect 4). Event name shared with NotificationsBell.
+  useEffect(() => {
+    const onSeen = () => setSeenIds(loadSeenNotificationIds())
+    window.addEventListener('imsf:notifications-seen', onSeen)
+    return () => window.removeEventListener('imsf:notifications-seen', onSeen)
+  }, [])
 
   const reloadFridge = useCallback(() => {
     if (!household) return
@@ -292,7 +312,7 @@ export function DashboardPage() {
   const upcoming = upcomingEquipments(equipments)
   const openNotifications = notifications.filter((n) => isOpenNotification(n))
   const unread = openNotifications.filter((n) => !seenIds.has(n.id))
-  const latestOpen = openNotifications.slice(0, 2)
+  const latestUnread = unread.slice(0, 2)
 
   const spendingTotal = spending?.total ?? 0
   const topCategories = [...(spending?.by_category ?? [])]
@@ -334,7 +354,6 @@ export function DashboardPage() {
               <p className="dash-total">
                 {formatAmount(spendingTotal, defaultCurrency)}
               </p>
-              <p className="dash-total-currency">{defaultCurrency}</p>
               {topCategories.length === 0 ? (
                 <p className="page-empty">
                   {t['dash.spendingEmpty']} —{' '}
@@ -483,7 +502,7 @@ export function DashboardPage() {
                   <Link
                     className="dash-tx-row"
                     to="/app/transactions"
-                    aria-label={`${tx.occurred_at.slice(0, 10)} ${t[CATEGORY_KEYS[tx.category]]} ${formatAmount(tx.amount, defaultCurrency)}`}
+                    aria-label={`${tx.occurred_at.slice(0, 10)} ${t[CATEGORY_KEYS[tx.category]]} ${formatAmount(tx.amount, resolveCurrency(tx.currency))}`}
                   >
                     <span className="dash-tx-date">
                       {tx.occurred_at.slice(0, 10)}
@@ -494,7 +513,7 @@ export function DashboardPage() {
                     <span className="dash-tx-note">{tx.note ?? ''}</span>
                     <span className="dash-tx-amount">
                       {t[TYPE_KEYS[tx.type]]}{' '}
-                      {formatAmount(tx.amount, defaultCurrency)}
+                      {formatAmount(tx.amount, resolveCurrency(tx.currency))}
                     </span>
                   </Link>
                 </li>
@@ -543,13 +562,25 @@ export function DashboardPage() {
           ) : (
             <ul className="dash-counts">
               <li>
-                <span className="dash-count-num dash-count-error">
+                <span
+                  className={
+                    counts.expired > 0
+                      ? 'dash-count-num dash-count-error'
+                      : 'dash-count-num'
+                  }
+                >
                   {counts.expired}
                 </span>
                 <span>{t['dash.fridgeExpired']}</span>
               </li>
               <li>
-                <span className="dash-count-num dash-count-warning">
+                <span
+                  className={
+                    counts.soon > 0
+                      ? 'dash-count-num dash-count-warning'
+                      : 'dash-count-num'
+                  }
+                >
                   {counts.soon}
                 </span>
                 <span>{t['dash.fridgeSoon']}</span>
@@ -640,7 +671,7 @@ export function DashboardPage() {
                 <span>{t['dash.notif']}</span>
               </p>
               <ul className="dash-notif-list">
-                {latestOpen.map((n) => (
+                {latestUnread.map((n) => (
                   <li key={n.id} className="dash-notif-row">
                     <span className="dash-notif-text">
                       {notificationText(n)}

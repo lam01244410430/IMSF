@@ -112,6 +112,11 @@ export function NotificationsBell() {
     if (changed) {
       setSeen(next)
       saveSeen(next)
+      // Tell the dashboard (same tab) the seen set changed so its
+      // unread count + list update live — same-tab localStorage
+      // writes do not fire a `storage` event. Event name shared
+      // with Dashboard.tsx (fix round: defect 4).
+      window.dispatchEvent(new Event('imsf:notifications-seen'))
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false)

@@ -354,6 +354,29 @@ select:focus-visible {
   white-space: nowrap;
 }
 
+/* Mobile topbar (<768px): hide the informational meta items
+ * (household / currency / timezone — also in the sidebar footer on
+ * desktop) and truncate the display name so the topbar never
+ * overflows the viewport (fix round: defect 2 — scrollWidth was 394
+ * at 375px, the name clipped mid-glyph). The theme toggle + bell
+ * stay: the app shell has no drawer to move them into. */
+@media (max-width: 767px) {
+  .app-topbar {
+    padding: 0 16px;
+    gap: 12px;
+  }
+
+  .app-topbar-item {
+    display: none;
+  }
+
+  .app-topbar-user {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
 .app-content {
   max-width: 1200px;
   width: 100%;
@@ -3600,12 +3623,6 @@ select:focus-visible {
   color: var(--im-text);
   margin: 0;
   font-variant-numeric: tabular-nums;
-}
-
-.dash-total-currency {
-  font-size: 14px;
-  color: var(--im-muted);
-  margin: 4px 0 12px;
 }
 
 /* Expiring-soon rows (Lazy Tracking 1-tap). */
