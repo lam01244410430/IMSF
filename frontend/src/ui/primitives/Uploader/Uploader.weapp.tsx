@@ -3,6 +3,7 @@
  */
 import { View, Text, Image } from '@tarojs/components'
 import { tokens } from '../../tokens'
+import Icon from '../Icon'
 import Progress from '../Progress'
 import type { UploaderProps } from './Uploader.types'
 
@@ -28,24 +29,25 @@ export default function Uploader(props: UploaderProps) {
             ) : (
               <Text style={{ fontSize: 12, color: tokens.color.onSurfaceVariant }}>{f.name}</Text>
             )}
-            <Text
+            <View
               style={{
                 position: 'absolute',
                 top: 2,
                 right: 2,
                 width: 20,
                 height: 20,
-                textAlign: 'center',
                 backgroundColor: tokens.color.surface,
                 borderRadius: 10,
-                color: tokens.color.error,
-                fontSize: 12,
-                lineHeight: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
+              role='button'
+              aria-label={`移除 ${f.name}`}
               onClick={() => onRemove(i)}
             >
-              ✕
-            </Text>
+              <Icon name='close' size={12} color={tokens.color.error} />
+            </View>
           </View>
         ))}
         <View
@@ -62,8 +64,10 @@ export default function Uploader(props: UploaderProps) {
           onClick={() => {
             if (!disabled) onAdd()
           }}
+          role='button'
+          aria-label='添加图片'
         >
-          <Text style={{ fontSize: 28, color: tokens.color.primary }}>+</Text>
+          <Icon name='plus' size={28} color={tokens.color.accent} />
         </View>
       </View>
       {progress !== undefined ? (

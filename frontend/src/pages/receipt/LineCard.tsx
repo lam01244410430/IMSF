@@ -12,6 +12,7 @@ import { Text, View } from '@tarojs/components'
 import TextField from '../../ui/primitives/TextField'
 import Picker from '../../ui/primitives/Picker'
 import Switch from '../../ui/primitives/Switch'
+import Icon from '../../ui/primitives/Icon'
 import { tokens } from '../../ui/tokens'
 import {
   draftLineTotal,
@@ -130,7 +131,7 @@ export default function LineCard(props: LineCardProps) {
         gap: 12,
         borderLeftWidth: draft.isDiscount ? 3 : 0,
         borderLeftStyle: 'solid',
-        borderLeftColor: tokens.color.secondary,
+        borderLeftColor: tokens.color.accent,
       }}
     >
       {/* Header: line_no + raw_name + chip canonical / 未匹配 */}
@@ -156,7 +157,7 @@ export default function LineCard(props: LineCardProps) {
             <View
               style={{
                 alignSelf: 'flex-start',
-                backgroundColor: tokens.color.secondaryContainer,
+                backgroundColor: tokens.color.accentContainer,
                 borderRadius: 12,
                 paddingLeft: 8,
                 paddingRight: 8,
@@ -165,14 +166,14 @@ export default function LineCard(props: LineCardProps) {
                 alignItems: 'center',
               }}
             >
-              <Text style={{ fontSize: 12, color: tokens.color.secondary }}>{feeTag}</Text>
+              <Text style={{ fontSize: 12, color: tokens.color.accent }}>{feeTag}</Text>
             </View>
           ) : null}
         </View>
         {draft.isDiscount ? null : draft.canonicalName ? (
           <View
             style={{
-              backgroundColor: tokens.color.primaryContainer,
+              backgroundColor: tokens.color.accentContainer,
               borderRadius: 12,
               paddingLeft: 8,
               paddingRight: 8,
@@ -181,7 +182,7 @@ export default function LineCard(props: LineCardProps) {
               alignItems: 'center',
             }}
           >
-            <Text style={{ fontSize: 13, color: tokens.color.onPrimaryContainer }}>
+            <Text style={{ fontSize: 13, color: tokens.color.onAccentContainer }}>
               {draft.canonicalName}
             </Text>
           </View>
@@ -246,10 +247,13 @@ export default function LineCard(props: LineCardProps) {
             onClick={() => setPickerVisible(true)}
           >
             <Text style={{ fontSize: 14, color: tokens.color.onSurface }}>{draft.unit || '—'}</Text>
-            <Text style={{ fontSize: 12, color: tokens.color.onSurfaceVariant }}>▾</Text>
+            <Icon name='chevron-down' size={12} color={tokens.color.onSurfaceVariant} />
           </View>
           {errors.unit && forceShowErrors ? (
-            <Text style={{ fontSize: 12, color: tokens.color.error }}>⚠ {errors.unit}</Text>
+            <View style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Icon name='warning' size={12} color={tokens.color.error} />
+              <Text style={{ fontSize: 12, color: tokens.color.error }}>{errors.unit}</Text>
+            </View>
           ) : null}
         </View>
         <View style={{ width: 80 }}>

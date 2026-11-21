@@ -158,15 +158,15 @@ export default function Upload() {
       <PageHeader title='IMSF-v2' subtitle='拍小票，自动记账入库' />
       <OfflineBanner />
       <View style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {/* Capture card (§5.1): dashed 1.5px primary 60%, radius 16, bg primaryContainer 40%. */}
+        {/* Capture card (§5.1): dashed 1.5px accent 60%, radius 16, bg accentContainer 40%. */}
         <View
           style={{
             height: 180,
             borderRadius: tokens.shape.card,
             borderWidth: 1.5,
             borderStyle: 'dashed',
-            borderColor: withAlpha(tokens.color.primary, 0.6),
-            backgroundColor: withAlpha(tokens.color.primaryContainer, 0.4),
+            borderColor: withAlpha(tokens.color.accent, 0.6),
+            backgroundColor: withAlpha(tokens.color.accentContainer, 0.4),
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
@@ -227,7 +227,7 @@ export default function Upload() {
             </>
           ) : (
             <>
-              <Icon name='camera' size={48} color={tokens.color.primary} />
+              <Icon name='camera' size={48} color={tokens.color.accent} />
               <Text style={{ fontSize: 16, fontWeight: 600, color: tokens.color.onSurface }}>点击拍照</Text>
               <Text style={{ fontSize: 13, color: tokens.color.onSurfaceVariant }}>
                 支持中文 / 越南文小票 · JPG、PNG、WebP
@@ -256,7 +256,7 @@ export default function Upload() {
             <Text style={{ fontSize: 13, color: tokens.color.error, flex: 1 }}>{error}</Text>
             {errorAction ? (
               <Text
-                style={{ fontSize: 13, fontWeight: 600, color: tokens.color.primary }}
+                style={{ fontSize: 13, fontWeight: 600, color: tokens.color.accent }}
                 onClick={handleBannerAction}
               >
                 {errorAction === 'reselect' ? '重新选择' : '重新上传'}
@@ -292,11 +292,11 @@ export default function Upload() {
             <View style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Text style={{ fontSize: 16, fontWeight: 600, color: tokens.color.onSurface }}>最近小票</Text>
               {justRefreshed ? (
-                <Text style={{ fontSize: 12, color: tokens.color.primary }}>已更新</Text>
+                <Text style={{ fontSize: 12, color: tokens.color.accent }}>已更新</Text>
               ) : null}
             </View>
             <Text
-              style={{ fontSize: 14, color: tokens.color.primary }}
+              style={{ fontSize: 14, color: tokens.color.accent }}
               onClick={() => void goReceipts()}
             >
               查看全部 ›

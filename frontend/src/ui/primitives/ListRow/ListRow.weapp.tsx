@@ -7,7 +7,7 @@ import { tokens } from '../../tokens'
 import type { ListRowProps } from './ListRow.types'
 
 export default function ListRow(props: ListRowProps) {
-  const { glyph, left, title, subtitle, amount, chip, onClick } = props
+  const { left, title, subtitle, amount, chip, onClick } = props
   // Khi có `left`, subtitle render trong cột title (căn dưới title, không
   // nằm dưới vòng tròn) — đúng layout §5.1. Khi không có, giữ Cell mặc định.
   const titleNode = left ? (
@@ -29,11 +29,6 @@ export default function ListRow(props: ListRowProps) {
           </Text>
         ) : null}
       </View>
-    </View>
-  ) : glyph ? (
-    <View style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-      <Text>{glyph}</Text>
-      <Text>{title}</Text>
     </View>
   ) : (
     title

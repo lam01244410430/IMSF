@@ -1,6 +1,6 @@
 /**
  * ReceiptRow — một dòng tiểu phiếu (§5.1): vòng tròn glyph 40px
- * (primaryContainer) + tên cửa hàng + ngày tương đối + số tiền + StatusChip.
+ * (accentContainer) + tên cửa hàng + ngày tương đối + số tiền + StatusChip.
  * Số tiền chỉ hiển thị khi đã biết (completed/needs_review), còn lại 「—」.
  */
 import { Text, View } from '@tarojs/components'
@@ -29,14 +29,14 @@ export default function ReceiptRow({ receipt, onClick }: ReceiptRowProps) {
             width: 40,
             height: 40,
             borderRadius: 20,
-            backgroundColor: tokens.color.primaryContainer,
+            backgroundColor: tokens.color.accentContainer,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
           }}
         >
-          <Text style={{ fontSize: 15, fontWeight: 600, color: tokens.color.onPrimaryContainer }}>
+          <Text style={{ fontSize: 15, fontWeight: 600, color: tokens.color.onAccentContainer }}>
             {storeGlyph(receipt.store_name)}
           </Text>
         </View>

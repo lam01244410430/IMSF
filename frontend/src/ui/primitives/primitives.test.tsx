@@ -205,7 +205,9 @@ describe('Uploader twin', () => {
   it('renders file name and add button on both platforms', () => {
     render(<UploaderWeapp files={files} onAdd={() => {}} onRemove={() => {}} />)
     expect(screen.getByText('receipt.jpg')).toBeTruthy()
-    expect(screen.getByText('+')).toBeTruthy()
+    // Nút thêm giờ là icon thật (Icon primitive), không còn text '+' (§2(d)) —
+    // assert bằng accessible name thay vì glyph.
+    expect(screen.getByLabelText('添加图片')).toBeTruthy()
     cleanup()
     render(<UploaderH5 files={files} onAdd={() => {}} onRemove={() => {}} />)
     expect(screen.getByText('receipt.jpg')).toBeTruthy()

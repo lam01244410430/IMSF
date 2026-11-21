@@ -41,13 +41,13 @@ function StepIcon({ state }: { state: StepState }) {
           width: 24,
           height: 24,
           borderRadius: 12,
-          backgroundColor: tokens.color.primaryContainer,
+          backgroundColor: tokens.color.accentContainer,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
         }}
       >
-        <Text style={{ fontSize: 14, color: tokens.color.primary }}>✓</Text>
+        <Icon name='check' size={14} color={tokens.color.accent} />
       </View>
     )
   }
@@ -56,7 +56,7 @@ function StepIcon({ state }: { state: StepState }) {
       <View style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <View
           className='imsf-pulse-dot'
-          style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: tokens.color.primary }}
+          style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: tokens.color.accent }}
         />
       </View>
     )
@@ -122,7 +122,7 @@ export default function ProcessingPanel({ detail, jobElapsedMs, isSoftTimeout, i
             justifyContent: 'center',
           }}
         >
-          <Text style={{ fontSize: 28, color: tokens.color.error }}>✕</Text>
+          <Icon name='close' size={28} color={tokens.color.error} />
         </View>
         <Text style={{ fontSize: 18, fontWeight: 700, color: tokens.color.onSurface }}>识别失败</Text>
         <Text style={{ fontSize: 14, color: tokens.color.onSurfaceVariant, textAlign: 'center' }}>
@@ -135,7 +135,7 @@ export default function ProcessingPanel({ detail, jobElapsedMs, isSoftTimeout, i
         </View>
         {imageSrc ? (
           <Text
-            style={{ fontSize: 14, color: tokens.color.primary, marginTop: 4 }}
+            style={{ fontSize: 14, color: tokens.color.accent, marginTop: 4 }}
             onClick={() => void Taro.previewImage({ current: imageSrc, urls: [imageSrc] })}
           >
             查看小票图片
@@ -163,13 +163,13 @@ export default function ProcessingPanel({ detail, jobElapsedMs, isSoftTimeout, i
             width: 64,
             height: 64,
             borderRadius: 32,
-            backgroundColor: tokens.color.primaryContainer,
+            backgroundColor: tokens.color.accentContainer,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
-          <Text style={{ fontSize: 28, color: tokens.color.primary }}>✓</Text>
+          <Icon name='check' size={28} color={tokens.color.accent} />
         </View>
         <Text style={{ fontSize: 18, fontWeight: 700, color: tokens.color.onSurface }}>识别完成</Text>
         <Text style={{ fontSize: 14, color: tokens.color.onSurfaceVariant }}>

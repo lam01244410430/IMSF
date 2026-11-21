@@ -45,7 +45,7 @@ export default function Login() {
         minHeight: '80vh',
       }}
     >
-      <Icon name='camera' size={64} color={tokens.color.primary} />
+      <Icon name='camera' size={64} color={tokens.color.accent} />
       <Text style={{ fontSize: 20, fontWeight: 700, color: tokens.color.onSurface }}>微信登录</Text>
       <Text style={{ fontSize: 14, color: tokens.color.onSurfaceVariant, textAlign: 'center' }}>
         请使用微信登录以继续

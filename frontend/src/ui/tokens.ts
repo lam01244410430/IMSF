@@ -3,6 +3,13 @@
  * Design doc §3.1 (IMSF-v2 Tokens từ Figma), §3.2 (palette + contrast), §3.3
  * (typography, shape, spacing, breakpoints, elevation, z-index).
  *
+ * SWISS ANCHOR — frontend-design skill (Ilm-Alan), áp dụng 2026-11-21
+ * (task/FE-02-swiss-style; Lam: "không dùng màu xanh tự đoán, sử dụng phong
+ * cách https://github.com/Ilm-Alan/frontend-design"). Swiss = mặt trắng
+ * #FFFFFF / trung tính #F7F7F8 + sans + hairline 1px + MỘT accent duy nhất
+ * (International Orange #FF4F00), dùng có chủ ý. Xanh lá thương hiệu cũ
+ * #2E7D32 giờ chỉ là màu semantic success. Không còn màu xanh nào trong theme.
+ *
  * QUY TẮC: một giá trị hex chỉ tồn tại ở đúng một chỗ — file này. Mọi nơi khác
  * (muiTheme.ts, tokens.css, nutui.css sinh ra) đều đọc từ đây. ESLint cấm
  * hex literal ngoài src/ui/**.
@@ -28,51 +35,79 @@
 
 export const tokens = {
   color: {
-    primary: '#2E7D32',
-    onPrimary: '#FFFFFF',
-    primaryContainer: '#C8E6C9',
-    onPrimaryContainer: '#1B5E20',
-    secondary: '#FF8F00',
-    secondaryContainer: '#FFE0B2',
+    // ★ SWISS ACCENT — International Orange #FF4F00 (token Swiss, chính xác).
+    // Swiss Red #E4002B sẽ đụng màu error; Yves Klein Blue #002FA7 là một
+    // màu xanh khác (Lam vừa cấm xanh tự đoán). Secondary cam cũ #FF8F00
+    // được thay bằng token Swiss chính xác.
+    accent: '#FF4F00',
+    // Chữ trắng trên #FF4F00 = 3.30:1 (FAIL 4.5:1) — contrastText phải là
+    // chữ tối. #1A1C1A trên #FF4F00 = 5.20:1 (PASS).
+    onAccent: '#1A1C1A',
+    accentLight: '#FFA726', // Material Orange 400 (cam sáng kề accent)
+    accentDark: '#EF6C00', // Material Orange 800 (cam tối kề accent)
+    accentContainer: '#FFE0B2', // container cam nhạt (giữ giá trị Figma)
+    onAccentContainer: '#1A1C1A', // #FFE0B2 vs #1A1C1A = 13.52:1
+    // Xanh lá thương hiệu cũ #2E7D32 giờ CHỈ là màu SEMANTIC success
+    // (completed / success), KHÔNG còn là màu action chính.
+    success: '#2E7D32',
+    successLight: '#4CAF50', // Material Green 500
+    successDark: '#1B5E20', // Material Green 900
+    successContainer: '#C8E6C9',
+    onSuccessContainer: '#1B5E20', // #C8E6C9 vs #1B5E20 = 5.85:1
+    // SEMANTIC error / warning — token chức năng, KHÔNG phải accent
+    // thương hiệu. Anchor Swiss không định nghĩa màu semantic; ghi rõ tách
+    // biệt khỏi accent.
     error: '#D32F2F',
     errorContainer: '#FCE8E6',
     warning: '#B45309',
     warningContainer: '#FFF3E0',
+    // MẶT SWISS — trắng tinh + trung tính #F7F7F8 (token anchor, chính xác).
     surface: '#FFFFFF',
-    background: '#F7F8F7',
-    surfaceVariant: '#E8EDE8',
+    // Trắng tinh, dùng làm chữ tương phản trên các màu semantic tối
+    // (error/warning/success). Cùng giá trị với surface nhưng đặt tên riêng
+    // để muiTheme không phải hardcode hex (ESLint cấm hex ngoài tokens.ts).
+    white: '#FFFFFF',
+    background: '#F7F7F8',
+    // Xám trung tính cho hairline — Swiss neutral tối đi 8% theo công thức
+    // (trộn #F7F7F8 với đen 8%: 247/247/248 → 227/227/228 = #E3E3E4).
+    // Thay xám pha xanh cũ #E8EDE8; = divider.
+    surfaceVariant: '#E3E3E4',
     outline: '#79747E',
     onSurface: '#1A1C1A',
     onSurfaceVariant: '#5F6368',
-    // Giá trị suy ra (§3.2 — không phải token Figma, ghi rõ là suy ra):
-    primaryLight: '#4CAF50', // Material Green 500
-    primaryDark: '#1B5E20', // Material Green 900 = onPrimaryContainer (cố ý)
-    secondaryLight: '#FFA726', // Material Amber 400
-    secondaryDark: '#EF6C00', // Material Orange 800
+    // Giá trị suy ra (không phải token Figma, ghi rõ là suy ra):
     errorLight: '#EF5350', // Material Red 400
     errorDark: '#B71C1C', // Material Red 900
     warningLight: '#F59E0B', // chỉ dùng cho icon/background, không làm text trên trắng
     warningDark: '#92400E',
-    // ★ TOKEN MỚI, không có trong Figma — cần Lam duyệt (doc §10.2 D-F1).
-    // Chưa component nào dùng màu info; nếu Lam không duyệt thì info state
-    // fallback sang primary + icon, không thêm màu xanh nào khác.
-    info: '#1565C0',
-    infoLight: '#E3F2FD',
-    infoDark: '#0D47A1',
+    // (info #1565C0 ĐÃ XOÁ 2026-11-21 — xanh tự đoán, Lam cấm. Info state
+    // fallback sang accent + icon: muiTheme palette.info = accent,
+    // --nutui-color-info = accent. Không còn màu xanh nào trong theme.)
     textDisabled: 'rgba(26,28,26,0.38)',
-    divider: '#E8EDE8', // = surfaceVariant; chỉ làm hairline
+    divider: '#E3E3E4', // = surfaceVariant; chỉ làm hairline
   },
   action: {
     active: 'rgba(26,28,26,0.54)',
-    hover: 'rgba(46,125,50,0.08)',
-    selected: 'rgba(46,125,50,0.12)',
+    hover: 'rgba(255,79,0,0.08)',
+    selected: 'rgba(255,79,0,0.12)',
     disabled: 'rgba(26,28,26,0.38)',
     disabledBackground: 'rgba(26,28,26,0.12)',
-    focus: 'rgba(46,125,50,0.12)',
+    focus: 'rgba(255,79,0,0.12)',
   },
   font: {
+    // SYSTEM FONTS ONLY (Lam 2026-11-21 13:19: "k dùng chuẩn của google vì
+    // sẽ dễ bị chặn lại" — Google bị chặn ở TQ nên KHÔNG dùng web font).
+    // Font lấy từ chính thiết bị người dùng: PingFang SC (iOS/macOS),
+    // Hiragino Sans GB, Microsoft YaHei (Windows), system sans (Android),
+    // rồi generic system-ui / sans-serif. KHÔNG fetch font từ Google hay
+    // bất kỳ CDN nào nên GFW không chặn được. KHÔNG có tên font Google/Adobe
+    // nào trong stack (không Noto, không Source Han) để tránh nhầm với
+    // chuẩn Google. Khớp quyết định "system font fallbacks only" của
+    // frontend v1. Ghi chú: Swiss anchor ghi Akzidenz/Helvetica/Söhne
+    // (Latin, không có glyph CJK) — với app tiếng Trung, stack system
+    // font CJK trên mới là sans mang anchor đó.
     family:
-      '"Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Source Han Sans SC", system-ui, -apple-system, "Segoe UI", sans-serif',
+      '"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, -apple-system, "Segoe UI", sans-serif',
     baseSize: 16,
     baseLineHeight: 1.5,
   },
@@ -123,7 +158,7 @@ export const tokens = {
     2: '0 2px 8px rgba(26,28,26,0.10)',
     4: '0 4px 16px rgba(26,28,26,0.12)',
     8: '0 8px 24px rgba(26,28,26,0.16)',
-    fab: '0 6px 16px rgba(46,125,50,0.35)',
+    fab: '0 6px 16px rgba(255,79,0,0.35)',
   },
   zIndex: {
     bottomNavigation: 1100,
@@ -144,10 +179,10 @@ export const tokens = {
   },
   /** Chip trạng thái receipt (§3.4) — luôn icon + text, không bao giờ chỉ màu. */
   status: {
-    completed: { bg: '#C8E6C9', text: '#1B5E20', icon: 'CheckCircle', label: '已完成' },
-    processing: { bg: '#FFF3E0', text: '#B45309', icon: 'HourglassTop', label: '处理中' },
-    needsReview: { bg: '#FFE0B2', text: '#1A1C1A', icon: 'FactCheck', label: '需核对' },
-    failed: { bg: '#FCE8E6', text: '#D32F2F', icon: 'Error', label: '识别失败' },
+    completed: { bg: '#C8E6C9', text: '#1B5E20', icon: 'CheckCircle', label: '已完成' }, // = successContainer (semantic)
+    processing: { bg: '#FFF3E0', text: '#B45309', icon: 'HourglassTop', label: '处理中' }, // = warningContainer
+    needsReview: { bg: '#FFE0B2', text: '#1A1C1A', icon: 'FactCheck', label: '需核对' }, // = accentContainer
+    failed: { bg: '#FCE8E6', text: '#D32F2F', icon: 'Error', label: '识别失败' }, // = errorContainer
   },
   /**
    * Namespace riêng cho NutUI (§3.6: biến chỉ NutUI mới có, MUI bỏ qua).

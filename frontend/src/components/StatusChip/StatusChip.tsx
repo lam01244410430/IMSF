@@ -4,14 +4,19 @@
  */
 import { Text, View } from '@tarojs/components'
 import { tokens } from '../../ui/tokens'
+import Icon from '../../ui/primitives/Icon'
+import type { IconName } from '../../ui/primitives/Icon'
 import type { ReceiptStatus } from '../../services/receipts'
 
-const STATUS_CONF: Record<ReceiptStatus, { glyph: string; label: string; bg: string; text: string }> = {
-  completed: { glyph: '✓', label: '已完成', bg: tokens.status.completed.bg, text: tokens.status.completed.text },
-  pending: { glyph: '◷', label: '处理中', bg: tokens.status.processing.bg, text: tokens.status.processing.text },
-  processing: { glyph: '◷', label: '处理中', bg: tokens.status.processing.bg, text: tokens.status.processing.text },
-  needs_review: { glyph: '!', label: '需核对', bg: tokens.status.needsReview.bg, text: tokens.status.needsReview.text },
-  failed: { glyph: '✕', label: '识别失败', bg: tokens.status.failed.bg, text: tokens.status.failed.text },
+// §2(d) frontend-design: icon thật từ Icon primitive (cả hai target), KHÔNG
+// dùng glyph unicode (✓/◷/!/✕) thay icon. Tên icon khớp tokens.status.icon
+// (CheckCircle/HourglassTop/FactCheck/Error) trong giới hạn key Icon có.
+const STATUS_CONF: Record<ReceiptStatus, { icon: IconName; label: string; bg: string; text: string }> = {
+  completed: { icon: 'check', label: '已完成', bg: tokens.status.completed.bg, text: tokens.status.completed.text },
+  pending: { icon: 'clock', label: '处理中', bg: tokens.status.processing.bg, text: tokens.status.processing.text },
+  processing: { icon: 'clock', label: '处理中', bg: tokens.status.processing.bg, text: tokens.status.processing.text },
+  needs_review: { icon: 'error', label: '需核对', bg: tokens.status.needsReview.bg, text: tokens.status.needsReview.text },
+  failed: { icon: 'close', label: '识别失败', bg: tokens.status.failed.bg, text: tokens.status.failed.text },
 }
 
 export default function StatusChip({ status }: { status: ReceiptStatus }) {
@@ -30,7 +35,7 @@ export default function StatusChip({ status }: { status: ReceiptStatus }) {
         gap: 4,
       }}
     >
-      <Text style={{ fontSize: 14, color: conf.text }}>{conf.glyph}</Text>
+      <Icon name={conf.icon} size={14} color={conf.text} />
       <Text style={{ fontSize: 12, color: conf.text }}>{conf.label}</Text>
     </View>
   )

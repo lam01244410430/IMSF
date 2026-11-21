@@ -1,4 +1,5 @@
 import {
+  ArrowDown,
   ArrowLeft,
   ArrowRight,
   Check,
@@ -19,6 +20,7 @@ const ICONS = {
   camera: Photograph,
   'chevron-left': ArrowLeft,
   'chevron-right': ArrowRight,
+  'chevron-down': ArrowDown,
   check: Check,
   clock: Clock,
   close: Close,

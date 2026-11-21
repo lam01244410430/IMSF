@@ -7,6 +7,7 @@ export type IconName =
   | 'camera'
   | 'chevron-left'
   | 'chevron-right'
+  | 'chevron-down'
   | 'check'
   | 'clock'
   | 'close'

@@ -81,7 +81,6 @@ export default function Mine() {
                       key={h.id}
                       title={h.name}
                       subtitle={h.id === session.currentHouseholdId ? '当前账本' : undefined}
-                      glyph={h.id === session.currentHouseholdId ? '✓' : undefined}
                       onClick={() => session.setCurrentHousehold(h.id)}
                     />
                   ))}

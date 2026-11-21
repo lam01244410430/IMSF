@@ -97,7 +97,7 @@ export function formatElapsed(totalSeconds: number): string {
   return `${m}:${String(s % 60).padStart(2, '0')}`
 }
 
-/** Ký tự đầu làm glyph cửa hàng trong vòng primaryContainer (§5.1). */
+/** Ký tự đầu làm glyph cửa hàng trong vòng accentContainer (§5.1). */
 export function storeGlyph(storeName: string | null | undefined): string {
   const name = (storeName ?? '').trim()
   if (!name) return '?'

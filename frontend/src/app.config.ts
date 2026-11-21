@@ -26,7 +26,7 @@ export default defineAppConfig({
   tabBar: {
     custom: true,
     color: tokens.color.onSurfaceVariant,
-    selectedColor: tokens.color.primary,
+    selectedColor: tokens.color.accent,
     backgroundColor: tokens.color.surface,
     list: [
       { pagePath: 'pages/upload/index', text: '首页' },

@@ -32,12 +32,14 @@ const s = tokens.shape
 
 /** [tên biến CSS, giá trị] cho tokens.css (namespace --imsf-*). */
 const imsfVars = [
-  ['--imsf-color-primary', c.primary],
-  ['--imsf-color-on-primary', c.onPrimary],
-  ['--imsf-color-primary-container', c.primaryContainer],
-  ['--imsf-color-on-primary-container', c.onPrimaryContainer],
-  ['--imsf-color-secondary', c.secondary],
-  ['--imsf-color-secondary-container', c.secondaryContainer],
+  // SWISS: accent duy nhất = International Orange; success = xanh lá semantic.
+  ['--imsf-color-accent', c.accent],
+  ['--imsf-color-on-accent', c.onAccent],
+  ['--imsf-color-accent-container', c.accentContainer],
+  ['--imsf-color-on-accent-container', c.onAccentContainer],
+  ['--imsf-color-success', c.success],
+  ['--imsf-color-success-container', c.successContainer],
+  ['--imsf-color-on-success-container', c.onSuccessContainer],
   ['--imsf-color-error', c.error],
   ['--imsf-color-error-container', c.errorContainer],
   ['--imsf-color-warning', c.warning],
@@ -48,9 +50,7 @@ const imsfVars = [
   ['--imsf-color-outline', c.outline],
   ['--imsf-color-on-surface', c.onSurface],
   ['--imsf-color-on-surface-variant', c.onSurfaceVariant],
-  ['--imsf-color-info', c.info],
-  ['--imsf-color-info-light', c.infoLight],
-  ['--imsf-color-info-dark', c.infoDark],
+  // (info #1565C0 ĐÃ XOÁ — không còn màu xanh nào; info = accent, xem nutuiVars.)
   ['--imsf-color-text-disabled', c.textDisabled],
   ['--imsf-color-divider', c.divider],
   ['--imsf-font-family', tokens.font.family],
@@ -78,11 +78,12 @@ const imsfVars = [
 
 /** [tên biến CSS, giá trị] cho nutui.css (override NutUI, §3.6 + Gate 0). */
 const nutuiVars = [
-  ['--nutui-color-primary', c.primary],
-  ['--nutui-color-primary-stop-1', c.primaryDark],
-  ['--nutui-color-primary-stop-2', c.primaryDark],
-  ['--nutui-color-primary-pressed', c.primaryDark],
-  ['--nutui-color-primary-disabled', c.primaryContainer],
+  // SWISS: NutUI primary = accent (International Orange).
+  ['--nutui-color-primary', c.accent],
+  ['--nutui-color-primary-stop-1', c.accentDark],
+  ['--nutui-color-primary-stop-2', c.accentDark],
+  ['--nutui-color-primary-pressed', c.accentDark],
+  ['--nutui-color-primary-disabled', c.accentContainer],
   ['--nutui-color-text', c.onSurface],
   // Gate 0: slot text phụ của NutUI 3.0.20 là --nutui-color-text-help.
   ['--nutui-color-text-help', c.onSurfaceVariant],
@@ -94,9 +95,10 @@ const nutuiVars = [
   ['--nutui-cell-padding', tokens.nutui.cellPadding],
   ['--nutui-color-danger', c.error],
   ['--nutui-color-warning', c.warning],
-  ['--nutui-color-success', c.primary],
-  // D-F1: token info chờ Lam duyệt; chưa component nào dùng.
-  ['--nutui-color-info', c.info],
+  ['--nutui-color-success', c.success],
+  // info KHÔNG phải một màu — alias của accent (Swiss: không có màu xanh
+  // nào). NutUI info state render cam + icon.
+  ['--nutui-color-info', c.accent],
 ]
 
 function render(vars, header) {

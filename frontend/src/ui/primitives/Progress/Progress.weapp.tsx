@@ -14,7 +14,7 @@ export default function Progress(props: ProgressProps) {
       active={value === undefined}
       showText={false}
       background={tokens.color.surfaceVariant}
-      color={tokens.color.primary}
+      color={tokens.color.accent}
       strokeWidth='4px'
     />
   )

@@ -214,13 +214,13 @@ export default function ReviewForm({ detail, refetch }: ReviewFormProps) {
             width: 64,
             height: 64,
             borderRadius: 32,
-            backgroundColor: tokens.color.primaryContainer,
+            backgroundColor: tokens.color.accentContainer,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
-          <Text style={{ fontSize: 28, color: tokens.color.primary }}>✓</Text>
+          <Icon name='check' size={28} color={tokens.color.accent} />
         </View>
         <Text style={{ fontSize: 18, fontWeight: 700, color: tokens.color.onSurface }}>已确认并入库</Text>
         <Text style={{ fontSize: 14, color: tokens.color.onSurfaceVariant }}>
@@ -370,7 +370,7 @@ export default function ReviewForm({ detail, refetch }: ReviewFormProps) {
             height: 48,
             borderWidth: 1.5,
             borderStyle: 'dashed',
-            borderColor: tokens.color.primary,
+            borderColor: tokens.color.accent,
             borderRadius: tokens.shape.base,
             display: 'flex',
             alignItems: 'center',
@@ -378,7 +378,7 @@ export default function ReviewForm({ detail, refetch }: ReviewFormProps) {
           }}
           onClick={() => useReviewDraftStore.getState().addLine()}
         >
-          <Text style={{ fontSize: 15, color: tokens.color.primary }}>＋ 添加一行</Text>
+          <Text style={{ fontSize: 15, color: tokens.color.accent }}>＋ 添加一行</Text>
         </View>
       </View>
 
@@ -415,7 +415,7 @@ export default function ReviewForm({ detail, refetch }: ReviewFormProps) {
           >
             <Text style={{ fontSize: 14, color: tokens.color.onSurface }}>已删除 1 行</Text>
             <Text
-              style={{ fontSize: 14, fontWeight: 600, color: tokens.color.primary }}
+              style={{ fontSize: 14, fontWeight: 600, color: tokens.color.accent }}
               onClick={() => useReviewDraftStore.getState().undoRemove()}
             >
               撤销
@@ -424,9 +424,20 @@ export default function ReviewForm({ detail, refetch }: ReviewFormProps) {
         ) : null}
         <View style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center' }}>
           {diffInfo.withinThreshold ? (
-            <Text style={{ fontSize: 14, fontWeight: 600, color: tokens.color.primary }}>
-              ✓ 已对上，相差 {formatMoney(diffInfo.diff, currency)}
-            </Text>
+            <View
+              style={{
+                display: 'flex',
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 4,
+              }}
+            >
+              <Icon name='check' size={14} color={tokens.color.accent} />
+              <Text style={{ fontSize: 14, fontWeight: 600, color: tokens.color.accent }}>
+                已对上，相差 {formatMoney(diffInfo.diff, currency)}
+              </Text>
+            </View>
           ) : (
             <Text style={{ fontSize: 14, color: tokens.color.onSurface }}>
               明细合计 {formatMoney(linesSum, currency)} · 相差 {formatMoney(diffInfo.diff, currency)} (

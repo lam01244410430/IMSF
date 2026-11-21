@@ -62,7 +62,7 @@ export default function Uploader(props: UploaderProps) {
           role='button'
           aria-label='thêm ảnh'
         >
-          <Add sx={{ color: tokens.color.primary, fontSize: 28 }} />
+          <Add sx={{ color: tokens.color.accent, fontSize: 28 }} />
         </Box>
       </Box>
       {progress !== undefined ? (

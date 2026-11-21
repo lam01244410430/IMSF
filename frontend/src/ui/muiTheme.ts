@@ -4,6 +4,12 @@
  * shape, spacing, breakpoints, elevation, z-index), §3.4 (component
  * overrides), §3.7 (cssVariables: true để chuẩn bị dark mode sau này).
  *
+ * SWISS ANCHOR — frontend-design skill (Ilm-Alan), 2026-11-21
+ * (task/FE-02-swiss-style). Accent duy nhất = International Orange #FF4F00;
+ * xanh lá #2E7D32 chỉ là semantic success; KHÔNG còn màu xanh nào (info =
+ * accent, xem palette.info). Chữ trên accent là chữ tối #1A1C1A (trắng trên
+ * #FF4F00 chỉ 3.30:1, FAIL 4.5:1; tối đạt 5.20:1).
+ *
  * Chỉ dùng trên H5 (cần DOM thật). Không bao giờ import vào build weapp —
  * adapter layer §8.2 + platform file ép điều này (ESLint).
  */
@@ -34,6 +40,7 @@ declare module '@mui/material/styles' {
       container: {
         primary: string
         secondary: string
+        success: string
         error: string
         warning: string
         surfaceVariant: string
@@ -52,45 +59,51 @@ const themeOptions: MuiThemeOptions = {
   cssVariables: true,
   palette: {
     mode: 'light',
+    // SWISS: MỘT accent duy nhất — MUI primary CHÍNH LÀ accent
+    // (International Orange #FF4F00). contrastText là chữ tối #1A1C1A
+    // (trắng trên accent chỉ 3.30:1, FAIL; tối đạt 5.20:1).
     primary: {
-      main: c.primary,
-      light: c.primaryLight,
-      dark: c.primaryDark,
-      contrastText: c.onPrimary,
+      main: c.accent,
+      light: c.accentLight,
+      dark: c.accentDark,
+      contrastText: c.onAccent,
     },
-    // §3.2: KHÔNG bao giờ chữ trắng trên secondary (fail 2.29:1) —
-    // contrastText là #1A1C1A.
+    // secondary = primary, CỐ Ý — Swiss chỉ cho một accent; MUI bắt buộc
+    // phải có slot secondary nên nó trỏ cùng accent, không phải màu thứ hai.
     secondary: {
-      main: c.secondary,
-      light: c.secondaryLight,
-      dark: c.secondaryDark,
-      contrastText: c.onSurface,
+      main: c.accent,
+      light: c.accentLight,
+      dark: c.accentDark,
+      contrastText: c.onAccent,
     },
     error: {
       main: c.error,
       light: c.errorLight,
       dark: c.errorDark,
-      contrastText: c.onPrimary,
+      contrastText: c.white, // trắng trên #D32F2F = 4.98:1 (PASS)
     },
     warning: {
       main: c.warning,
       light: c.warningLight,
       dark: c.warningDark,
-      contrastText: c.onPrimary,
+      contrastText: c.white, // trắng trên #B45309 = 5.02:1 (PASS)
     },
-    // = primary, cố ý — không thêm một xanh lá thứ hai (§3.2).
+    // success = xanh lá #2E7D32 (semantic, KHÔNG phải accent). Trắng trên
+    // #2E7D32 = 5.13:1 (PASS).
     success: {
-      main: c.primary,
-      light: c.primaryContainer,
-      dark: c.primaryDark,
-      contrastText: c.onPrimary,
+      main: c.success,
+      light: c.successLight,
+      dark: c.successDark,
+      contrastText: c.white,
     },
-    // ★ Token mới (D-F1, chờ Lam duyệt). Chưa component nào dùng.
+    // info KHÔNG phải một màu — nó là alias của accent (Swiss: không có
+    // màu xanh nào). Alert severity="info" / Toast kind="info" render cam
+    // + icon, không bao giờ xanh. Token #1565C0 đã xoá (D-F1, Lam cấm).
     info: {
-      main: c.info,
-      light: c.infoLight,
-      dark: c.infoDark,
-      contrastText: c.onPrimary,
+      main: c.accent,
+      light: c.accentContainer,
+      dark: c.accentDark,
+      contrastText: c.onAccent,
     },
     background: { default: c.background, paper: c.surface },
     text: {
@@ -159,8 +172,9 @@ const themeOptions: MuiThemeOptions = {
   imsf: {
     status: tokens.status,
     container: {
-      primary: c.primaryContainer,
-      secondary: c.secondaryContainer,
+      primary: c.accentContainer,
+      secondary: c.accentContainer,
+      success: c.successContainer,
       error: c.errorContainer,
       warning: c.warningContainer,
       surfaceVariant: c.surfaceVariant,
@@ -173,7 +187,7 @@ const themeOptions: MuiThemeOptions = {
         html: { '-webkit-text-size-adjust': '100%' },
         // Focus-visible ring 2px + offset 2px trên mọi phần tử tương tác (§3.4).
         '*:focus-visible': {
-          outline: `2px solid ${c.primaryDark}`,
+          outline: `2px solid ${c.accentDark}`,
           outlineOffset: '2px',
         },
         // Reduced motion: tắt mọi animation không cần thiết (§3.4).
@@ -193,9 +207,9 @@ const themeOptions: MuiThemeOptions = {
         {
           props: { variant: 'contained', color: 'primary' },
           style: {
-            backgroundColor: c.primary,
-            color: c.onPrimary,
-            '&:hover': { backgroundColor: c.primaryDark },
+            backgroundColor: c.accent,
+            color: c.onAccent,
+            '&:hover': { backgroundColor: c.accentDark },
             '&.Mui-disabled': {
               backgroundColor: tokens.action.disabledBackground,
               color: tokens.action.disabled,
@@ -205,10 +219,10 @@ const themeOptions: MuiThemeOptions = {
         {
           props: { variant: 'outlined', color: 'primary' },
           style: {
-            border: `1.5px solid ${c.primary}`,
-            color: c.primary,
+            border: `1.5px solid ${c.accent}`,
+            color: c.accent,
             backgroundColor: 'transparent',
-            '&:hover': { backgroundColor: tokens.action.hover, border: `1.5px solid ${c.primary}` },
+            '&:hover': { backgroundColor: tokens.action.hover, border: `1.5px solid ${c.accent}` },
           },
         },
         {
@@ -224,7 +238,7 @@ const themeOptions: MuiThemeOptions = {
           minHeight: tokens.size.buttonMinHeight,
           textTransform: 'none',
           '&.Mui-focusVisible': {
-            outline: `2px solid ${c.primaryDark}`,
+            outline: `2px solid ${c.accentDark}`,
             outlineOffset: '2px',
           },
         },
@@ -270,7 +284,7 @@ const themeOptions: MuiThemeOptions = {
           '& .MuiOutlinedInput-notchedOutline': { borderColor: c.outline },
           '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: c.outline },
           '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-            borderColor: c.primary,
+            borderColor: c.accent,
             borderWidth: 2,
           },
           '&.Mui-error .MuiOutlinedInput-notchedOutline': { borderColor: c.error },
@@ -302,12 +316,12 @@ const themeOptions: MuiThemeOptions = {
           borderRadius: 2,
           backgroundColor: tokens.action.hover,
         },
-        bar: { backgroundColor: c.primary },
+        bar: { backgroundColor: c.accent },
       },
     },
     MuiCircularProgress: {
       styleOverrides: {
-        root: { color: c.primary },
+        root: { color: c.accent },
       },
     },
     MuiDialog: {
@@ -322,10 +336,10 @@ const themeOptions: MuiThemeOptions = {
       styleOverrides: {
         root: {
           backgroundColor: c.onSurface,
-          color: c.onPrimary,
+          color: c.onAccent,
           borderRadius: tokens.shape.toast,
         },
-        action: { color: c.primaryContainer },
+        action: { color: c.accentContainer },
       },
     },
     MuiSkeleton: {
@@ -338,18 +352,18 @@ const themeOptions: MuiThemeOptions = {
         root: {
           width: tokens.size.fab,
           height: tokens.size.fab,
-          backgroundColor: c.primary,
-          color: c.onPrimary,
+          backgroundColor: c.accent,
+          color: c.onAccent,
           boxShadow: tokens.elevation.fab,
-          '&:hover': { backgroundColor: c.primaryDark },
+          '&:hover': { backgroundColor: c.accentDark },
         },
       },
     },
     MuiSwitch: {
       styleOverrides: {
         switchBase: {
-          '&.Mui-checked': { color: c.primary },
-          '&.Mui-checked + .MuiSwitch-track': { backgroundColor: c.primary },
+          '&.Mui-checked': { color: c.accent },
+          '&.Mui-checked + .MuiSwitch-track': { backgroundColor: c.accent },
         },
       },
     },

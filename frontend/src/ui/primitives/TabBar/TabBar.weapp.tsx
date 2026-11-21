@@ -44,7 +44,7 @@ export default function TabBar(props: TabBarProps) {
         onSwitch={(v: number) => onSelect(v)}
         fixed={false}
         safeArea
-        activeColor={tokens.color.primary}
+        activeColor={tokens.color.accent}
         inactiveColor={tokens.color.onSurfaceVariant}
       >
         {items.map((item) => (
@@ -65,7 +65,7 @@ export default function TabBar(props: TabBarProps) {
           width: tokens.size.fab,
           height: tokens.size.fab,
           borderRadius: tokens.shape.fab,
-          backgroundColor: tokens.color.primary,
+          backgroundColor: tokens.color.accent,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -74,7 +74,7 @@ export default function TabBar(props: TabBarProps) {
         }}
         onClick={() => fab.onClick()}
       >
-        <Photograph width={26} height={26} color={tokens.color.onPrimary} />
+        <Photograph width={26} height={26} color={tokens.color.onAccent} />
       </View>
     </View>
   )
