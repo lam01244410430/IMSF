@@ -8,9 +8,68 @@
  * gửi lên. Hàm `lineTotal` là chỗ duy nhất làm phép tính đó.
  */
 
-export type Currency = 'CNY' | 'VND'
+export type Currency =
+  | 'CNY'
+  | 'VND'
+  | 'USD'
+  | 'EUR'
+  | 'HKD'
+  | 'THB'
+  | 'MYR'
+  | 'SGD'
+  | 'IDR'
+  | 'PHP'
+  | 'KHR'
+  | 'LAK'
+  | 'MMK'
+  | 'BND'
 
-const CURRENCY_SYMBOL: Record<Currency, string> = { CNY: '¥', VND: '₫' }
+/** Thứ tự hiển thị chuẩn trong mọi selector tiền tệ (P2-06, D-F7 đã giải quyết). */
+export const SUPPORTED_CURRENCIES: readonly Currency[] = [
+  'CNY',
+  'VND',
+  'USD',
+  'EUR',
+  'HKD',
+  'THB',
+  'MYR',
+  'SGD',
+  'IDR',
+  'PHP',
+  'KHR',
+  'LAK',
+  'MMK',
+  'BND',
+]
+
+/** Ký hiệu tiền tệ — NGUỒN DUY NHẤT, mọi selector/format đều dùng map này. */
+export const CURRENCY_SYMBOL: Record<Currency, string> = {
+  CNY: '¥',
+  VND: '₫',
+  USD: '$',
+  EUR: '€',
+  HKD: 'HK$',
+  THB: '฿',
+  MYR: 'RM',
+  SGD: 'S$',
+  IDR: 'Rp',
+  PHP: '₱',
+  KHR: '៛',
+  LAK: '₭',
+  MMK: 'K',
+  BND: 'B$',
+}
+
+/**
+ * Chuẩn hoá một mã tiền tệ dạng string tự do (API / household default) về
+ * Currency: mã lạ / null / undefined → 'CNY' (China-first). Backend P2-06
+ * chấp nhận cả 14 mã nên USD/EUR/... không còn bị ép về CNY nữa.
+ */
+export function resolveCurrency(value: string | null | undefined): Currency {
+  return (SUPPORTED_CURRENCIES as readonly string[]).includes(value ?? '')
+    ? (value as Currency)
+    : 'CNY'
+}
 
 /** ¥280.00 — grouping thủ công (không dựa vào Intl, Mini Program nào cũng chạy). */
 export function formatMoney(amount: number | null | undefined, currency: Currency = 'CNY'): string {

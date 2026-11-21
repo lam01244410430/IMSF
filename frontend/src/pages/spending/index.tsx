@@ -3,8 +3,9 @@
  * theo danh mục, từ GET /spending/summary.
  *
  * - Một tiền tệ tại một thời điểm (API bắt buộc currency, thiếu → 400):
- *   selector CNY/VND, mặc định = default_currency của nhà (không thì CNY).
- *   KHÔNG BAO GIỜ cộng CNY + VND.
+ *   selector 14 tiền tệ (P2-06, D-F7 đã giải quyết), mặc định =
+ *   default_currency của nhà (mã lạ → CNY). KHÔNG BAO GIỜ cộng trộn tiền
+ *   tệ — mỗi tiền tệ tính riêng, không quy đổi.
  * - Tháng chọn: tháng hiện tại mặc định, nút trước/sau; nút sau disable khi
  *   đã ở tháng hiện tại. Tổng tháng gọi summary với from = đầu tháng,
  *   to = đầu tháng sau (theo timezone của nhà).
@@ -22,25 +23,32 @@ import Icon from '../../ui/primitives/Icon'
 import ListRow from '../../ui/primitives/ListRow'
 import Skeleton from '../../ui/primitives/Skeleton'
 import { tokens } from '../../ui/tokens'
-import { CATEGORY_LABELS, getSpendingSummary } from '../../services/transactions'
+import {
+  CATEGORY_LABELS,
+  CURRENCY_LABELS,
+  TRANSACTION_CURRENCIES,
+  getSpendingSummary,
+} from '../../services/transactions'
 import { goBack, goLogin } from '../../config/routes'
 import { useSessionStore } from '../../store/session'
 import { listHouseholds } from '../../services/households'
 import type { Currency } from '../../utils/format'
 import {
+  CURRENCY_SYMBOL,
   currentMonth,
   formatAmount,
   monthLabel,
   monthRange,
+  resolveCurrency,
   round2,
   shiftMonth,
   yearRange,
 } from '../../utils/format'
 
-const CURRENCIES: { key: Currency; label: string }[] = [
-  { key: 'CNY', label: '人民币 ¥' },
-  { key: 'VND', label: '越南盾 ₫' },
-]
+const CURRENCIES: { key: Currency; label: string }[] = TRANSACTION_CURRENCIES.map((c) => ({
+  key: c,
+  label: `${CURRENCY_LABELS[c]} ${CURRENCY_SYMBOL[c]}`,
+}))
 
 export default function Spending() {
   const householdId = useSessionStore((s) => s.currentHouseholdId)
@@ -53,7 +61,8 @@ export default function Spending() {
     enabled: isLoggedIn,
   })
   const currentHousehold = householdsQuery.data?.find((h) => h.id === householdId)
-  const defaultCurrency: Currency = currentHousehold?.default_currency === 'VND' ? 'VND' : 'CNY'
+  // default_currency của nhà (14 tiền tệ, P2-06) — mã lạ → CNY.
+  const defaultCurrency: Currency = resolveCurrency(currentHousehold?.default_currency)
   const timezone = currentHousehold?.timezone ?? 'Asia/Shanghai'
 
   const thisMonth = useMemo(() => currentMonth(timezone), [timezone])
@@ -127,7 +136,7 @@ export default function Spending() {
           </View>
         ) : (
           <>
-            <View style={{ display: 'flex', flexDirection: 'row', gap: 8 }}>
+            <View style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               {CURRENCIES.map((c) => (
                 <Button
                   key={c.key}

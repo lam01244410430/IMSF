@@ -7,6 +7,7 @@ import { taroMock, __resetTaroStorage } from '../test/taroMock'
 import {
   CATEGORY_LABELS,
   CURRENCY_LABELS,
+  TRANSACTION_CURRENCIES,
   createTransaction,
   deleteTransaction,
   getSpendingSummary,
@@ -132,6 +133,45 @@ describe('category labels — zh-CN, đúng 4 giá trị backend', () => {
     expect(CATEGORY_LABELS.other).toBe('其他')
     expect(CURRENCY_LABELS.CNY).toBe('人民币')
     expect(CURRENCY_LABELS.VND).toBe('越南盾')
+  })
+})
+
+describe('currencies — 14 tiền tệ (P2-06, D-F7)', () => {
+  it('TRANSACTION_CURRENCIES đúng 14 mã, đúng thứ tự', () => {
+    expect(TRANSACTION_CURRENCIES).toEqual([
+      'CNY',
+      'VND',
+      'USD',
+      'EUR',
+      'HKD',
+      'THB',
+      'MYR',
+      'SGD',
+      'IDR',
+      'PHP',
+      'KHR',
+      'LAK',
+      'MMK',
+      'BND',
+    ])
+  })
+  it('CURRENCY_LABELS đủ 14 nhãn zh-CN', () => {
+    expect(CURRENCY_LABELS).toEqual({
+      CNY: '人民币',
+      VND: '越南盾',
+      USD: '美元',
+      EUR: '欧元',
+      HKD: '港元',
+      THB: '泰铢',
+      MYR: '马来西亚林吉特',
+      SGD: '新加坡元',
+      IDR: '印度尼西亚盾',
+      PHP: '菲律宾比索',
+      KHR: '柬埔寨瑞尔',
+      LAK: '老挝基普',
+      MMK: '缅甸元',
+      BND: '文莱元',
+    })
   })
 })
 

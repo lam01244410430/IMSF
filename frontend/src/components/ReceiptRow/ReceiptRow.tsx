@@ -7,7 +7,7 @@ import { Text, View } from '@tarojs/components'
 import { tokens } from '../../ui/tokens'
 import ListRow from '../../ui/primitives/ListRow'
 import StatusChip from '../StatusChip/StatusChip'
-import { formatMoney, formatRelativeDate, storeGlyph } from '../../utils/format'
+import { formatMoney, formatRelativeDate, resolveCurrency, storeGlyph } from '../../utils/format'
 import type { Receipt } from '../../services/receipts'
 
 export interface ReceiptRowProps {
@@ -17,9 +17,9 @@ export interface ReceiptRowProps {
 
 export default function ReceiptRow({ receipt, onClick }: ReceiptRowProps) {
   const amountKnown = receipt.status === 'completed' || receipt.status === 'needs_review'
-  // API trả currency dạng string tự do; client chỉ hỗ trợ CNY/VND (§3.2) —
-  // currency lạ mặc định về CNY (China-first).
-  const currency = receipt.currency === 'VND' ? 'VND' : 'CNY'
+  // API trả currency dạng string tự do; chuẩn hoá về 1 trong 14 tiền tệ
+  // (P2-06) — mã lạ mặc định về CNY (China-first).
+  const currency = resolveCurrency(receipt.currency)
   const amount = amountKnown ? formatMoney(receipt.total_amount, currency) : '—'
   return (
     <ListRow

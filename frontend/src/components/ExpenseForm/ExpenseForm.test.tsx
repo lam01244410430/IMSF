@@ -57,6 +57,30 @@ describe('ExpenseForm', () => {
     expect(screen.getByText('记一笔')).toBeTruthy()
   })
 
+  it('picker tiền tệ offer đủ 14 tiền tệ (P2-06, D-F7)', async () => {
+    renderForm()
+    fireEvent.click(screen.getByText('人民币 ¥'))
+    // Picker mở (MUI Dialog): nhãn CNY có 2 chỗ (giá trị đã chọn + option).
+    await waitFor(() => expect(screen.getAllByText('人民币 ¥').length).toBeGreaterThanOrEqual(2))
+    for (const label of [
+      '越南盾 ₫',
+      '美元 $',
+      '欧元 €',
+      '港元 HK$',
+      '泰铢 ฿',
+      '马来西亚林吉特 RM',
+      '新加坡元 S$',
+      '印度尼西亚盾 Rp',
+      '菲律宾比索 ₱',
+      '柬埔寨瑞尔 ៛',
+      '老挝基普 ₭',
+      '缅甸元 K',
+      '文莱元 B$',
+    ]) {
+      expect(screen.getByText(label)).toBeTruthy()
+    }
+  })
+
   it('submit khi chưa nhập amount → lỗi 请输入金额, không gọi API', async () => {
     renderForm()
     fireEvent.click(screen.getByText('记一笔'))

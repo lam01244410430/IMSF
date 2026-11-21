@@ -28,7 +28,7 @@ import {
 } from '../../store/reviewDraft'
 import { ApiError } from '../../services/errors'
 import { showToast } from '../../ui/primitives/Toast'
-import { formatMoney, reconciliationDiff, withAlpha } from '../../utils/format'
+import { formatMoney, reconciliationDiff, resolveCurrency, withAlpha } from '../../utils/format'
 import { goFridge, goUpload } from '../../config/routes'
 import { tokens } from '../../ui/tokens'
 
@@ -93,7 +93,7 @@ export default function ReviewForm({ detail, refetch }: ReviewFormProps) {
 
   const currentDetail = detailOverride ?? detail
   const totalAmount = currentDetail.total_amount
-  const currency = currentDetail.currency === 'VND' ? 'VND' : 'CNY'
+  const currency = resolveCurrency(currentDetail.currency)
   const linesSum = reviewLinesSum(lines)
   const diffInfo = reconciliationDiff(totalAmount, linesSum)
   const unmappedCount = lines.filter((l) => !l.canonicalName).length
