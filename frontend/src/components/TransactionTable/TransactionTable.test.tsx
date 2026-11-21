@@ -3,9 +3,8 @@
  * dòng chi tay có 编辑/删除, dòng từ hoá đơn chỉ có chip 小票 (không nút),
  * số tiền formatAmount bỏ số 0 thừa.
  */
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach } from 'vitest'
 import TransactionTable from './TransactionTable'
 import type { Transaction } from '../../services/transactions'
 
