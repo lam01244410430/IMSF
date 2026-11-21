@@ -14,6 +14,7 @@ import Icon from '../../ui/primitives/Icon'
 import Progress from '../../ui/primitives/Progress'
 import Skeleton from '../../ui/primitives/Skeleton'
 import { useReceiptImage } from './useReceiptImage'
+import { useIsDesktop } from '../../hooks/useIsDesktop'
 import type { ReceiptDetail } from '../../services/receipts'
 import { formatElapsed, formatRelativeDate } from '../../utils/format'
 import { useUiStore } from '../../store/ui'
@@ -85,6 +86,8 @@ export interface ProcessingPanelProps {
 }
 
 export default function ProcessingPanel({ detail, jobElapsedMs, isSoftTimeout, isHardTimeout }: ProcessingPanelProps) {
+  // FE-04 (§12.6): desktop two columns — thumbnail left, steps right.
+  const isDesktop = useIsDesktop()
   const imageQuery = useReceiptImage(detail.id)
   const imageSrc = imageQuery.data
 
@@ -104,43 +107,70 @@ export default function ProcessingPanel({ detail, jobElapsedMs, isSoftTimeout, i
       <View
         style={{
           display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 12,
-          padding: 32,
-          paddingTop: 48,
+          flexDirection: isDesktop ? 'row' : 'column',
+          alignItems: isDesktop ? 'flex-start' : 'center',
+          gap: isDesktop ? tokens.desktop.desktopGap : 12,
+          padding: isDesktop ? 24 : 32,
+          paddingTop: isDesktop ? 32 : 48,
         }}
       >
-        <View
-          style={{
-            width: 64,
-            height: 64,
-            borderRadius: 32,
-            backgroundColor: tokens.color.errorContainer,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Icon name='close' size={28} color={tokens.color.error} />
-        </View>
-        <Text style={{ fontSize: 18, fontWeight: 700, color: tokens.color.onSurface }}>识别失败</Text>
-        <Text style={{ fontSize: 14, color: tokens.color.onSurfaceVariant, textAlign: 'center' }}>
-          {detail.error_message || '识别失败，请重新拍摄或上传更清晰的图片。'}
-        </Text>
-        <View style={{ marginTop: 8, width: '100%' }}>
-          <Button variant='primary' size='large' block onClick={reupload}>
-            重新上传
-          </Button>
-        </View>
-        {imageSrc ? (
-          <Text
-            style={{ fontSize: 14, color: tokens.color.accent, marginTop: 4 }}
-            onClick={() => void Taro.previewImage({ current: imageSrc, urls: [imageSrc] })}
+        {isDesktop ? (
+          <View
+            style={{
+              width: tokens.desktop.receiptPanelWidth,
+              flexShrink: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 16,
+            }}
           >
-            查看小票图片
-          </Text>
+            {imageQuery.isLoading ? (
+              <Skeleton variant='block' width={120} height={160} />
+            ) : imageSrc ? (
+              <Image src={imageSrc} mode='aspectFill' style={{ width: 120, height: 160, borderRadius: 12 }} />
+            ) : null}
+            <Text style={{ fontSize: 15, fontWeight: 600, color: tokens.color.onSurface }}>{storeLine}</Text>
+          </View>
         ) : null}
+        <View
+          style={
+            isDesktop
+              ? { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 12 }
+              : { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }
+          }
+        >
+          <View
+            style={{
+              width: 64,
+              height: 64,
+              borderRadius: 32,
+              backgroundColor: tokens.color.errorContainer,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Icon name='close' size={28} color={tokens.color.error} />
+          </View>
+          <Text style={{ fontSize: 18, fontWeight: 700, color: tokens.color.onSurface }}>识别失败</Text>
+          <Text style={{ fontSize: 14, color: tokens.color.onSurfaceVariant, textAlign: isDesktop ? 'left' : 'center' }}>
+            {detail.error_message || '识别失败，请重新拍摄或上传更清晰的图片。'}
+          </Text>
+          <View style={{ marginTop: 8, width: '100%' }}>
+            <Button variant='primary' size='large' block onClick={reupload}>
+              重新上传
+            </Button>
+          </View>
+          {imageSrc ? (
+            <Text
+              style={{ fontSize: 14, color: tokens.color.accent, marginTop: 4 }}
+              onClick={() => void Taro.previewImage({ current: imageSrc, urls: [imageSrc] })}
+            >
+              查看小票图片
+            </Text>
+          ) : null}
+        </View>
       </View>
     )
   }
@@ -223,69 +253,93 @@ export default function ProcessingPanel({ detail, jobElapsedMs, isSoftTimeout, i
     <View
       style={{
         display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: 16,
+        flexDirection: isDesktop ? 'row' : 'column',
+        gap: isDesktop ? tokens.desktop.desktopGap : 16,
+        alignItems: isDesktop ? 'flex-start' : 'center',
         padding: 24,
         paddingTop: 32,
       }}
     >
-      {imageQuery.isLoading ? (
-        <Skeleton variant='block' width={120} height={160} />
-      ) : imageSrc ? (
-        <Image src={imageSrc} mode='aspectFill' style={{ width: 120, height: 160, borderRadius: 12 }} />
-      ) : null}
-      <Text style={{ fontSize: 15, fontWeight: 600, color: tokens.color.onSurface }}>{storeLine}</Text>
+      {/* FE-04 (§12.6): desktop two columns — thumbnail left, steps right. */}
+      <View
+        style={
+          isDesktop
+            ? {
+                width: tokens.desktop.receiptPanelWidth,
+                flexShrink: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 16,
+              }
+            : { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }
+        }
+      >
+        {imageQuery.isLoading ? (
+          <Skeleton variant='block' width={120} height={160} />
+        ) : imageSrc ? (
+          <Image src={imageSrc} mode='aspectFill' style={{ width: 120, height: 160, borderRadius: 12 }} />
+        ) : null}
+        <Text style={{ fontSize: 15, fontWeight: 600, color: tokens.color.onSurface }}>{storeLine}</Text>
+      </View>
 
-      <View style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {STEPS.map((step, i) => {
-          const state = states[i]
-          return (
-            <View key={step.label}>
-              <View style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <StepIcon state={state} />
-                <Text
-                  style={{
-                    fontSize: 15,
-                    fontWeight: state === 'active' ? 600 : 400,
-                    color: state === 'waiting' ? tokens.color.onSurfaceVariant : tokens.color.onSurface,
-                  }}
-                >
-                  {step.label}
-                </Text>
+      <View
+        style={
+          isDesktop
+            ? { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 16 }
+            : { width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }
+        }
+      >
+        <View style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {STEPS.map((step, i) => {
+            const state = states[i]
+            return (
+              <View key={step.label}>
+                <View style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <StepIcon state={state} />
+                  <Text
+                    style={{
+                      fontSize: 15,
+                      fontWeight: state === 'active' ? 600 : 400,
+                      color: state === 'waiting' ? tokens.color.onSurfaceVariant : tokens.color.onSurface,
+                    }}
+                  >
+                    {step.label}
+                  </Text>
+                </View>
+                {state === 'active' ? (
+                  <Text style={{ fontSize: 13, color: tokens.color.onSurfaceVariant, marginLeft: 36, marginTop: 2 }}>
+                    {step.hint}
+                  </Text>
+                ) : null}
               </View>
-              {state === 'active' ? (
-                <Text style={{ fontSize: 13, color: tokens.color.onSurfaceVariant, marginLeft: 36, marginTop: 2 }}>
-                  {step.hint}
-                </Text>
-              ) : null}
-            </View>
-          )
-        })}
-      </View>
+            )
+          })}
+        </View>
 
-      <View style={{ width: '100%' }}>
-        <Progress ariaLabel='正在处理' />
-      </View>
+        <View style={{ width: '100%' }}>
+          <Progress ariaLabel='正在处理' />
+        </View>
 
-      <Text style={{ fontSize: 14, color: tokens.color.onSurfaceVariant, fontVariantNumeric: 'tabular-nums' }}>
-        已用时 {formatElapsed(Math.floor(jobElapsedMs / 1000))}
-      </Text>
-      <Text style={{ fontSize: 13, color: tokens.color.onSurfaceVariant, textAlign: 'center' }}>
-        {isSoftTimeout
-          ? '处理时间比平时长，请稍等，或先去看看别的。'
-          : '通常需要 30 秒到 2 分钟，请稍等。'}
-      </Text>
+        <Text style={{ fontSize: 14, color: tokens.color.onSurfaceVariant, fontVariantNumeric: 'tabular-nums' }}>
+          已用时 {formatElapsed(Math.floor(jobElapsedMs / 1000))}
+        </Text>
+        <Text style={{ fontSize: 13, color: tokens.color.onSurfaceVariant, textAlign: isDesktop ? 'left' : 'center' }}>
+          {isSoftTimeout
+            ? '处理时间比平时长，请稍等，或先去看看别的。'
+            : '通常需要 30 秒到 2 分钟，请稍等。'}
+        </Text>
 
-      {isSoftTimeout ? (
-        <Button variant='primary' size='large' block onClick={() => void goBackOrUpload()}>
-          先去看看别的，好了通知我
-        </Button>
-      ) : (
-        <Button variant='ghost' onClick={() => void goBackOrUpload()}>
-          先去看看别的，好了通知我
-        </Button>
-      )}
+        {isSoftTimeout ? (
+          <Button variant='primary' size='large' block onClick={() => void goBackOrUpload()}>
+            先去看看别的，好了通知我
+          </Button>
+        ) : (
+          <Button variant='ghost' onClick={() => void goBackOrUpload()}>
+            先去看看别的，好了通知我
+          </Button>
+        )}
+        </View>
     </View>
   )
 }

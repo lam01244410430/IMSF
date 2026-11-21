@@ -142,3 +142,57 @@ describe('Upload page — pick flow', () => {
     expect(mockUpload).not.toHaveBeenCalled()
   })
 })
+
+/** FE-04 desktop two-column (design doc §12.6): capture left, recent right. */
+function mockMatchMedia(matches: boolean): void {
+  const createMql = () => ({
+    matches,
+    media: '(min-width: 1024px)',
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  })
+  window.matchMedia = vi.fn(createMql) as unknown as typeof window.matchMedia
+}
+
+const originalMatchMedia = window.matchMedia
+
+describe('Upload page — desktop two-column (FE-04)', () => {
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia
+  })
+
+  it('renders capture + recent in a row container on desktop', async () => {
+    mockMatchMedia(true)
+    mockList.mockResolvedValue([receipt('r-1', '沃尔玛')])
+    renderPage()
+    expect(await screen.findByText('沃尔玛')).toBeTruthy()
+    // Capture caption -> capture card -> left column -> row container.
+    const card = screen.getByText('点击拍照').parentElement
+    const leftCol = card?.parentElement
+    const container = leftCol?.parentElement
+    expect(container?.style.flexDirection).toBe('row')
+    expect(container?.style.gap).toBe('24px')
+    expect(leftCol?.style.width).toBe('480px')
+    // Recent section lives in the other (right) column of the same row.
+    const rightCol = screen.getByText('最近小票').parentElement?.parentElement?.parentElement?.parentElement
+    expect(rightCol).toBeTruthy()
+    expect(rightCol).not.toBe(leftCol)
+    expect(rightCol?.parentElement).toBe(container)
+    expect(rightCol?.style.minWidth).toBe('0px')
+  })
+
+  it('renders a single column on mobile', async () => {
+    mockMatchMedia(false)
+    mockList.mockResolvedValue([receipt('r-1', '沃尔玛')])
+    renderPage()
+    expect(await screen.findByText('沃尔玛')).toBeTruthy()
+    const card = screen.getByText('点击拍照').parentElement
+    const container = card?.parentElement?.parentElement
+    expect(container?.style.flexDirection).toBe('column')
+    expect(container?.style.gap).toBe('16px')
+  })
+})

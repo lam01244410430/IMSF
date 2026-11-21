@@ -160,191 +160,216 @@ export default function Upload() {
     <View style={{ paddingBottom: isDesktop ? 16 : tokens.size.navHeight + 16 }}>
       <PageHeader title='IMSF-v2' subtitle='拍小票，自动记账入库' />
       <OfflineBanner />
-      <View style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {/* Capture card (§5.1): dashed 1.5px accent 60%, radius 16, bg accentContainer 40%. */}
+      <View
+        style={{
+          padding: 16,
+          display: 'flex',
+          flexDirection: isDesktop ? 'row' : 'column',
+          gap: isDesktop ? tokens.desktop.desktopGap : 16,
+          alignItems: isDesktop ? 'flex-start' : 'stretch',
+        }}
+      >
+        {/* FE-04 (§12.6): desktop two columns — capture left, recent right. */}
         <View
-          style={{
-            height: 180,
-            borderRadius: tokens.shape.card,
-            borderWidth: 1.5,
-            borderStyle: 'dashed',
-            borderColor: withAlpha(tokens.color.accent, 0.6),
-            backgroundColor: withAlpha(tokens.color.accentContainer, 0.4),
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            padding: 16,
-            overflow: 'hidden',
-            position: 'relative',
-          }}
-          onClick={() => void handlePick('camera')}
-          aria-label='拍照上传小票'
-        >
-          {hasPreview && draft.file ? (
-            <>
-              <Image
-                src={draft.file.tempFilePath}
-                mode='aspectFill'
-                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
-              />
-              <View
-                style={{
-                  position: 'absolute',
-                  top: 8,
-                  right: 8,
-                  width: 32,
-                  height: 32,
-                  borderRadius: 16,
-                  backgroundColor: withAlpha(tokens.color.onSurface, 0.6),
+          style={
+            isDesktop
+              ? {
+                  width: tokens.desktop.uploadPanelWidth,
+                  flexShrink: 0,
                   display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  draft.clear()
-                }}
-                aria-label='移除图片'
-              >
-                <Icon name='close' size={18} color={tokens.color.surface} />
-              </View>
-              {uploading ? (
+                  flexDirection: 'column',
+                  gap: 16,
+                }
+              : { display: 'flex', flexDirection: 'column', gap: 16 }
+          }
+        >
+          {/* Capture card (§5.1): dashed 1.5px accent 60%, radius 16, bg accentContainer 40%. */}
+          <View
+            style={{
+              height: 180,
+              borderRadius: tokens.shape.card,
+              borderWidth: 1.5,
+              borderStyle: 'dashed',
+              borderColor: withAlpha(tokens.color.accent, 0.6),
+              backgroundColor: withAlpha(tokens.color.accentContainer, 0.4),
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              padding: 16,
+              overflow: 'hidden',
+              position: 'relative',
+            }}
+            onClick={() => void handlePick('camera')}
+            aria-label='拍照上传小票'
+          >
+            {hasPreview && draft.file ? (
+              <>
+                <Image
+                  src={draft.file.tempFilePath}
+                  mode='aspectFill'
+                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
+                />
                 <View
                   style={{
                     position: 'absolute',
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    padding: 12,
-                    backgroundColor: withAlpha(tokens.color.surface, 0.92),
+                    top: 8,
+                    right: 8,
+                    width: 32,
+                    height: 32,
+                    borderRadius: 16,
+                    backgroundColor: withAlpha(tokens.color.onSurface, 0.6),
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                   }}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    draft.clear()
+                  }}
+                  aria-label='移除图片'
                 >
-                  <Progress value={draft.progress} ariaLabel='正在上传' />
-                  <Text style={{ fontSize: 13, color: tokens.color.onSurfaceVariant, marginTop: 6 }}>
-                    正在上传… {draft.progress}%
-                  </Text>
+                  <Icon name='close' size={18} color={tokens.color.surface} />
                 </View>
-              ) : null}
-            </>
-          ) : (
-            <>
-              <Icon name='camera' size={48} color={tokens.color.accent} />
-              <Text style={{ fontSize: 16, fontWeight: 600, color: tokens.color.onSurface }}>点击拍照</Text>
-              <Text style={{ fontSize: 13, color: tokens.color.onSurfaceVariant }}>
-                支持中文 / 越南文小票 · JPG、PNG、WebP
-              </Text>
-              <Text style={{ fontSize: 12, color: tokens.color.onSurfaceVariant }}>
-                单张不超过 10 MB · 请拍清小票全貌
-              </Text>
-            </>
-          )}
-        </View>
+                {uploading ? (
+                  <View
+                    style={{
+                      position: 'absolute',
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      padding: 12,
+                      backgroundColor: withAlpha(tokens.color.surface, 0.92),
+                    }}
+                  >
+                    <Progress value={draft.progress} ariaLabel='正在上传' />
+                    <Text style={{ fontSize: 13, color: tokens.color.onSurfaceVariant, marginTop: 6 }}>
+                      正在上传… {draft.progress}%
+                    </Text>
+                  </View>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <Icon name='camera' size={48} color={tokens.color.accent} />
+                <Text style={{ fontSize: 16, fontWeight: 600, color: tokens.color.onSurface }}>点击拍照</Text>
+                <Text style={{ fontSize: 13, color: tokens.color.onSurfaceVariant }}>
+                  支持中文 / 越南文小票 · JPG、PNG、WebP
+                </Text>
+                <Text style={{ fontSize: 12, color: tokens.color.onSurfaceVariant }}>
+                  单张不超过 10 MB · 请拍清小票全貌
+                </Text>
+              </>
+            )}
+          </View>
 
-        {/* Lỗi inline dưới card (⚠ + text + 重新选择/重新上传) — KHÔNG dùng toast (§5.1). */}
-        {error ? (
-          <View
-            style={{
-              backgroundColor: tokens.color.errorContainer,
-              borderRadius: tokens.shape.base,
-              padding: 12,
-              display: 'flex',
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 8,
-            }}
-          >
-            <Icon name='warning' size={16} color={tokens.color.error} />
-            <Text style={{ fontSize: 13, color: tokens.color.error, flex: 1 }}>{error}</Text>
-            {errorAction ? (
-              <Text
-                style={{ fontSize: 13, fontWeight: 600, color: tokens.color.accent }}
-                onClick={handleBannerAction}
-              >
-                {errorAction === 'reselect' ? '重新选择' : '重新上传'}
-              </Text>
-            ) : null}
-          </View>
-        ) : null}
-
-        <View style={{ display: 'flex', flexDirection: 'row', gap: 12 }}>
-          <View style={{ flex: 1 }}>
-            <Button variant='primary' size='large' block onClick={() => void handlePick('camera')} disabled={uploading}>
-              拍照
-            </Button>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Button variant='outline' size='large' block onClick={() => void handlePick('album')} disabled={uploading}>
-              从相册选择
-            </Button>
-          </View>
-        </View>
-
-        <View>
-          <View
-            style={{
-              display: 'flex',
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              paddingTop: 8,
-              paddingBottom: 4,
-            }}
-          >
-            <View style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={{ fontSize: 16, fontWeight: 600, color: tokens.color.onSurface }}>最近小票</Text>
-              {justRefreshed ? (
-                <Text style={{ fontSize: 12, color: tokens.color.accent }}>已更新</Text>
-              ) : null}
-            </View>
-            <Text
-              style={{ fontSize: 14, color: tokens.color.accent }}
-              onClick={() => void goReceipts()}
-            >
-              查看全部 ›
-            </Text>
-          </View>
-          {!householdId ? (
+          {/* Lỗi inline dưới card (⚠ + text + 重新选择/重新上传) — KHÔNG dùng toast (§5.1). */}
+          {error ? (
             <View
               style={{
-                backgroundColor: tokens.color.surface,
+                backgroundColor: tokens.color.errorContainer,
                 borderRadius: tokens.shape.base,
-                padding: 16,
+                padding: 12,
                 display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'flex-start',
+                flexDirection: 'row',
+                alignItems: 'center',
                 gap: 8,
               }}
             >
-              <Text style={{ fontSize: 14, color: tokens.color.onSurface }}>请先登录</Text>
-              <Text style={{ fontSize: 13, color: tokens.color.onSurfaceVariant }}>
-                登录后即可查看最近小票
-              </Text>
-              <Button variant='primary' onClick={() => void goLogin()}>
-                去登录
+              <Icon name='warning' size={16} color={tokens.color.error} />
+              <Text style={{ fontSize: 13, color: tokens.color.error, flex: 1 }}>{error}</Text>
+              {errorAction ? (
+                <Text
+                  style={{ fontSize: 13, fontWeight: 600, color: tokens.color.accent }}
+                  onClick={handleBannerAction}
+                >
+                  {errorAction === 'reselect' ? '重新选择' : '重新上传'}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
+
+          <View style={{ display: 'flex', flexDirection: 'row', gap: 12 }}>
+            <View style={{ flex: 1 }}>
+              <Button variant='primary' size='large' block onClick={() => void handlePick('camera')} disabled={uploading}>
+                拍照
               </Button>
             </View>
-          ) : (
-            <ReceiptList
-              receipts={recentQuery.data ?? []}
-              isLoading={recentQuery.isLoading}
-              showSkeleton={showSkeleton}
-              isError={recentQuery.isError}
-              onRetry={() => void recentQuery.refetch()}
-              onSelect={handleSelect}
-              limit={3}
-              emptyState={
-                <EmptyState
-                  icon='camera'
-                  title='还没有小票'
-                  body='拍下第一张小票，自动记账并同步到冰箱。'
-                  actionLabel='立即拍照'
-                  onAction={() => void handlePick('camera')}
-                />
-              }
-            />
-          )}
+            <View style={{ flex: 1 }}>
+              <Button variant='outline' size='large' block onClick={() => void handlePick('album')} disabled={uploading}>
+                从相册选择
+              </Button>
+            </View>
+          </View>
+        </View>
+
+        <View style={isDesktop ? { flex: 1, minWidth: 0 } : undefined}>
+          <View>
+            <View
+              style={{
+                display: 'flex',
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                paddingTop: 8,
+                paddingBottom: 4,
+              }}
+            >
+              <View style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={{ fontSize: 16, fontWeight: 600, color: tokens.color.onSurface }}>最近小票</Text>
+                {justRefreshed ? (
+                  <Text style={{ fontSize: 12, color: tokens.color.accent }}>已更新</Text>
+                ) : null}
+              </View>
+              <Text
+                style={{ fontSize: 14, color: tokens.color.accent }}
+                onClick={() => void goReceipts()}
+              >
+                查看全部 ›
+              </Text>
+            </View>
+            {!householdId ? (
+              <View
+                style={{
+                  backgroundColor: tokens.color.surface,
+                  borderRadius: tokens.shape.base,
+                  padding: 16,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'flex-start',
+                  gap: 8,
+                }}
+              >
+                <Text style={{ fontSize: 14, color: tokens.color.onSurface }}>请先登录</Text>
+                <Text style={{ fontSize: 13, color: tokens.color.onSurfaceVariant }}>
+                  登录后即可查看最近小票
+                </Text>
+                <Button variant='primary' onClick={() => void goLogin()}>
+                  去登录
+                </Button>
+              </View>
+            ) : (
+              <ReceiptList
+                receipts={recentQuery.data ?? []}
+                isLoading={recentQuery.isLoading}
+                showSkeleton={showSkeleton}
+                isError={recentQuery.isError}
+                onRetry={() => void recentQuery.refetch()}
+                onSelect={handleSelect}
+                limit={3}
+                emptyState={
+                  <EmptyState
+                    icon='camera'
+                    title='还没有小票'
+                    body='拍下第一张小票，自动记账并同步到冰箱。'
+                    actionLabel='立即拍照'
+                    onAction={() => void handlePick('camera')}
+                  />
+                }
+              />
+            )}
+          </View>
         </View>
       </View>
       <TabBarHost />
