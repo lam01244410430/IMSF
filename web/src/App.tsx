@@ -4,6 +4,7 @@ import { PublicOnly, RequireAuth } from './components/guards'
 import { BlogPage } from './pages/Blog'
 import { BlogPostPage } from './pages/BlogPost'
 import { LandingPage } from './pages/Landing'
+import { LegalPage } from './pages/Legal'
 import { LoginPage } from './pages/Login'
 import { NotFoundPage } from './pages/NotFound'
 import { RegisterPage } from './pages/Register'
@@ -15,15 +16,19 @@ import { ReceiptsPage } from './pages/app/Receipts'
 import { SpendingPage } from './pages/app/Spending'
 import { TransactionsPage } from './pages/app/Transactions'
 import { UploadPage } from './pages/app/Upload'
+import { LanguageProvider } from './lib/LanguageProvider'
 
 /**
  * Routes (reform plan §3.2):
- *   /            public landing (placeholder; Wave 2 builds it)
- *   /login       public (placeholder form in Wave 2)
- *   /register    public (placeholder form in Wave 2)
+ *   /            public landing (Wave 2: hero, trust, features,
+ *                how-it-works, FAQ, reviews, footer)
+ *   /login       public email login (Wave 2)
+ *   /register    public email registration (Wave 2)
  *   /app/*       guarded — unauthenticated → /login?next=<path>
  *   /blog        public recipe list (placeholder; Wave 2)
  *   /blog/:id    public recipe article (placeholder; Wave 2)
+ *   /privacy /terms /contact — honest placeholder pages (§4.8):
+ *                "being written", no fabricated legal text.
  *   *            404 catch-all
  *
  * /app redirects to /app/upload (the Mini Program's post-login
@@ -76,6 +81,9 @@ export function AppRoutes() {
       </Route>
       <Route path="/blog" element={<BlogPage />} />
       <Route path="/blog/:id" element={<BlogPostPage />} />
+      <Route path="/privacy" element={<LegalPage kind="privacy" />} />
+      <Route path="/terms" element={<LegalPage kind="terms" />} />
+      <Route path="/contact" element={<LegalPage kind="contact" />} />
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
   )
@@ -83,8 +91,10 @@ export function AppRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AppRoutes />
-    </BrowserRouter>
+    <LanguageProvider>
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
+    </LanguageProvider>
   )
 }

@@ -2,6 +2,7 @@ import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { getAccessToken, getStoredHouseholdId } from '../lib/auth'
 import { Icon, type IconName } from './Icon'
 import { NotificationsBell } from './NotificationsBell'
+import logoMarkUrl from '../assets/logo-mark.svg'
 
 interface NavItemDef {
   to: string
@@ -65,8 +66,19 @@ export function AppShell() {
         <div className="app-sidebar-brand">
           <Link
             to="/app"
-            style={{ color: 'inherit', textDecoration: 'none' }}
+            style={{
+              color: 'inherit',
+              textDecoration: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
           >
+            <img
+              src={logoMarkUrl}
+              alt=""
+              className="app-sidebar-brand-mark"
+            />
             IMSF
           </Link>
         </div>
