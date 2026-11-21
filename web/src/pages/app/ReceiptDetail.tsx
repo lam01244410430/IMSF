@@ -231,8 +231,7 @@ export function ReceiptDetailPage() {
                 单价），提交时将与小票总计核对（误差须在 2% 以内）。
               </p>
               <p className="page-note">
-                暂不支持新增行：后端目前只接受属于这张小票的行，新增的行提交时会返回
-                422。如需补行，请等待后端支持后再操作。
+                暂不支持新增行：后端目前只接受属于这张小票的行，新增的行提交时会被拒绝。如需补行，请等待后端支持后再操作。
               </p>
               <ul className="review-lines">
                 {drafts.map((d, i) => {
