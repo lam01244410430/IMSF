@@ -22,6 +22,10 @@ export const STORAGE_KEYS = {
   access: 'imsf2.access_token',
   refresh: 'imsf2.refresh_token',
   household: 'imsf2.household_id',
+  /** Display name for the landing header (name, else email). The
+   *  backend has no display-name endpoint yet (FE-04 caveat), so the
+   *  name from the last login/register response is kept locally. */
+  userName: 'imsf2.user_name',
 } as const
 
 export interface AuthUser {
@@ -111,6 +115,20 @@ export function setStoredHouseholdId(id: string): void {
   storageSet(STORAGE_KEYS.household, id)
 }
 
+export function getStoredUserName(): string | null {
+  return storageGet(STORAGE_KEYS.userName) || null
+}
+
+export function setStoredUserName(name: string): void {
+  storageSet(STORAGE_KEYS.userName, name)
+}
+
+/** Remember the display name from a login/register response. */
+function storeUserName(user: AuthUser): void {
+  const display = (user.name ?? '').trim() || (user.email ?? '').trim()
+  if (display) setStoredUserName(display)
+}
+
 export function setTokens(accessToken: string, refreshToken: string): void {
   storageSet(STORAGE_KEYS.access, accessToken)
   storageSet(STORAGE_KEYS.refresh, refreshToken)
@@ -129,6 +147,7 @@ export function clearTokens(): void {
 export function logout(): void {
   clearTokens()
   storageRemove(STORAGE_KEYS.household)
+  storageRemove(STORAGE_KEYS.userName)
 }
 
 export function isLoggedIn(): boolean {
@@ -282,17 +301,21 @@ export async function loginWithEmail(
   if (!res.ok) throw await parseError(res)
   const data = (await res.json()) as AuthResponse
   setTokens(data.access_token, data.refresh_token)
+  storeUserName(data.user)
   if (data.households.length > 0) {
     setStoredHouseholdId(data.households[0].id)
   }
   return data
 }
 
-/** Email registration (Phase 2). Same response shape as login. */
+/** Email registration (Phase 2). Same response shape as login.
+ *  `name` is the optional display name; `householdName` the optional
+ *  household name. Neither is required by the backend. */
 export async function registerWithEmail(
   email: string,
   password: string,
   householdName?: string,
+  name?: string,
 ): Promise<AuthResponse> {
   const res = await fetch('/api/v2/auth/email/register', {
     method: 'POST',
@@ -300,12 +323,14 @@ export async function registerWithEmail(
     body: JSON.stringify({
       email,
       password,
+      name: name ?? null,
       household_name: householdName ?? null,
     }),
   })
   if (!res.ok) throw await parseError(res)
   const data = (await res.json()) as AuthResponse
   setTokens(data.access_token, data.refresh_token)
+  storeUserName(data.user)
   if (data.households.length > 0) {
     setStoredHouseholdId(data.households[0].id)
   }

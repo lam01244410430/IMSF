@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { AppRoutes } from '../App'
@@ -39,9 +39,10 @@ describe('route guards', () => {
 
   it('unauthenticated /app/fridge → /login?next=/app/fridge', () => {
     renderAt('/app/fridge')
-    // Login placeholder renders; the redirect carried the original path.
+    // The real login form renders (Wave 2 replaced the placeholder);
+    // the redirect carried the original path.
     expect(screen.getByRole('heading', { name: '登录' })).toBeDefined()
-    expect(screen.getByText(/email login form is built in Wave 2/)).toBeDefined()
+    expect(screen.getByLabelText('邮箱')).toBeDefined()
   })
 
   it('valid session: /app/fridge renders the fridge page', () => {
@@ -77,16 +78,24 @@ describe('route guards', () => {
 
   it('unauthenticated / shows 登录 and 注册 in the landing header', () => {
     renderAt('/')
-    expect(screen.getByRole('link', { name: '登录' })).toBeDefined()
-    expect(screen.getByRole('link', { name: '注册' })).toBeDefined()
-    expect(screen.queryByText('进入应用')).toBeNull()
+    // Scoped to the header: the footer also links 登录 / 注册 / 进入应用.
+    const header = document.querySelector('.landing-header') as HTMLElement
+    expect(within(header).getByRole('link', { name: '登录' })).toBeDefined()
+    expect(within(header).getByRole('link', { name: '注册' })).toBeDefined()
+    expect(
+      within(header).queryByRole('link', { name: '进入应用' }),
+    ).toBeNull()
   })
 
   it('authenticated / shows 进入应用 in the landing header', () => {
     setTokens(fakeJwt(Math.floor(Date.now() / 1000) + 600), 'refresh-1')
     renderAt('/')
-    expect(screen.getByRole('link', { name: '进入应用' })).toBeDefined()
-    expect(screen.queryByText('注册')).toBeNull()
+    // Scoped to the header: the footer still links 注册 / 进入应用.
+    const header = document.querySelector('.landing-header') as HTMLElement
+    expect(
+      within(header).getByRole('link', { name: '进入应用' }),
+    ).toBeDefined()
+    expect(within(header).queryByRole('link', { name: '注册' })).toBeNull()
   })
 
   it('logout: after logout, /app redirects to /login', () => {

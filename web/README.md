@@ -33,12 +33,15 @@ documented in the repo-root `DESIGN.md`; product truth in `PRODUCT.md`.
 
 ## Routes
 
-- `/` landing (placeholder — Wave 2), `/login`, `/register`
-  (placeholders — Wave 2 builds the forms)
+- `/` landing (Wave 2: hero, trust, features, how-it-works, video
+  slot, honest empty reviews, FAQ, footer; i18n zh-CN/vi/en),
+  `/login`, `/register` (Wave 2: email forms, §7.8 error mapping)
 - `/app/*` guarded (`RequireAuth` → `/login?next=<path>`):
   `/app`, `/app/upload`, `/app/fridge`, `/app/transactions`,
   `/app/spending`, `/app/mine`
 - `/blog`, `/blog/:id` (placeholders — Wave 2)
+- `/privacy`, `/terms`, `/contact` (honest placeholders: "being
+  written", no fabricated legal text or contact address)
 - `*` 404
 
 Auth client: `src/lib/auth.ts` — fetch-based, same-origin
