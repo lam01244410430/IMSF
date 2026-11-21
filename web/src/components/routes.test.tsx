@@ -51,4 +51,14 @@ describe('/app redirect', () => {
     renderAt('/app/receipts')
     expect(screen.getByRole('heading', { name: '登录' })).toBeDefined()
   })
+
+  it('unauthenticated /knowledge → /login (endpoint needs auth)', () => {
+    renderAt('/knowledge?q=%E9%B8%A1%E8%9B%8B')
+    expect(screen.getByRole('heading', { name: '登录' })).toBeDefined()
+  })
+
+  it('unknown path → 404', () => {
+    renderAt('/no-such-page')
+    expect(screen.getByRole('heading', { name: '页面不存在' })).toBeDefined()
+  })
 })
