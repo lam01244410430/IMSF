@@ -1,4 +1,4 @@
-"""Eval comparison logic for IMSF-v2 Phase 1 (design §8).
+"""Eval comparison logic for IMSF Phase 1 (design §8).
 
 Pure functions — no DB, no HTTP, no GPU — so they are unit-testable
 in isolation. A ground-truth line is correct only when all four

@@ -2,7 +2,7 @@
   "name": "frontend",
   "version": "1.0.0",
   "private": true,
-  "description": "IMSF-v2 frontend",
+  "description": "IMSF frontend",
   "templateInfo": {
     "name": "default",
     "typescript": true,

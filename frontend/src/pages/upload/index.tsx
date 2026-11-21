@@ -158,7 +158,7 @@ export default function Upload() {
 
   return (
     <View style={{ paddingBottom: isDesktop ? 16 : tokens.size.navHeight + 16 }}>
-      <PageHeader title='IMSF-v2' subtitle='拍小票，自动记账入库' />
+      <PageHeader title='IMSF' subtitle='拍小票，自动记账入库' />
       <OfflineBanner />
       <View
         style={{

@@ -109,7 +109,7 @@ describe('DesktopShell', () => {
     renderShell()
     expect(screen.getByText('页面内容')).toBeTruthy()
     // Sidebar: brand + all 6 nav labels + 拍照 button.
-    expect(screen.getByText('IMSF-v2')).toBeTruthy()
+    expect(screen.getByText('IMSF')).toBeTruthy()
     for (const label of ['首页', '冰箱', '菜谱', '我的', '记账', '消费统计']) {
       expect(screen.getByText(label)).toBeTruthy()
     }

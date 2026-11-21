@@ -6,7 +6,7 @@ in the same cron. Picks up rows ``daily`` created with
 linked WeChat (``users.wechat_openid``), sends the matching template
 message and flips the row to ``channel='wechat'``.
 
-Required env (design §8, in ``/home/ubuntu/imsf-v2.env``):
+Required env (design §8, in ``/home/ubuntu/imsf.env``):
 ``WECHAT_APPID``, ``WECHAT_SECRET``, ``WECHAT_TEMPLATE_LAZY_TRACKING``,
 ``WECHAT_TEMPLATE_MAINTENANCE``. If ANY of the four is missing/empty
 the job prints a skip line and exits 0 — it never crashes the cron
@@ -50,7 +50,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(message)s",
     stream=sys.stdout,
 )
-log = logging.getLogger("imsf-v2-jobs-send-wechat")
+log = logging.getLogger("imsf-jobs-send-wechat")
 
 TOKEN_URL = ("https://api.weixin.qq.com/cgi-bin/token"
              "?grant_type=client_credential&appid={appid}&secret={secret}")

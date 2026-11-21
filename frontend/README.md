@@ -1,6 +1,6 @@
-# IMSF-v2 Frontend (Taro React)
+# IMSF Frontend (Taro React)
 
-Frontend Giai đoạn 1: scaffold Taro 4.3.3 chính thức, theme từ IMSF-v2 Tokens,
+Frontend Giai đoạn 1: scaffold Taro 4.3.3 chính thức, theme từ IMSF Tokens,
 app shell (bottom nav + camera FAB), 3 màn lõi GĐ1 (Upload, Processing,
 Needs Review), API client đầy đủ cho GĐ1. Thiết kế: xem
 `~/workspace/user/files/IMSF-v2-frontend-design.md` (§§1–11) — tài liệu này là
@@ -219,7 +219,7 @@ nhau ở cả 2 platform).
 
 CI: `.github/workflows/frontend.yml` (job riêng, paths `frontend/**`, không
 đụng job Python). Lệch khỏi doc §8.8 (ghi trong header workflow): paths
-`frontend/**` (không phải `imsf-v2-frontend/**`); build H5 trước, weapp sau
+`frontend/**` (không phải `imsf-frontend/**`); build H5 trước, weapp sau
 (cả hai cùng ghi `dist/`, weapp phải là artifact cuối cho DevTools); thêm
 `theme:check`; `npm ci --legacy-peer-deps` (vite 8 vs peerOptional vite ^4
 của `@tarojs/plugin-framework-react` — `npm ci` thường fail ERESOLVE).

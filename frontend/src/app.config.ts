@@ -21,7 +21,7 @@ export default defineAppConfig({
   window: {
     backgroundTextStyle: 'light',
     navigationBarBackgroundColor: tokens.color.surface,
-    navigationBarTitleText: 'IMSF-v2',
+    navigationBarTitleText: 'IMSF',
     navigationBarTextStyle: 'black',
     navigationStyle: 'custom',
   },

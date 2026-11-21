@@ -1,8 +1,8 @@
-"""Eval runner for IMSF-v2 Phase 1 (design §8, Step 4).
+"""Eval runner for IMSF Phase 1 (design §8, Step 4).
 
 For each fixture (image + ground-truth JSON) in --fixtures:
 upload the image through the real API (POST /api/v2/receipts, service
-token from IMSF_V2_SERVICE_TOKEN), process the queued job, poll GET
+token from IMSF_SERVICE_TOKEN), process the queued job, poll GET
 detail until a terminal status (completed / failed / needs_review),
 then compare the predicted lines against ground truth.
 
@@ -19,7 +19,7 @@ Exit code: 0 = gate PASS (accuracy > --gate), 1 = gate FAIL,
 2 = run error (bad flags, missing token, API unreachable, ...).
 Reports (JSON + Markdown) go to --out (default tests/eval/last-run).
 
-Usage (from the repo root, env sourced from /home/ubuntu/imsf-v2.env):
+Usage (from the repo root, env sourced from /home/ubuntu/imsf.env):
   .venv/bin/python -m tests.eval.run_eval \
       --fixtures tests/fixtures --provider mock --out tests/eval/last-run
 """
@@ -60,9 +60,9 @@ class HttpEvalClient:
     def __init__(self, base_url: str, token: str):
         if not token:
             raise EvalError(
-                "IMSF_V2_SERVICE_TOKEN is not set (env). The eval runner "
+                "IMSF_SERVICE_TOKEN is not set (env). The eval runner "
                 "authenticates with the service token only; it is never "
-                "printed. Source /home/ubuntu/imsf-v2.env (which holds "
+                "printed. Source /home/ubuntu/imsf.env (which holds "
                 "it) or take it from the live uvicorn process env.")
         self._client = httpx.Client(base_url=base_url.rstrip("/"),
                                     timeout=30.0)
@@ -141,14 +141,14 @@ def make_in_process_drain(provider: str, qwen_mode: str):
         deadline = time.time() + timeout
         job = None
         while time.time() < deadline:
-            raw = redis_client.lpop("imsf-v2:receipt-jobs")
+            raw = redis_client.lpop("imsf:receipt-jobs")
             if raw:
                 candidate = json.loads(raw)
                 if candidate.get("receipt_id") == receipt_id:
                     job = candidate
                     break
                 # Stale job from another run: put it back and keep waiting.
-                redis_client.lpush("imsf-v2:receipt-jobs", raw)
+                redis_client.lpush("imsf:receipt-jobs", raw)
             time.sleep(0.5)
         if job is None:
             return "no-job"
@@ -207,7 +207,7 @@ def build_report(results: list[dict], metadata: dict) -> dict:
 def render_markdown(report: dict) -> str:
     meta, totals = report["metadata"], report["totals"]
     lines = [
-        "# IMSF-v2 Phase 1 — eval report",
+        "# IMSF Phase 1 — eval report",
         "",
         f"- **Date (Asia/Shanghai):** {meta['date']}",
         f"- **Provider:** {meta['provider']} (OCR) / {meta['qwen_mode']} "
@@ -283,7 +283,7 @@ def run_evaluation(*, fixtures_dir: Path, provider: str, qwen_mode: str,
     own_client = client is None
     if own_client:
         client = HttpEvalClient(
-            base_url, os.environ.get("IMSF_V2_SERVICE_TOKEN", ""))
+            base_url, os.environ.get("IMSF_SERVICE_TOKEN", ""))
     if drain is None:
         if worker_mode == "in-process":
             drain = make_in_process_drain(provider, qwen_mode)
@@ -364,7 +364,7 @@ def _poll_until_terminal(client, receipt_id: str,
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="IMSF-v2 Phase 1 eval runner (design §8).")
+        description="IMSF Phase 1 eval runner (design §8).")
     parser.add_argument("--fixtures", default="tests/fixtures")
     parser.add_argument("--provider", default="mock",
                         choices=["mock", "baidu", "qwen-vl"])

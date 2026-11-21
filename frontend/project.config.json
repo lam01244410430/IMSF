@@ -1,7 +1,7 @@
 {
   "miniprogramRoot": "./dist",
   "projectname": "frontend",
-  "description": "IMSF-v2 frontend",
+  "description": "IMSF frontend",
   "appid": "touristappid",
   "setting": {
     "urlCheck": true,

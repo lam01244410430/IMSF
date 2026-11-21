@@ -1,4 +1,4 @@
-"""Alembic env for IMSF-v2.
+"""Alembic env for IMSF.
 
 Reads DATABASE_URL from the environment (overrides alembic.ini).
 No models yet in Step 0 — target_metadata is None until Step 1.

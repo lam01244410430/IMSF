@@ -1,4 +1,4 @@
 export default definePageConfig({
-  navigationBarTitleText: 'IMSF-v2',
+  navigationBarTitleText: 'IMSF',
   enablePullDownRefresh: true,
 })

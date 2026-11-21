@@ -1,6 +1,6 @@
 /**
- * IMSF-v2 Tokens — NGUỒN CHÂN LÝ DUY NHẤT cho mọi giá trị màu / spacing / radius.
- * Design doc §3.1 (IMSF-v2 Tokens từ Figma), §3.2 (palette + contrast), §3.3
+ * IMSF Tokens — NGUỒN CHÂN LÝ DUY NHẤT cho mọi giá trị màu / spacing / radius.
+ * Design doc §3.1 (IMSF Tokens từ Figma), §3.2 (palette + contrast), §3.3
  * (typography, shape, spacing, breakpoints, elevation, z-index).
  *
  * SWISS ANCHOR — frontend-design skill (Ilm-Alan), áp dụng 2026-11-21

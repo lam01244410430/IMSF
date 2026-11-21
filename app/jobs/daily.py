@@ -58,7 +58,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(message)s",
     stream=sys.stdout,
 )
-log = logging.getLogger("imsf-v2-jobs-daily")
+log = logging.getLogger("imsf-jobs-daily")
 
 DEFAULT_TZ = "Asia/Shanghai"
 

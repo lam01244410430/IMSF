@@ -1,6 +1,6 @@
 """Step 2 tests: API (§5, except confirm) + worker (§6, minus 2% check).
 
-Runs against a disposable ``imsf_v2_test`` database (same pattern as
+Runs against a disposable ``imsf_test`` database (same pattern as
 test_db_constraints) so the dev DB is never touched. The worker is
 exercised two ways: ``process_job`` called directly (with the Qwen
 parse monkeypatched to a canned §6.3 dict — the real model is verified
@@ -28,14 +28,14 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = REPO_ROOT / "tests" / "fixtures"
 
 # --- env for the app under test (must be set before importing app) -------
-os.environ.setdefault("IMSF_V2_SERVICE_TOKEN", "test-service-token")
+os.environ.setdefault("IMSF_SERVICE_TOKEN", "test-service-token")
 os.environ.setdefault("JWT_SECRET", "test-jwt-secret")
 
 BASE_URL = os.environ.get(
     "DATABASE_URL",
-    "postgresql+psycopg://imsf_v2:imsf_v2@127.0.0.1:55434/imsf_v2",
+    "postgresql+psycopg://imsf:imsf@127.0.0.1:55434/imsf",
 )
-TEST_DB = "imsf_v2_test"
+TEST_DB = "imsf_test"
 
 
 def _test_url() -> str:
@@ -53,7 +53,7 @@ client = TestClient(app)
 # The token the app actually checks is read from the env at request time;
 # keep the header in sync if the env already had a real token.
 SERVICE_HEADERS = {
-    "Authorization": f"Bearer {os.environ['IMSF_V2_SERVICE_TOKEN']}"
+    "Authorization": f"Bearer {os.environ['IMSF_SERVICE_TOKEN']}"
 }
 
 CANNED_PARSED = {
@@ -151,12 +151,12 @@ def test_upload_mock_completed(db_engine, monkeypatch):
     from app.db import get_redis
     job = None
     for _ in range(30):
-        raw = get_redis().lpop("imsf-v2:receipt-jobs")
+        raw = get_redis().lpop("imsf:receipt-jobs")
         if raw:
             job = json.loads(raw)
             break
         time.sleep(0.5)
-    assert job is not None, "no job on imsf-v2:receipt-jobs after upload"
+    assert job is not None, "no job on imsf:receipt-jobs after upload"
     assert job["receipt_id"] == rid
     assert worker_main.process_job(job) == "completed"
 
@@ -340,14 +340,14 @@ def test_qwen_vl_if_available():
 def test_ocr_failure_worker_stays_alive(db_engine):
     from app.db import get_redis
     redis_client = get_redis()
-    redis_client.delete("imsf-v2:receipt-jobs")
+    redis_client.delete("imsf:receipt-jobs")
 
     env = dict(os.environ)
     env["DATABASE_URL"] = _test_url()
     env["OCR_PROVIDER"] = "baidu"
     env.pop("BAIDU_API_KEY", None)
     env.pop("BAIDU_SECRET_KEY", None)
-    env["IMSF_V2_SERVICE_TOKEN"] = os.environ["IMSF_V2_SERVICE_TOKEN"]
+    env["IMSF_SERVICE_TOKEN"] = os.environ["IMSF_SERVICE_TOKEN"]
     env["PYTHONPATH"] = str(REPO_ROOT)
 
     proc = subprocess.Popen(

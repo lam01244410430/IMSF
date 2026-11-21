@@ -178,7 +178,7 @@ export default function DesktopShell({ children }: PropsWithChildren) {
             paddingLeft: 24,
           }}
         >
-          <Text style={{ fontSize: 20, fontWeight: 700, color: tokens.color.onSurface }}>IMSF-v2</Text>
+          <Text style={{ fontSize: 20, fontWeight: 700, color: tokens.color.onSurface }}>IMSF</Text>
         </View>
         {NAV_ITEMS.map((item) => (
           <SidebarNavItem

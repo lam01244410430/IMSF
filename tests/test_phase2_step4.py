@@ -1,7 +1,7 @@
 """Phase 2 Step 4 tests: equipment maintenance + ledger (design §3.5,
 §5.1, §5.6, §6.4, §9 Gate D).
 
-Runs against the disposable ``imsf_v2_test`` database (same pattern as
+Runs against the disposable ``imsf_test`` database (same pattern as
 the Step 2/3 test files) so the dev DB is never touched. Maintenance
 logging is exercised over HTTP via the TestClient; the ledger link is
 verified both through the maintenance response and by direct SQL count
@@ -35,14 +35,14 @@ from sqlalchemy import text
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # --- env for the app under test (must be set before importing app) -------
-os.environ.setdefault("IMSF_V2_SERVICE_TOKEN", "test-service-token")
+os.environ.setdefault("IMSF_SERVICE_TOKEN", "test-service-token")
 os.environ.setdefault("JWT_SECRET", "test-jwt-secret")
 
 BASE_URL = os.environ.get(
     "DATABASE_URL",
-    "postgresql+psycopg://imsf_v2:imsf_v2@127.0.0.1:55434/imsf_v2",
+    "postgresql+psycopg://imsf:imsf@127.0.0.1:55434/imsf",
 )
-TEST_DB = "imsf_v2_test"
+TEST_DB = "imsf_test"
 
 
 def _test_url() -> str:
@@ -58,7 +58,7 @@ from app.main import app  # noqa: E402
 
 client = TestClient(app)
 SERVICE_HEADERS = {
-    "Authorization": f"Bearer {os.environ['IMSF_V2_SERVICE_TOKEN']}"
+    "Authorization": f"Bearer {os.environ['IMSF_SERVICE_TOKEN']}"
 }
 
 SHANGHAI = ZoneInfo("Asia/Shanghai")

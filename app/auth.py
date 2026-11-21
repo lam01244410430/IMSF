@@ -1,9 +1,9 @@
-"""Auth for IMSF-v2 Phase 1 (design §5).
+"""Auth for IMSF Phase 1 (design §5).
 
 Two bearer schemes, both checked by ``require_auth``:
 - JWT access token (HS256, 15 min), ``sub`` = user UUID, ``typ`` = "access".
-- Service token (env ``IMSF_V2_SERVICE_TOKEN``), eval/demo only. It maps to
-  a dedicated service user row (``wechat_openid = 'imsf-v2-service'``),
+- Service token (env ``IMSF_SERVICE_TOKEN``), eval/demo only. It maps to
+  a dedicated service user row (``wechat_openid = 'imsf-service'``),
   created on first use, so household-membership checks work uniformly.
 
 Refresh tokens are JWTs with ``typ`` = "refresh" (7 days).
@@ -23,8 +23,8 @@ from app.db import get_engine
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
-SERVICE_OPENID = "imsf-v2-service"
-SERVICE_USER_NAME = "IMSF-v2 service (eval/demo)"
+SERVICE_OPENID = "imsf-service"
+SERVICE_USER_NAME = "IMSF service (eval/demo)"
 
 
 def _jwt_secret() -> str:
@@ -32,7 +32,7 @@ def _jwt_secret() -> str:
 
 
 def _service_token() -> str:
-    return os.environ.get("IMSF_V2_SERVICE_TOKEN", "")
+    return os.environ.get("IMSF_SERVICE_TOKEN", "")
 
 
 def mint_access_token(user_id: uuid.UUID) -> str:

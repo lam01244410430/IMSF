@@ -15,7 +15,7 @@ _redis_clients: dict[str, redis.Redis] = {}
 
 def get_engine() -> sa.Engine:
     url = os.environ.get(
-        "DATABASE_URL", "postgresql+psycopg://imsf_v2:imsf_v2@127.0.0.1:55434/imsf_v2"
+        "DATABASE_URL", "postgresql+psycopg://imsf:imsf@127.0.0.1:55434/imsf"
     )
     if url not in _engines:
         _engines[url] = sa.create_engine(url, pool_pre_ping=True)
@@ -29,6 +29,6 @@ def get_redis() -> redis.Redis:
     return _redis_clients[url]
 
 
-QUEUE_KEY = "imsf-v2:receipt-jobs"
-IDEMPOTENCY_PREFIX = "imsf-v2:idempotency:"
+QUEUE_KEY = "imsf:receipt-jobs"
+IDEMPOTENCY_PREFIX = "imsf:idempotency:"
 IDEMPOTENCY_TTL_SECONDS = 24 * 3600  # design §5: 24h

@@ -53,7 +53,7 @@ from app.rag import EMBEDDING_DIM, embed_texts  # noqa: E402
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(message)s",
                     stream=sys.stdout)
-log = logging.getLogger("imsf-v2-ingest")
+log = logging.getLogger("imsf-ingest")
 
 TOPICS = ("shelf_life", "maintenance")
 MAX_CHUNK_CHARS = 2000

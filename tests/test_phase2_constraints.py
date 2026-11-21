@@ -1,11 +1,11 @@
 """Constraint tests for the Phase 2 migrations (design §3/§4).
 
-Runs against a disposable ``imsf_v2_test`` database on the same Postgres
-server as DATABASE_URL, so the dev ``imsf_v2`` data is never touched.
+Runs against a disposable ``imsf_test`` database on the same Postgres
+server as DATABASE_URL, so the dev ``imsf`` data is never touched.
 The fixture creates the test DB if missing and runs ``alembic upgrade
 head`` against it, so the tests verify the real migrations, not a copy.
 
-DATABASE_URL defaults to the CI service URL (postgres:16, user imsf_v2)
+DATABASE_URL defaults to the CI service URL (postgres:16, user imsf)
 when unset, matching .github/workflows/ci.yml.
 
 Covers the Phase 2 Step 1 gate (design §4): one transaction per receipt
@@ -32,9 +32,9 @@ from sqlalchemy.exc import IntegrityError
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DATABASE_URL = (
-    "postgresql+psycopg://imsf_v2:imsf_v2@127.0.0.1:5432/imsf_v2"
+    "postgresql+psycopg://imsf:imsf@127.0.0.1:5432/imsf"
 )
-TEST_DB = "imsf_v2_test"
+TEST_DB = "imsf_test"
 
 _phone_seq = itertools.count(1)
 

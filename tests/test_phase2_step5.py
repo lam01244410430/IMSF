@@ -1,6 +1,6 @@
 """Phase 2 Step 5 tests: RAG retrieval + alias lookup (design §7, §9 Gates E + F).
 
-Runs against the disposable ``imsf_v2_test`` database (same pattern as
+Runs against the disposable ``imsf_test`` database (same pattern as
 the Step 2/3/4 test files) so the dev DB is never touched.
 
 Two tiers, by design (§9: Gate E/F need the model, the rest must not):
@@ -68,14 +68,14 @@ FIXTURES = REPO_ROOT / "tests" / "fixtures"
 KNOWLEDGE_FIXTURE = FIXTURES / "knowledge_test_fixture.jsonl"
 
 # --- env for the app under test (must be set before importing app) -------
-os.environ.setdefault("IMSF_V2_SERVICE_TOKEN", "test-service-token")
+os.environ.setdefault("IMSF_SERVICE_TOKEN", "test-service-token")
 os.environ.setdefault("JWT_SECRET", "test-jwt-secret")
 
 BASE_URL = os.environ.get(
     "DATABASE_URL",
-    "postgresql+psycopg://imsf_v2:imsf_v2@127.0.0.1:55434/imsf_v2",
+    "postgresql+psycopg://imsf:imsf@127.0.0.1:55434/imsf",
 )
-TEST_DB = "imsf_v2_test"
+TEST_DB = "imsf_test"
 
 
 def _test_url() -> str:
@@ -97,7 +97,7 @@ from app.reconcile import (  # noqa: E402
 
 client = TestClient(app)
 SERVICE_HEADERS = {
-    "Authorization": f"Bearer {os.environ['IMSF_V2_SERVICE_TOKEN']}"
+    "Authorization": f"Bearer {os.environ['IMSF_SERVICE_TOKEN']}"
 }
 SHANGHAI = ZoneInfo("Asia/Shanghai")
 
@@ -196,12 +196,12 @@ def pop_job():
     from app.db import get_redis
     job = None
     for _ in range(30):
-        raw = get_redis().lpop("imsf-v2:receipt-jobs")
+        raw = get_redis().lpop("imsf:receipt-jobs")
         if raw:
             job = json.loads(raw)
             break
         time.sleep(0.5)
-    assert job is not None, "no job on imsf-v2:receipt-jobs after upload"
+    assert job is not None, "no job on imsf:receipt-jobs after upload"
     return job
 
 
@@ -213,7 +213,7 @@ def run_receipt_with_parse(monkeypatch, parsed):
     import worker.main as worker_main
 
     from app.db import get_redis
-    get_redis().delete("imsf-v2:receipt-jobs")
+    get_redis().delete("imsf:receipt-jobs")
     monkeypatch.setenv("OCR_PROVIDER", "mock")
     monkeypatch.setattr(worker_main, "parse_receipt_text",
                         lambda *a, **k: json.loads(json.dumps(parsed)))
@@ -265,7 +265,7 @@ def today_shanghai():
 
 @pytest.fixture
 def worker_log():
-    """Capture the imsf-v2-worker logger with a handler attached to
+    """Capture the imsf-worker logger with a handler attached to
     that logger itself (not via pytest's caplog).
 
     Why not caplog: in the full suite an earlier test module imports
@@ -283,7 +283,7 @@ def worker_log():
 
     handler = _ListHandler()
     handler.setFormatter(logging.Formatter("%(message)s"))
-    logger = logging.getLogger("imsf-v2-worker")
+    logger = logging.getLogger("imsf-worker")
     old_level = logger.level
     old_disabled = logger.disabled
     logger.addHandler(handler)

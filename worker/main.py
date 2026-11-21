@@ -1,6 +1,6 @@
 """Receipt-processing worker (design §6).
 
-Redis consumer on ``imsf-v2:receipt-jobs``; job =
+Redis consumer on ``imsf:receipt-jobs``; job =
 {"receipt_id", "household_id", "image_path", "attempts"}.
 
 Implements §6.2 steps 1-6, including the Step 3 additions:
@@ -66,7 +66,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(message)s",
     stream=sys.stdout,
 )
-log = logging.getLogger("imsf-v2-worker")
+log = logging.getLogger("imsf-worker")
 
 MAX_ATTEMPTS = 3
 BACKOFF_SECONDS = [5, 30, 120]  # §6.5

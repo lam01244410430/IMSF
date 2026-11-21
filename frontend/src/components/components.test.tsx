@@ -53,8 +53,8 @@ describe('StatusChip', () => {
 describe('PageHeader', () => {
   it('renders title + subtitle and fires back', () => {
     const onBack = vi.fn()
-    render(<PageHeader title='IMSF-v2' subtitle='拍小票，自动记账入库' showBack onBack={onBack} />)
-    expect(screen.getByText('IMSF-v2')).toBeTruthy()
+    render(<PageHeader title='IMSF' subtitle='拍小票，自动记账入库' showBack onBack={onBack} />)
+    expect(screen.getByText('IMSF')).toBeTruthy()
     expect(screen.getByText('拍小票，自动记账入库')).toBeTruthy()
     fireEvent.click(screen.getByLabelText('返回'))
     expect(onBack).toHaveBeenCalledTimes(1)

@@ -1,4 +1,4 @@
-# IMSF-v2 Phase 1 — eval harness (Step 4, design §8)
+# IMSF Phase 1 — eval harness (Step 4, design §8)
 
 Measures receipt-pipeline accuracy against ground-truth JSONs and
 classifies every error. Harness only: it does not change the API,
@@ -75,7 +75,7 @@ Notes (literal readings, recorded where the design is silent):
 From the repo root on Oregon, env sourced (service token included):
 
 ```bash
-set -a; . /home/ubuntu/imsf-v2.env; set +a
+set -a; . /home/ubuntu/imsf.env; set +a
 .venv/bin/python -m tests.eval.run_eval \
   --fixtures tests/fixtures --provider mock --out tests/eval/last-run
 ```

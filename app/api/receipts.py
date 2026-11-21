@@ -2,7 +2,7 @@
 
 - POST /api/v2/receipts: multipart image (jpg/png/webp, <= 10MB),
   household_id, optional store_name / purchased_at. Saves the image to
-  /var/lib/imsf-v2/receipts/{household_id}/{receipt_id}.{ext} (dirs
+  /var/lib/imsf/receipts/{household_id}/{receipt_id}.{ext} (dirs
   0755), pushes a job to Redis, returns 202 {id, status: "pending"}.
   Supports Idempotency-Key (Redis, 24h TTL). total_amount is NOT taken
   from the client (§5.2) — the row is inserted with 0.00 and the worker
@@ -49,7 +49,7 @@ ALLOWED_EXT = {".jpg": "image/jpeg", ".jpeg": "image/jpeg",
 
 
 def _storage_dir() -> Path:
-    return Path(os.environ.get("RECEIPT_STORAGE_DIR", "/var/lib/imsf-v2/receipts"))
+    return Path(os.environ.get("RECEIPT_STORAGE_DIR", "/var/lib/imsf/receipts"))
 
 
 def _receipt_row(row) -> dict:

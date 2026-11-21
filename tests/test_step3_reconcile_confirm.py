@@ -1,6 +1,6 @@
 """Step 3 tests: §6.4 reconciliation, canonical mapping, confirm (§5.1).
 
-Runs against the disposable ``imsf_v2_test`` database (same pattern as
+Runs against the disposable ``imsf_test`` database (same pattern as
 the Step 1/2 test files) so the dev DB is never touched. The worker is
 exercised via ``process_job`` called directly, with the Qwen parse
 monkeypatched to a canned §6.3 dict loaded from the Step 3 fixture
@@ -25,14 +25,14 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = REPO_ROOT / "tests" / "fixtures"
 
 # --- env for the app under test (must be set before importing app) -------
-os.environ.setdefault("IMSF_V2_SERVICE_TOKEN", "test-service-token")
+os.environ.setdefault("IMSF_SERVICE_TOKEN", "test-service-token")
 os.environ.setdefault("JWT_SECRET", "test-jwt-secret")
 
 BASE_URL = os.environ.get(
     "DATABASE_URL",
-    "postgresql+psycopg://imsf_v2:imsf_v2@127.0.0.1:55434/imsf_v2",
+    "postgresql+psycopg://imsf:imsf@127.0.0.1:55434/imsf",
 )
-TEST_DB = "imsf_v2_test"
+TEST_DB = "imsf_test"
 
 
 def _test_url() -> str:
@@ -49,7 +49,7 @@ from app.reconcile import check_reconciliation, resolve_canonical  # noqa: E402
 
 client = TestClient(app)
 SERVICE_HEADERS = {
-    "Authorization": f"Bearer {os.environ['IMSF_V2_SERVICE_TOKEN']}"
+    "Authorization": f"Bearer {os.environ['IMSF_SERVICE_TOKEN']}"
 }
 
 
@@ -116,12 +116,12 @@ def pop_job():
     from app.db import get_redis
     job = None
     for _ in range(30):
-        raw = get_redis().lpop("imsf-v2:receipt-jobs")
+        raw = get_redis().lpop("imsf:receipt-jobs")
         if raw:
             job = json.loads(raw)
             break
         time.sleep(0.5)
-    assert job is not None, "no job on imsf-v2:receipt-jobs after upload"
+    assert job is not None, "no job on imsf:receipt-jobs after upload"
     return job
 
 

@@ -1,4 +1,4 @@
-"""IMSF-v2 FastAPI application.
+"""IMSF FastAPI application.
 
 Phase 1 API lives under /api/v2: WeChat auth, households, receipts
 upload/list/detail/image. POST .../confirm lands in Step 3.
@@ -13,7 +13,7 @@ from app.api import (auth, equipments, fridge, households, knowledge,
                      notifications, receipts, shopping_lists,
                      transactions)
 
-app = FastAPI(title="IMSF-v2", version="0.1.0")
+app = FastAPI(title="IMSF", version="0.1.0")
 
 
 @app.get("/health")
