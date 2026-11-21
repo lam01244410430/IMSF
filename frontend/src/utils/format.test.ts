@@ -1,14 +1,24 @@
 import { describe, expect, it } from 'vitest'
 import {
+  currentMonth,
+  dateToOccurredAt,
+  formatAmount,
   formatElapsed,
   formatMoney,
   formatRelativeDate,
   lineTotal,
+  monthLabel,
+  monthRange,
+  normalizeAmountInput,
+  occurredAtToDate,
   reconciliationDiff,
   round2,
+  shiftMonth,
   storeGlyph,
+  todayDate,
   unitPriceFromLine,
   withAlpha,
+  yearRange,
 } from './format'
 
 describe('formatMoney', () => {
@@ -85,5 +95,97 @@ describe('withAlpha', () => {
   })
   it('hex 3 ký tự → rgba', () => {
     expect(withAlpha('#fff', 0.5)).toBe('rgba(255,255,255,0.5)')
+  })
+})
+
+describe('formatAmount — sổ chi tiêu: bỏ số 0 thừa sau thập phân (FE-03, quy tắc Lam)', () => {
+  it('các trường hợp trong spec: 100.00→100, 100.50→100.5, 100.25→100.25, 0.50→0.5, 0→0, 0.10→0.1', () => {
+    expect(formatAmount(100)).toBe('¥100')
+    expect(formatAmount(100.5)).toBe('¥100.5')
+    expect(formatAmount(100.25)).toBe('¥100.25')
+    expect(formatAmount(0.5)).toBe('¥0.5')
+    expect(formatAmount(0)).toBe('¥0')
+    expect(formatAmount(0.1)).toBe('¥0.1')
+  })
+  it('grouping + ký hiệu tiền tệ giữ nguyên (¥ CNY, ₫ VND)', () => {
+    expect(formatAmount(1234.5)).toBe('¥1,234.5')
+    expect(formatAmount(50000, 'VND')).toBe('₫50,000')
+    expect(formatAmount(1234567.89)).toBe('¥1,234,567.89')
+    expect(formatAmount(1234567.8, 'VND')).toBe('₫1,234,567.8')
+  })
+  it('null / undefined / NaN → — (giống formatMoney)', () => {
+    expect(formatAmount(null)).toBe('—')
+    expect(formatAmount(undefined)).toBe('—')
+    expect(formatAmount(Number.NaN)).toBe('—')
+  })
+  it('số âm chỉ là trường hợp phòng thủ của hàm thuần — API từ chối amount âm (gt=0) nên số âm không bao giờ đến từ API', () => {
+    expect(formatAmount(-3.6)).toBe('-¥3.6')
+    expect(formatAmount(-100)).toBe('-¥100')
+  })
+  it('formatMoney KHÔNG đổi — màn receipt vẫn 2dp cố định', () => {
+    expect(formatMoney(100)).toBe('¥100.00')
+    expect(formatMoney(100.5)).toBe('¥100.50')
+  })
+})
+
+describe('normalizeAmountInput — chuẩn hoá ô nhập khi blur/submit (FE-03)', () => {
+  it('bỏ số 0 thừa, bỏ dấu phẩy grouping', () => {
+    expect(normalizeAmountInput('100.50')).toBe('100.5')
+    expect(normalizeAmountInput('100.00')).toBe('100')
+    expect(normalizeAmountInput('1,234.50')).toBe('1234.5')
+    expect(normalizeAmountInput('0.10')).toBe('0.1')
+    expect(normalizeAmountInput('')).toBe('')
+  })
+  it('quá 2 chữ số thập phân thì giữ nguyên — validation báo lỗi, không lặng lẽ làm tròn', () => {
+    expect(normalizeAmountInput('100.005')).toBe('100.005')
+    expect(normalizeAmountInput('1.234')).toBe('1.234')
+  })
+  it('không parse được thì giữ nguyên để validation báo lỗi', () => {
+    expect(normalizeAmountInput('abc')).toBe('abc')
+    expect(normalizeAmountInput('12a')).toBe('12a')
+  })
+})
+
+describe('month helpers — sổ chi tiêu (FE-03)', () => {
+  it('monthLabel: 2026-11 → 2026年11月', () => {
+    expect(monthLabel('2026-11')).toBe('2026年11月')
+    expect(monthLabel('2026-01')).toBe('2026年1月')
+    expect(monthLabel('không-phải-tháng')).toBe('không-phải-tháng')
+  })
+  it('shiftMonth qua tháng và qua năm', () => {
+    expect(shiftMonth('2026-11', -1)).toBe('2026-10')
+    expect(shiftMonth('2026-11', 1)).toBe('2026-12')
+    expect(shiftMonth('2026-01', -1)).toBe('2025-12')
+    expect(shiftMonth('2026-12', 1)).toBe('2027-01')
+    expect(shiftMonth('2026-11', 0)).toBe('2026-11')
+  })
+  it('monthRange: [đầu tháng, đầu tháng sau) theo Asia/Shanghai (+08:00)', () => {
+    expect(monthRange('2026-11')).toEqual({
+      from: '2026-11-01T00:00:00+08:00',
+      to: '2026-12-01T00:00:00+08:00',
+    })
+    expect(monthRange('2026-12')).toEqual({
+      from: '2026-12-01T00:00:00+08:00',
+      to: '2027-01-01T00:00:00+08:00',
+    })
+  })
+  it('yearRange: [1/1, 1/1 năm sau)', () => {
+    expect(yearRange(2026)).toEqual({
+      from: '2026-01-01T00:00:00+08:00',
+      to: '2027-01-01T00:00:00+08:00',
+    })
+  })
+  it('dateToOccurredAt / occurredAtToDate đi và về đúng ngày theo Asia/Shanghai', () => {
+    expect(dateToOccurredAt('2026-11-21')).toBe('2026-11-21T00:00:00+08:00')
+    expect(occurredAtToDate('2026-11-21T00:00:00+08:00')).toBe('2026-11-21')
+    expect(occurredAtToDate('2026-11-20T16:00:00Z')).toBe('2026-11-21') // 16:00 UTC = 00:00+08 hôm sau
+    expect(dateToOccurredAt('không-phải-ngày')).toBe('')
+    expect(occurredAtToDate(null)).toBe('')
+  })
+  it('currentMonth / todayDate đúng định dạng YYYY-MM / YYYY-MM-DD', () => {
+    expect(currentMonth()).toMatch(/^\d{4}-\d{2}$/)
+    expect(todayDate()).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    // Hai hàm dùng cùng một timezone nên tháng của todayDate khớp currentMonth
+    expect(todayDate().slice(0, 7)).toBe(currentMonth())
   })
 })

@@ -15,6 +15,8 @@ export default defineAppConfig({
     'pages/login/index',
     'pages/receipts/index',
     'pages/receipt/index',
+    'pages/transactions/index',
+    'pages/spending/index',
   ],
   window: {
     backgroundTextStyle: 'light',

@@ -16,6 +16,10 @@ export const routes = {
   login: '/pages/login/index',
   receipts: '/pages/receipts/index',
   receipt: (id: string) => `/pages/receipt/index?id=${encodeURIComponent(id)}`,
+  /** FE-03: sổ chi tiêu thủ công — form记账 + list (§6 hàng 4). */
+  transactions: '/pages/transactions/index',
+  /** FE-03: thống kê chi tiêu theo tháng + theo danh mục (§6 hàng 4). */
+  spending: '/pages/spending/index',
 } as const
 
 export function goReceipt(id: string): Promise<unknown> {
@@ -42,6 +46,16 @@ export function goBack(): Promise<unknown> {
 /** Tới trang danh sách tiểu phiếu (trang thường, navigateTo — không phải tab). */
 export function goReceipts(): Promise<unknown> {
   return Taro.navigateTo({ url: routes.receipts })
+}
+
+/** FE-03: tới trang 记账 (form + list giao dịch). */
+export function goTransactions(): Promise<unknown> {
+  return Taro.navigateTo({ url: routes.transactions })
+}
+
+/** FE-03: tới trang 消费统计 (tổng theo tháng + theo danh mục). */
+export function goSpending(): Promise<unknown> {
+  return Taro.navigateTo({ url: routes.spending })
 }
 
 /** Các tab còn lại (switchTab). */

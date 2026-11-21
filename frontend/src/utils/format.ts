@@ -104,6 +104,152 @@ export function storeGlyph(storeName: string | null | undefined): string {
   return name[0]
 }
 
+/** Bỏ các số 0 thừa sau dấu thập phân: "100.00" → "100", "100.50" → "100.5". */
+function stripTrailingZeros(fixed: string): string {
+  if (!fixed.includes('.')) return fixed
+  return fixed.replace(/0+$/, '').replace(/\.$/, '')
+}
+
+/**
+ * Số tiền hiển thị cho sổ chi tiêu (FE-03, quy tắc của Lam 2026-11-21):
+ * grouping + ký hiệu tiền tệ như formatMoney, nhưng BỎ các số 0 thừa sau
+ * dấu thập phân: 100.00 → ¥100, 100.50 → ¥100.5, 100.25 → ¥100.25,
+ * 0.50 → ¥0.5, 0 → ¥0, 0.10 → ¥0.1.
+ * Backend lưu NUMERIC(10,2); chỉ cách HIỂN THỊ bỏ số 0 thừa.
+ * formatMoney KHÔNG đổi — các màn receipt vẫn dùng 2dp cố định.
+ */
+export function formatAmount(amount: number | null | undefined, currency: Currency = 'CNY'): string {
+  if (amount === null || amount === undefined || Number.isNaN(amount)) return '—'
+  const symbol = CURRENCY_SYMBOL[currency] ?? '¥'
+  const sign = amount < 0 ? '-' : ''
+  const [int, frac] = Math.abs(amount).toFixed(2).split('.')
+  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  const fracTrimmed = frac.replace(/0+$/, '')
+  return fracTrimmed ? `${sign}${symbol}${grouped}.${fracTrimmed}` : `${sign}${symbol}${grouped}`
+}
+
+/**
+ * Chuẩn hoá ô nhập số tiền khi blur/submit (FE-03): "100.50" → "100.5",
+ * "100.00" → "100". Chỉ chuẩn hoá khi phần thập phân ≤ 2 chữ số — nhập
+ * quá 2 chữ số thập phân thì giữ nguyên để validation báo lỗi
+ * 「金额最多保留两位小数」, không lặng lẽ làm tròn.
+ * Không parse được thì giữ nguyên để validation báo 「请输入正确的金额」.
+ */
+export function normalizeAmountInput(text: string): string {
+  const t = text.trim().replace(/,/g, '')
+  if (t === '') return ''
+  const m = /^(-?\d+)(?:\.(\d+))?$/.exec(t)
+  if (!m) return text
+  if ((m[2] ?? '').length > 2) return text
+  const n = Number(t)
+  if (Number.isNaN(n)) return text
+  return stripTrailingZeros(n.toFixed(2))
+}
+
+/** Offset của một timezone dạng "+08:00" (Intl longOffset), fallback UTC. */
+function tzOffsetString(timeZone: string, at: Date): string {
+  try {
+    const part = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'longOffset' })
+      .formatToParts(at)
+      .find((p) => p.type === 'timeZoneName')?.value
+    const m = /^GMT([+-])(\d{2}):(\d{2})$/.exec(part ?? '')
+    if (m) return `${m[1]}${m[2]}:${m[3]}`
+  } catch {
+    // rơi xuống fallback UTC bên dưới
+  }
+  return 'Z'
+}
+
+/** 00:00 ngày (y-m-d) theo timezone của nhà, dạng ISO có offset (vd +08:00). */
+function zonedDayStartIso(y: number, m: number, d: number, timeZone: string): string {
+  const at = new Date(Date.UTC(y, m - 1, d))
+  const off = tzOffsetString(timeZone, at)
+  if (off === 'Z') return `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}T00:00:00Z`
+  return `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}T00:00:00${off}`
+}
+
+/** Tháng hiện tại dạng "YYYY-MM" theo timezone của nhà (mặc định Asia/Shanghai). */
+export function currentMonth(timeZone = 'Asia/Shanghai'): string {
+  const p = partsInTimeZone(new Date(), timeZone)
+  if (!p) {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  }
+  return `${p.y}-${String(p.m).padStart(2, '0')}`
+}
+
+/** Ngày hôm nay dạng "YYYY-MM-DD" theo timezone của nhà (mặc định cho ô ngày). */
+export function todayDate(timeZone = 'Asia/Shanghai'): string {
+  const p = partsInTimeZone(new Date(), timeZone)
+  if (!p) {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+  return `${p.y}-${String(p.m).padStart(2, '0')}-${String(p.d).padStart(2, '0')}`
+}
+
+/** "2026-11" → "2026年11月". */
+export function monthLabel(month: string): string {
+  const m = /^(\d{4})-(\d{2})$/.exec(month)
+  if (!m) return month
+  return `${m[1]}年${Number(m[2])}月`
+}
+
+/** Dịch tháng: shiftMonth("2026-11", -1) → "2026-10", qua năm vẫn đúng. */
+export function shiftMonth(month: string, delta: number): string {
+  const m = /^(\d{4})-(\d{2})$/.exec(month)
+  if (!m) return month
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1 + delta, 1))
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+}
+
+/**
+ * Khoảng [from, to) của một tháng — dùng cho GET /spending/summary?from=&to=
+ * (backend: occurred_at >= from, < to; ISO 8601, naive = UTC).
+ * Ranh giới là 00:00 theo timezone của nhà (vd Asia/Shanghai +08:00),
+ * không phải 00:00 UTC — để chi ngày 1 đầu tháng theo giờ nhà không rơi
+ * sang tháng trước.
+ */
+export function monthRange(month: string, timeZone = 'Asia/Shanghai'): { from: string; to: string } {
+  const m = /^(\d{4})-(\d{2})$/.exec(month)
+  if (!m) return { from: '', to: '' }
+  const y = Number(m[1])
+  const mo = Number(m[2])
+  const next = mo === 12 ? { y: y + 1, m: 1 } : { y, m: mo + 1 }
+  return {
+    from: zonedDayStartIso(y, mo, 1, timeZone),
+    to: zonedDayStartIso(next.y, next.m, 1, timeZone),
+  }
+}
+
+/** Khoảng [from, to) của cả một năm (cho danh sách by_month trong năm). */
+export function yearRange(year: number, timeZone = 'Asia/Shanghai'): { from: string; to: string } {
+  return {
+    from: zonedDayStartIso(year, 1, 1, timeZone),
+    to: zonedDayStartIso(year + 1, 1, 1, timeZone),
+  }
+}
+
+/**
+ * Ngày "YYYY-MM-DD" (ô date picker) → occurred_at ISO gửi lên API:
+ * 00:00 ngày đó theo timezone của nhà. Backend lưu TIMESTAMPTZ.
+ */
+export function dateToOccurredAt(date: string, timeZone = 'Asia/Shanghai'): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date)
+  if (!m) return ''
+  return zonedDayStartIso(Number(m[1]), Number(m[2]), Number(m[3]), timeZone)
+}
+
+/** occurred_at ISO → "YYYY-MM-DD" theo timezone của nhà (điền lại ô date khi sửa). */
+export function occurredAtToDate(iso: string | null | undefined, timeZone = 'Asia/Shanghai'): string {
+  if (!iso) return ''
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  const p = partsInTimeZone(date, timeZone)
+  if (!p) return ''
+  return `${p.y}-${String(p.m).padStart(2, '0')}-${String(p.d).padStart(2, '0')}`
+}
+
 /** rgba(hex, alpha) — dùng cho border/background cần opacity mà không thêm token mới (§5.1 capture card). */
 export function withAlpha(hex: string, alpha: number): string {
   const h = hex.replace('#', '')
