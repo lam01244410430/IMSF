@@ -17,9 +17,9 @@ track what they spend, and want nothing wasted.
 - **web** — a standalone website in `web/` (Vite + React + TypeScript),
   containing the landing page, auth pages, app shell, and blog.
 - **WeChat Mini Program** — the existing Taro build (`frontend/`) stays for
-  the Mini Program only. Taro H5 is proposed for retirement once the new
-  website is live and verified (decision §10 Q1 of the plan); until then the
-  H5 build keeps running unchanged.
+  the Mini Program only. Taro H5 was retired in Reform Phase 5
+  (decision §10 Q1 of the plan); the H5 build target was removed from
+  frontend CI and the website is `web/`.
 
 ## Stack
 
