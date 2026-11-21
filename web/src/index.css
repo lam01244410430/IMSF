@@ -3658,6 +3658,13 @@ select:focus-visible {
   font-size: 14px;
 }
 
+/* `.page a` (accent) outranks `.dash-tx-row` on the link itself, so
+ * the row would render all-accent; rows stay neutral text and only
+ * the note turns accent on hover. */
+.page a.dash-tx-row {
+  color: var(--im-text);
+}
+
 .dash-tx-list li:last-child .dash-tx-row {
   border-bottom: none;
   padding-bottom: 0;
@@ -3718,7 +3725,13 @@ select:focus-visible {
   text-align: center;
 }
 
-.dash-quick-btn:hover {
+/* Same `.page a` override as the tx rows: buttons stay neutral and
+ * only turn accent on hover. */
+.page a.dash-quick-btn {
+  color: var(--im-text);
+}
+
+.page a.dash-quick-btn:hover {
   background: var(--im-hover-on-surface);
   color: var(--im-accent-text);
 }
@@ -3793,12 +3806,12 @@ select:focus-visible {
   font-size: 14px;
 }
 
-.dash-maint-list li:last-child .dash-maint-row {
+.dash-maint-row:last-child {
   border-bottom: none;
   padding-bottom: 0;
 }
 
-.dash-maint-list li:first-child .dash-maint-row {
+.dash-maint-row:first-child {
   padding-top: 0;
 }
 
@@ -3842,12 +3855,12 @@ select:focus-visible {
   font-size: 14px;
 }
 
-.dash-notif-list li:last-child .dash-notif-row {
+.dash-notif-row:last-child {
   border-bottom: none;
   padding-bottom: 0;
 }
 
-.dash-notif-list li:first-child .dash-notif-row {
+.dash-notif-row:first-child {
   padding-top: 0;
 }
 
