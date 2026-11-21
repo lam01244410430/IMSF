@@ -1,0 +1,494 @@
+@import "tailwindcss";
+
+@plugin "daisyui" {
+  themes: false;
+}
+
+/* Theme `imsf-swiss` — the ONLY theme. Light only, dark mode off.
+ * Colors mapped from the existing tokens ONLY (frontend/src/ui/tokens.ts):
+ * no invented palette. Old tokens.shape (base 12 / button 20 / card 16)
+ * is NOT copied — radius is 4px everywhere except the header buttons
+ * (rounded-full) and the radius-0 sidebar items. */
+@plugin "daisyui/theme" {
+  name: "imsf-swiss";
+  default: true;
+  prefersdark: false;
+  color-scheme: "light";
+
+  --color-base-100: #ffffff;
+  --color-base-200: #f7f7f8;
+  --color-base-300: #e3e3e4;
+  --color-base-content: #1a1c1a;
+  --color-primary: #c2410c;
+  --color-primary-content: #ffffff;
+  --color-secondary: #c2410c;
+  --color-secondary-content: #ffffff;
+  --color-accent: #c2410c;
+  --color-accent-content: #ffffff;
+  --color-neutral: #1a1c1a;
+  --color-neutral-content: #ffffff;
+  --color-info: #c2410c;
+  --color-info-content: #ffffff;
+  --color-success: #2e7d32;
+  --color-success-content: #ffffff;
+  --color-warning: #b45309;
+  --color-warning-content: #ffffff;
+  --color-error: #d32f2f;
+  --color-error-content: #ffffff;
+
+  --radius-selector: 4px;
+  --radius-field: 4px;
+  --radius-box: 4px;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+/* System fonts ONLY (Lam: no Google Fonts — GFW blocks them).
+ * PingFang SC (iOS/macOS), Hiragino Sans GB, Microsoft YaHei (Windows),
+ * then the platform sans. No web font is ever fetched. */
+@theme {
+  --font-sans: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: #ffffff;
+  color: #1a1c1a;
+  font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100svh;
+}
+
+/* Visible keyboard focus everywhere: 2px solid accent-dark, offset 2px. */
+:focus-visible {
+  outline: 2px solid #9a3412;
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------ */
+/* App shell (desktop >=1024px): sidebar 240px + topbar 64px + content */
+/* max-width 1200px left-aligned. Below 1024px: bottom nav + FAB.      */
+/* ------------------------------------------------------------------ */
+
+.app-shell {
+  display: flex;
+  min-height: 100svh;
+  background: #ffffff;
+}
+
+.app-sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: 240px;
+  background: #ffffff;
+  border-right: 1px solid #e3e3e4;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  z-index: 20;
+}
+
+.app-sidebar-brand {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  padding-left: 24px;
+  font-size: 20px;
+  font-weight: 600;
+  color: #1a1c1a;
+  border-bottom: 1px solid #e3e3e4;
+  flex-shrink: 0;
+}
+
+.app-sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0;
+}
+
+.app-sidebar-nav-group + .app-sidebar-nav-group {
+  border-top: 1px solid #e3e3e4;
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.app-sidebar-photo {
+  margin: 16px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #c2410c;
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background-color 150ms ease-out;
+}
+
+.app-sidebar-photo:hover {
+  background: #9a3412;
+}
+
+.app-sidebar-footer {
+  margin-top: auto;
+  padding: 16px 24px;
+  font-size: 13px;
+  color: #5f6368;
+  border-top: 1px solid #e3e3e4;
+}
+
+.app-main {
+  flex: 1;
+  min-width: 0;
+  margin-left: 240px;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-topbar {
+  position: sticky;
+  top: 0;
+  height: 64px;
+  background: #ffffff;
+  border-bottom: 1px solid #e3e3e4;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 24px;
+  z-index: 10;
+}
+
+.app-topbar-spacer {
+  flex: 1;
+}
+
+.app-topbar-item {
+  font-size: 14px;
+  color: #5f6368;
+  white-space: nowrap;
+}
+
+.app-topbar-user {
+  font-size: 14px;
+  color: #1a1c1a;
+  white-space: nowrap;
+}
+
+.app-content {
+  max-width: 1200px;
+  width: 100%;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+/* ------------------------------------------------------------------ */
+/* Sidebar nav item — EXACT spec §5.1 of the reform plan.              */
+/* Rest white; hover #F7F7F8 (text/icon unchanged); active             */
+/* rgba(194,65,12,0.08) + accent text + 3px left bar via ::before;    */
+/* hover+active keeps the active background; focus-visible outline    */
+/* 2px solid #9A3412 offset 2px; pressed :active #E3E3E4; transition  */
+/* background-color/color 150ms ease-out; radius 0; padding-left      */
+/* 24px unchanged at every state so text never jumps.                 */
+/* ------------------------------------------------------------------ */
+
+.sidebar-nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 48px;
+  padding-left: 24px;
+  padding-right: 16px;
+  box-sizing: border-box;
+  background: #ffffff;
+  color: #1a1c1a;
+  font-size: 14px;
+  line-height: 1.5;
+  text-decoration: none;
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  transition: background-color 150ms ease-out, color 150ms ease-out;
+  white-space: nowrap;
+}
+
+/* Left bar placeholder: transparent 3px, keeps the text position
+ * identical in every state. */
+.sidebar-nav-item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 3px;
+  height: 100%;
+  background: transparent;
+}
+
+.sidebar-nav-item .nav-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: #5f6368;
+}
+
+.sidebar-nav-item .nav-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-nav-item:hover {
+  background: #f7f7f8;
+  color: #1a1c1a;
+}
+
+.sidebar-nav-item:hover .nav-icon {
+  color: #5f6368;
+}
+
+.sidebar-nav-item.active {
+  background: rgba(194, 65, 12, 0.08);
+  color: #c2410c;
+}
+
+.sidebar-nav-item.active::before {
+  background: #c2410c;
+}
+
+.sidebar-nav-item.active .nav-icon {
+  color: #c2410c;
+}
+
+.sidebar-nav-item.active:hover {
+  background: rgba(194, 65, 12, 0.08);
+  color: #c2410c;
+}
+
+.sidebar-nav-item.active:hover .nav-icon {
+  color: #c2410c;
+}
+
+.sidebar-nav-item:active {
+  background: #e3e3e4;
+}
+
+.sidebar-nav-item.active:active {
+  background: #e3e3e4;
+}
+
+.sidebar-nav-item:focus-visible {
+  outline: 2px solid #9a3412;
+  outline-offset: 2px;
+}
+
+/* Touch: no hover at all (avoids sticky hover after tap). */
+@media (hover: none) {
+  .sidebar-nav-item:hover {
+    background: #ffffff;
+  }
+  .sidebar-nav-item.active:hover {
+    background: rgba(194, 65, 12, 0.08);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Mobile bottom nav + centre FAB (below 1024px).                      */
+/* ------------------------------------------------------------------ */
+
+.app-bottomnav {
+  display: none;
+}
+
+.app-fab {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  .app-sidebar {
+    display: none;
+  }
+
+  .app-main {
+    margin-left: 0;
+    padding-bottom: 72px;
+  }
+
+  .app-content {
+    padding: 16px;
+  }
+
+  .app-bottomnav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 56px;
+    background: #ffffff;
+    border-top: 1px solid #e3e3e4;
+    display: flex;
+    align-items: stretch;
+    z-index: 20;
+  }
+
+  .app-bottomnav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    background: #ffffff;
+    color: #5f6368;
+    font-size: 12px;
+    text-decoration: none;
+    border: none;
+    cursor: pointer;
+  }
+
+  .app-bottomnav-item .nav-icon {
+    width: 20px;
+    height: 20px;
+    color: #5f6368;
+  }
+
+  .app-bottomnav-item.active {
+    color: #c2410c;
+  }
+
+  .app-bottomnav-item.active .nav-icon {
+    color: #c2410c;
+  }
+
+  .app-fab {
+    position: fixed;
+    left: 50%;
+    bottom: 28px;
+    transform: translateX(-50%);
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: none;
+    background: #c2410c;
+    color: #ffffff;
+    font-size: 24px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 21;
+    transition: background-color 150ms ease-out;
+  }
+
+  .app-fab:hover {
+    background: #9a3412;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Landing header placeholder (Wave 2 builds the full landing).        */
+/* ------------------------------------------------------------------ */
+
+.landing-header {
+  position: sticky;
+  top: 0;
+  height: 64px;
+  background: #ffffff;
+  border-bottom: 1px solid #e3e3e4;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 0 24px;
+  z-index: 10;
+}
+
+.landing-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 20px;
+  font-weight: 600;
+  color: #1a1c1a;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.landing-menu {
+  display: flex;
+  gap: 24px;
+}
+
+.landing-menu a {
+  font-size: 14px;
+  color: #1a1c1a;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.landing-menu a:hover {
+  color: #c2410c;
+}
+
+.landing-header-spacer {
+  flex: 1;
+}
+
+.landing-lang {
+  font-size: 14px;
+  color: #5f6368;
+  white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  .landing-header {
+    padding: 0 16px;
+    gap: 16px;
+  }
+
+  .landing-menu {
+    display: none;
+  }
+}
+
+/* Placeholder pages: route name + an honest "Wave 2" note, nothing else. */
+.placeholder-page {
+  max-width: 720px;
+}
+
+.placeholder-page h1 {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 36px;
+  color: #1a1c1a;
+  margin: 0 0 8px;
+}
+
+.placeholder-page p {
+  font-size: 14px;
+  color: #5f6368;
+  margin: 0;
+}

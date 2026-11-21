@@ -18,16 +18,24 @@
 #   lệnh cài sạch thành công ở Oregon (fresh clone, 25s) — npmmirror từ
 #   mạng GitHub không ổn định; registry mặc định (npmjs) là lựa chọn an
 #   toàn cho runner. (Oregon local vẫn có thể dùng npmmirror khi cài tay.)
+# - P3-01: thêm job `web` cho website mới (Vite + React + DaisyUI).
+#   `web/` KHÔNG cần `--legacy-peer-deps`: tổ hợp pin (vite 8.3.8 +
+#   @vitejs/plugin-react 6.3.0 + react 18.3.1 + tailwindcss 4.3.0 +
+#   daisyui 5.8.2) cài sạch bằng `npm ci` thường trên Oregon, không
+#   xung đột peer (kiểm chứng P3-01, log /tmp/p3-scaffold.log).
 name: Frontend CI
 
 on:
   push:
     paths:
       - 'frontend/**'
+      - 'web/**'
       - '.github/workflows/frontend.yml'
   pull_request:
     paths:
       - 'frontend/**'
+      - 'web/**'
+      - '.github/workflows/frontend.yml'
 
 jobs:
   frontend:
@@ -60,3 +68,26 @@ jobs:
         run: node scripts/check-platform-twins.mjs
       - name: Bundle size check
         run: node scripts/check-bundle-size.mjs
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Unit + component tests
+        run: npm run test -- --run
+      - name: Build
+        run: npm run build
