@@ -12,6 +12,23 @@ import { taroMock } from './taroMock'
 
 process.env.TARO_ENV = 'h5'
 
+// jsdom has no window.matchMedia; useIsDesktop (FE-04) needs it. Default
+// matches:false = mobile, so every existing test keeps rendering the mobile
+// layout unchanged. Tests that need desktop override window.matchMedia.
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: vi.fn((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  })),
+})
+
 vi.mock('@tarojs/taro', () => ({
   default: taroMock,
   ...taroMock,

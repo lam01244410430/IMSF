@@ -16,6 +16,7 @@ import Button from '../../ui/primitives/Button'
 import Icon from '../../ui/primitives/Icon'
 import Progress from '../../ui/primitives/Progress'
 import { useTabBarSelected } from '../../hooks/useTabBarSelected'
+import { useIsDesktop } from '../../hooks/useIsDesktop'
 import { useSessionStore } from '../../store/session'
 import { useUiStore } from '../../store/ui'
 import { useUploadDraftStore } from '../../store/uploadDraft'
@@ -31,6 +32,8 @@ type BannerAction = 'reselect' | 'reupload' | null
 
 export default function Upload() {
   useTabBarSelected(0)
+  // FE-04 (§12.2): desktop has no bottom tab bar, so no room is reserved for it.
+  const isDesktop = useIsDesktop()
   const householdId = useSessionStore((s) => s.currentHouseholdId)
   const isOnline = useUiStore((s) => s.isOnline)
   const draft = useUploadDraftStore()
@@ -154,7 +157,7 @@ export default function Upload() {
   const hasPreview = draft.file !== null && (draft.status === 'picked' || uploading)
 
   return (
-    <View style={{ paddingBottom: tokens.size.navHeight + 16 }}>
+    <View style={{ paddingBottom: isDesktop ? 16 : tokens.size.navHeight + 16 }}>
       <PageHeader title='IMSF-v2' subtitle='拍小票，自动记账入库' />
       <OfflineBanner />
       <View style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>

@@ -158,6 +158,22 @@ export const tokens = {
     containerMaxWidthMd: 1120,
     containerMaxWidthLg: 1280,
   },
+  /**
+   * FE-04 desktop shell (design doc §12.3) — sidebar / topbar / content
+   * sizes. Values are px numbers; components read them from here, never
+   * raw numbers. Not emitted to tokens.css/nutui.css — the token generator
+   * only covers CSS vars for colour/type/radius, and desktop layout is
+   * read from this file in TS (same as breakpoints/elevation/zIndex/size).
+   */
+  desktop: {
+    sidebarWidth: 240,
+    topbarHeight: 64,
+    contentMaxWidth: 1200,
+    formPanelWidth: 360,
+    uploadPanelWidth: 480,
+    receiptPanelWidth: 480,
+    desktopGap: 24,
+  },
   elevation: {
     1: '0 1px 2px rgba(26,28,26,0.08)',
     2: '0 2px 8px rgba(26,28,26,0.10)',

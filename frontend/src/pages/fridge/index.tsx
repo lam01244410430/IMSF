@@ -8,13 +8,16 @@ import OfflineBanner from '../../components/OfflineBanner/OfflineBanner'
 import EmptyState from '../../components/EmptyState/EmptyState'
 import TabBarHost from '../../components/TabBarHost'
 import { useTabBarSelected } from '../../hooks/useTabBarSelected'
+import { useIsDesktop } from '../../hooks/useIsDesktop'
 import { goUpload } from '../../config/routes'
 import { tokens } from '../../ui/tokens'
 
 export default function Fridge() {
   useTabBarSelected(1)
+  // FE-04 (§12.2): desktop has no bottom tab bar, so no room is reserved for it.
+  const isDesktop = useIsDesktop()
   return (
-    <View style={{ paddingBottom: tokens.size.navHeight + 16 }}>
+    <View style={{ paddingBottom: isDesktop ? 16 : tokens.size.navHeight + 16 }}>
       <PageHeader title='冰箱' />
       <OfflineBanner />
       <EmptyState

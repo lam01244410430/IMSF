@@ -7,6 +7,7 @@ import { useEffect } from 'react'
 import type { PropsWithChildren } from 'react'
 import Taro, { useLaunch } from '@tarojs/taro'
 import Providers from './providers'
+import DesktopShell from './components/DesktopShell/DesktopShell'
 import { queryClient } from './store/queryClient'
 import { useUiStore } from './store/ui'
 import { setSessionExpiredHandler } from './services/auth'
@@ -37,7 +38,11 @@ function App({ children }: PropsWithChildren) {
     }
   }, [])
 
-  return <Providers>{children}</Providers>
+  return (
+    <Providers>
+      <DesktopShell>{children}</DesktopShell>
+    </Providers>
+  )
 }
 
 export default App
