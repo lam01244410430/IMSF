@@ -1,6 +1,7 @@
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { getAccessToken, getStoredHouseholdId } from '../lib/auth'
 import { Icon, type IconName } from './Icon'
+import { NotificationsBell } from './NotificationsBell'
 
 interface NavItemDef {
   to: string
@@ -10,7 +11,8 @@ interface NavItemDef {
 }
 
 const NAV_GROUP_1: NavItemDef[] = [
-  { to: '/app', label: '首页', icon: 'home', end: true },
+  // 首页 points to /app/upload: /app itself redirects there (plan §3.2 Q2).
+  { to: '/app/upload', label: '首页', icon: 'home', end: true },
   { to: '/app/fridge', label: '冰箱', icon: 'fridge' },
   { to: '/blog', label: '菜谱', icon: 'recipes' },
   { to: '/app/mine', label: '我的', icon: 'mine' },
@@ -88,6 +90,7 @@ export function AppShell() {
           <span className="app-topbar-item">CNY</span>
           <span className="app-topbar-item">Asia/Shanghai</span>
           <span className="app-topbar-spacer" />
+          <NotificationsBell />
           <span className="app-topbar-user">
             {userId ? `用户 ${userId}` : '未登录'}
           </span>

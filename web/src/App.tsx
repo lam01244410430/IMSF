@@ -1,4 +1,4 @@
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/AppShell'
 import { PublicOnly, RequireAuth } from './components/guards'
 import { BlogPage } from './pages/Blog'
@@ -7,9 +7,11 @@ import { LandingPage } from './pages/Landing'
 import { LoginPage } from './pages/Login'
 import { NotFoundPage } from './pages/NotFound'
 import { RegisterPage } from './pages/Register'
-import { AppHomePage } from './pages/app/AppHome'
 import { FridgePage } from './pages/app/Fridge'
+import { MaintenancePage } from './pages/app/Maintenance'
 import { MinePage } from './pages/app/Mine'
+import { ReceiptDetailPage } from './pages/app/ReceiptDetail'
+import { ReceiptsPage } from './pages/app/Receipts'
 import { SpendingPage } from './pages/app/Spending'
 import { TransactionsPage } from './pages/app/Transactions'
 import { UploadPage } from './pages/app/Upload'
@@ -25,11 +27,13 @@ import { UploadPage } from './pages/app/Upload'
  *   *            404 catch-all
  *
  * /app redirects to /app/upload (the Mini Program's post-login
- * destination, plan §3.2). /app/recipes does NOT exist — recipes live
- * at /blog (plan §5.3). NOTE (Wave 1): /app currently renders the
- * 首页 placeholder instead of redirecting to /app/upload, so the 首页
- * nav item keeps its active state; the redirect is a Wave 2 decision
- * with the real home page.
+ * destination, plan §3.2 Q2 decided) and the 首页 sidebar item points
+ * to /app/upload. /app/recipes does NOT exist — recipes live at /blog
+ * (plan §5.3); the sidebar 菜谱 item already points there.
+ * /app/receipts and /app/receipts/:id are NOT in the sidebar; they are
+ * reached from the upload page and from receipt rows.
+ * /app/maintenance is NOT in the sidebar; it is linked from 我的.
+ * Shopping lists are NOT built in this wave (no route in §3.2).
  */
 export function AppRoutes() {
   return (
@@ -59,11 +63,14 @@ export function AppRoutes() {
           </RequireAuth>
         }
       >
-        <Route index element={<AppHomePage />} />
+        <Route index element={<Navigate to="/app/upload" replace />} />
         <Route path="upload" element={<UploadPage />} />
         <Route path="fridge" element={<FridgePage />} />
         <Route path="transactions" element={<TransactionsPage />} />
         <Route path="spending" element={<SpendingPage />} />
+        <Route path="maintenance" element={<MaintenancePage />} />
+        <Route path="receipts" element={<ReceiptsPage />} />
+        <Route path="receipts/:id" element={<ReceiptDetailPage />} />
         <Route path="mine" element={<MinePage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>

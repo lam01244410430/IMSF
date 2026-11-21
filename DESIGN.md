@@ -144,9 +144,11 @@ No tertiary colour. Semantic colours below are functional, not brand.
 
 - **Semantic green `#2E7D32` is success only** (completed / success
   states, check marks). It is the old brand green, demoted.
-- **Semantic error `#D32F2F`**, error container `#FCE8E6`. Known gap:
-  `#D32F2F` on `#FCE8E6` is 4.23:1 (below 4.5:1) — fix when the chip is
-  rebuilt on the web app; do not ship new text at that ratio.
+- **Semantic error `#D32F2F`**, error container `#FCE8E6`. Chip text is
+  darkened to `#B71C1C` (fixed 2026-11-21, Phase 3 app pages):
+  `#B71C1C` on `#FCE8E6` is 5.58:1 (passes 4.5:1). The `#D32F2F`
+  token itself is unchanged (icons, non-text use); only chip *text*
+  uses `#B71C1C`.
 - **Semantic warning `#B45309`** — never as 12px text on white.
 - **No blue anywhere.** The guessed info blue `#1565C0` was deleted;
   info states fall back to accent + icon.
@@ -161,7 +163,11 @@ No tertiary colour. Semantic colours below are functional, not brand.
   | `#C2410C` | `#FFFFFF` | 5.18:1 | yes |
   | `#FFFFFF` | `#C2410C` | 5.18:1 | yes |
   | `#C2410C` | active tint on white | ≈5.18:1 | yes |
-  | `#D32F2F` | `#FCE8E6` | 4.23:1 | **no — known gap** |
+  | `#D32F2F` | `#FCE8E6` | 4.23:1 | **no — do not ship text at this ratio** |
+  | `#B71C1C` | `#FCE8E6` | 5.58:1 | yes (chip text — the fix) |
+  | `#B45309` | `#FFF7ED` | 4.73:1 | yes (warning chip) |
+  | `#2E7D32` | `#E8F5E9` | 4.56:1 | yes (success chip) |
+  | `#C2410C` | `#FDEDE8` | 4.55:1 | yes (accent chip) |
 
 ## Typography
 
@@ -261,8 +267,10 @@ None — the system has no shadows by design.
 
 ### Chips (if used)
 
-- **Status chip:** text + icon, never colour alone. Known gap: failed
-  chip `#D32F2F` on `#FCE8E6` is 4.23:1 — fix on rebuild.
+- **Status chip:** text + icon, never colour alone. Fixed 2026-11-21
+  (Phase 3): failed/expired chip text is `#B71C1C` on `#FCE8E6`
+  (5.58:1); warning `#B45309` on `#FFF7ED` (4.73:1); success `#2E7D32`
+  on `#E8F5E9` (4.56:1); accent `#C2410C` on `#FDEDE8` (4.55:1).
 
 ### Cards / Containers
 

@@ -22,6 +22,8 @@ export const STORAGE_KEYS = {
   access: 'imsf2.access_token',
   refresh: 'imsf2.refresh_token',
   household: 'imsf2.household_id',
+  /** Email returned by the login/register response (for the 我的 page). */
+  email: 'imsf2.user_email',
 } as const
 
 export interface AuthUser {
@@ -107,6 +109,14 @@ export function getStoredHouseholdId(): string | null {
   return storageGet(STORAGE_KEYS.household) || null
 }
 
+export function getStoredUserEmail(): string | null {
+  return storageGet(STORAGE_KEYS.email) || null
+}
+
+function setStoredUserEmail(email: string | undefined): void {
+  if (email) storageSet(STORAGE_KEYS.email, email)
+}
+
 export function setStoredHouseholdId(id: string): void {
   storageSet(STORAGE_KEYS.household, id)
 }
@@ -129,6 +139,7 @@ export function clearTokens(): void {
 export function logout(): void {
   clearTokens()
   storageRemove(STORAGE_KEYS.household)
+  storageRemove(STORAGE_KEYS.email)
 }
 
 export function isLoggedIn(): boolean {
@@ -282,6 +293,7 @@ export async function loginWithEmail(
   if (!res.ok) throw await parseError(res)
   const data = (await res.json()) as AuthResponse
   setTokens(data.access_token, data.refresh_token)
+  setStoredUserEmail(data.user?.email)
   if (data.households.length > 0) {
     setStoredHouseholdId(data.households[0].id)
   }
@@ -306,6 +318,7 @@ export async function registerWithEmail(
   if (!res.ok) throw await parseError(res)
   const data = (await res.json()) as AuthResponse
   setTokens(data.access_token, data.refresh_token)
+  setStoredUserEmail(data.user?.email)
   if (data.households.length > 0) {
     setStoredHouseholdId(data.households[0].id)
   }
