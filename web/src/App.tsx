@@ -38,8 +38,9 @@ import { LanguageProvider } from './lib/LanguageProvider'
  *
  * /app redirects to /app/upload (the Mini Program's post-login
  * destination, plan §3.2 Q2 decided) and the 首页 sidebar item points
- * to /app/upload. /app/recipes does NOT exist — recipes live at /blog
- * (plan §5.3); the sidebar 菜谱 item already points there.
+ * to /app/upload. Recipes live at /blog (plan §5.3); the sidebar
+ * 菜谱 item already points there. /recipes and /app/recipes both
+ * redirect to /blog (plan §10 Q9) so the old URLs never 404.
  * /app/receipts and /app/receipts/:id are NOT in the sidebar; they are
  * reached from the upload page and from receipt rows.
  * /app/maintenance is NOT in the sidebar; it is linked from 我的.
@@ -86,6 +87,12 @@ export function AppRoutes() {
       </Route>
       <Route path="/blog" element={<BlogPage />} />
       <Route path="/blog/:id" element={<BlogPostPage />} />
+      {/* Plan §10 Q9: /recipes redirects to /blog. */}
+      <Route path="/recipes" element={<Navigate to="/blog" replace />} />
+      {/* Old Taro URL: /app/recipes redirects to /blog too.
+          Top-level (not nested under /app/*) so the static route
+          outranks the /app/* splat and /blog stays public. */}
+      <Route path="/app/recipes" element={<Navigate to="/blog" replace />} />
       <Route path="/knowledge" element={<KnowledgePage />} />
       <Route path="/privacy" element={<LegalPage kind="privacy" />} />
       <Route path="/terms" element={<LegalPage kind="terms" />} />

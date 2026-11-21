@@ -1,5 +1,5 @@
 import { cleanup, render, screen } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { AppRoutes } from '../App'
 import { logout, resetAuthState, setTokens } from '../lib/auth'
@@ -60,5 +60,50 @@ describe('/app redirect', () => {
   it('unknown path → 404', () => {
     renderAt('/no-such-page')
     expect(screen.getByRole('heading', { name: '页面不存在' })).toBeDefined()
+  })
+})
+
+function LocationProbe() {
+  const location = useLocation()
+  return <p data-testid="location">{location.pathname}</p>
+}
+
+function renderAtWithProbe(path: string) {
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <AppRoutes />
+      <LocationProbe />
+    </MemoryRouter>,
+  )
+}
+
+describe('/recipes redirects (plan §10 Q9)', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    resetAuthState()
+  })
+
+  afterEach(() => {
+    cleanup()
+    logout()
+  })
+
+  it('/recipes redirects to /blog', async () => {
+    renderAtWithProbe('/recipes')
+    expect(await screen.findByRole('heading', { name: '菜谱' })).toBeDefined()
+    expect(screen.getByTestId('location').textContent).toBe('/blog')
+  })
+
+  it('/app/recipes redirects to /blog without requiring login', async () => {
+    renderAtWithProbe('/app/recipes')
+    expect(await screen.findByRole('heading', { name: '菜谱' })).toBeDefined()
+    expect(screen.getByTestId('location').textContent).toBe('/blog')
+  })
+
+  it('authenticated /app/recipes redirects to /blog too', async () => {
+    setTokens(fakeJwt(Math.floor(Date.now() / 1000) + 600), 'refresh-1')
+    renderAtWithProbe('/app/recipes')
+    expect(await screen.findByRole('heading', { name: '菜谱' })).toBeDefined()
+    expect(screen.getByTestId('location').textContent).toBe('/blog')
   })
 })
