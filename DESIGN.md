@@ -110,7 +110,9 @@ earns attention with the same tokens, not a different palette.
   CTAs. White text on it is 5.18:1; `#C2410C` text on white is 5.18:1.
 - **Accent dark `#9A3412`** — filled-button hover and the
   `:focus-visible` outline colour. Never a text colour on white at small
-  sizes except as an outline.
+  sizes except as an outline. In dark the focus outline is `#F97316`;
+  text-link hovers also use the focus colour (light `#9A3412`
+  unchanged, dark `#F97316`) so they keep contrast on dark surfaces.
 - **Accent bright `#EA580C`** — one step above the accent; sparing use
   only, never as body text.
 - **Accent container `#FFE0B2`** — pale orange container; dark text
@@ -146,9 +148,10 @@ No tertiary colour. Semantic colours below are functional, not brand.
   states, check marks). It is the old brand green, demoted.
 - **Semantic error `#D32F2F`**, error container `#FCE8E6`. Chip text is
   darkened to `#B71C1C` (fixed 2026-11-21, Phase 3 app pages):
-  `#B71C1C` on `#FCE8E6` is 5.58:1 (passes 4.5:1). The `#D32F2F`
-  token itself is unchanged (icons, non-text use); only chip *text*
-  uses `#B71C1C`.
+  `#B71C1C` on `#FCE8E6` is 5.58:1 (passes 4.5:1). Dashboard Phase A
+  (2026-11-22) unified ALL light error text to `#B71C1C` — no
+  `#D32F2F` text remains in `web/` (`.field-error`, `.auth-banner`
+  border, `.auth-countdown`, `.blog-action-error`).
 - **Semantic warning `#B45309`** — never as 12px text on white.
 - **No blue anywhere.** The guessed info blue `#1565C0` was deleted;
   info states fall back to accent + icon.
@@ -168,6 +171,74 @@ No tertiary colour. Semantic colours below are functional, not brand.
   | `#B45309` | `#FFF7ED` | 4.73:1 | yes (warning chip) |
   | `#2E7D32` | `#E8F5E9` | 4.56:1 | yes (success chip) |
   | `#C2410C` | `#FDEDE8` | 4.55:1 | yes (accent chip) |
+
+### Dark theme (`imsf-swiss-dark`, Dashboard Phase A, 2026-11-22)
+
+- **Second DaisyUI theme** in `web/src/index.css`, `prefersdark: false`
+  on both themes. Default **light**; the choice is stored in
+  localStorage `imsf.theme` and applied before first paint by an
+  inline script in `web/index.html`. `prefers-color-scheme` is never
+  read. Toggle in every header + the 我的 page (segmented 外观
+  control); the two controls share one context, so they can never
+  disagree.
+- **All custom CSS colours are `var(--im-*)`** (plain CSS `:root` /
+  `[data-theme]` definitions, not inside the DaisyUI `@plugin`
+  blocks). Light values are the previous hardcoded values (the light
+  theme renders as before, except the two deliberate unifications
+  below); dark values:
+
+  | Variable | Light | Dark |
+  |---|---|---|
+  | `--im-bg` (page / header / drawer) | `#FFFFFF` | `#1A1C1A` |
+  | `--im-surface` (cards, dialogs, inputs) | `#FFFFFF` | `#232625` |
+  | `--im-surface-2` (bands, skeletons, tracks) | `#F7F7F8` | `#2A2E2C` |
+  | `--im-text` | `#1A1C1A` | `#EDEDE8` |
+  | `--im-muted` | `#5F6368` | `#A8AFA9` |
+  | `--im-border` (hairlines) | `#E3E3E4` | `#2A2E2C` |
+  | `--im-border-strong` (input borders) | `#E3E3E4` | `#6E756E` |
+  | `--im-accent` (button bg) | `#C2410C` | `#C2410C` |
+  | `--im-accent-text` (links, active nav) | `#C2410C` | `#F97316` |
+  | `--im-accent-tint` (active bg) | `rgba(194,65,12,0.08)` | `rgba(249,115,22,0.12)` |
+  | `--im-focus` (outline) | `#9A3412` | `#F97316` |
+  | `--im-success-text` | `#2E7D32` | `#4CAF50` |
+  | `--im-error-text` | `#B71C1C` | `#FF8A80` |
+  | `--im-warning-text` | `#B45309` | `#F59E0B` |
+  | `--im-hero-bg` / `--im-hero-text` / `--im-hero-muted` / `--im-hero-accent-text` / `--im-hero-check` | `#1A1C1A` / `#EDEDE8` / `#A8AFA9` / `#F97316` / `#4CAF50` | `#232625` / same / same / same / same |
+- **Two deliberate light unifications:** all light error text is now
+  `#B71C1C` (was `#D32F2F` in 4 places — `.field-error`,
+  `.auth-banner` border, `.auth-countdown`, `.blog-action-error`);
+  nothing else in light changed.
+- **Correction R3:** the plan's dark error `#EF5350` is 4.38:1 on
+  card surfaces, so dark error *text* is `#FF8A80`; `#EF5350` is kept
+  only as DaisyUI `--color-error` (background) with dark content
+  `#1A1C1A` (4.92:1).
+- **Documented gap R7:** the light input border `#E3E3E4` on white is
+  1.28:1 (below WCAG 1.4.11's 3:1) — kept deliberately; the dark
+  border `#6E756E` passes (3.62:1 / 3.22:1).
+- **Forbidden in dark (all measured):** `#C2410C` as text on dark
+  (3.31:1); `#EA580C` as text on a dark card (4.29:1) or as a button
+  background with white text (3.56:1); light success/error/warning
+  (`#2E7D32` / `#D32F2F` / `#B45309`) as text on dark (~3.4:1);
+  `#EF5350` as text on a dark card (4.38:1); white text on `#EF5350`
+  (3.49:1). `#FFE0B2` and `#EA580C` are documented but unused in
+  `web/` — no dark equivalents exist.
+- **Header follows the page theme** (light header in light mode, dark
+  header in dark mode — D3, NOT a fixed dark header). The language
+  dropdown panel is **âm tường**: same `background` as the header
+  (`var(--im-bg)`), `box-shadow: none`, `border-radius: 0`, edges
+  aligned with the header, separated only by a 1px hairline at the
+  panel's bottom edge. Any visible shadow or floating edge = FAIL.
+  The notification panel (`.notif-panel`) is the one exception — it
+  is a floating card and keeps its shadow.
+- **Hero band:** the hero section is a full-width SOLID dark band (no
+  gradient), single-column text, in both themes (light band `#1A1C1A`,
+  dark band `#232625` + a 1px `#6E756E` bottom edge). The grey
+  `.phone-mock` is deleted; no fabricated screenshot. The real
+  dashboard screenshot is a Phase B step.
+- **Logo:** `web/src/assets/logo-dark.svg` (same geometry as
+  `logo.svg`, text `#EDEDE8`); the header swaps the `src` by theme.
+  Never `filter: invert()` on the light logo (it turns the accent
+  square cyan).
 
 ## Typography
 
@@ -215,12 +286,15 @@ tiles.
 - **Breakpoints:** xs 0, sm 768, md 1024, lg 1440, xl 1920. The only
   shell threshold is 1024px; 768px changes only blog columns and
   padding (24px instead of 16px).
-- **Landing header:** sticky, 64px, white, 1px bottom hairline
-  `#E3E3E4`, horizontal padding 24px (16px mobile). Left: logo + name
-  IMSF + 4 menu items (功能 / 使用方法 / 菜谱 / 常见问题). Right:
-  language switcher (中文 / Tiếng Việt / English) + 登录 text button +
-  注册 filled accent button (radius 20px, height 44px). Below 768px:
-  logo + compact switcher + hamburger; menu + auth move into a drawer.
+- **Landing header:** sticky, 64px, white in light mode (dark in dark
+  mode — the header follows the page theme), 1px bottom hairline,
+  horizontal padding 24px (16px mobile). Left: logo + name IMSF + 4
+  menu items (功能 / 使用方法 / 菜谱 / 常见问题). Right: theme toggle
+  + language switcher (custom dropdown panel: name + short code
+  EN / 中文 / VI + tick, âm tường — same background as the header, no
+  shadow) + 登录 text button + 注册 filled accent button (radius
+  20px, height 44px). Below 768px: logo + hamburger; menu + theme +
+  language + auth move into a drawer.
 - **Feature blocks:** flat sections separated by whitespace + hairline
   when needed, 64px apart, alternating left/right on desktop. No
   cards-in-cards.
@@ -241,6 +315,9 @@ None — the system has no shadows by design.
 
 - **The flat-separation rule:** if two blocks need separation, use a
   hairline or 64px of whitespace — never a shadow or a nested card.
+  Exceptions are documented in Phase 4 rulings (blog card shadow
+  F-05, overlay panels F-14); the language dropdown panel is NOT an
+  exception — it has no shadow by design (âm tường).
 
 ## Shapes
 

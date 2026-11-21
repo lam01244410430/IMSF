@@ -1,8 +1,8 @@
 # IMSF — Operations note
 
 Short, verified facts for whoever runs the live system. Last updated in
-Reform Phase 5 (2026-11-22, branch `task/P3-07-phase5-final`). Nothing here
-is a guess: every item was read from the live host or the code.
+Dashboard Phase A (2026-11-22, branch `task/DASH-A-header-darkmode`).
+Nothing here is a guess: every item was read from the live host or the code.
 
 ## Backend — Oregon EC2 (52.13.176.85)
 
@@ -64,6 +64,29 @@ is a guess: every item was read from the live host or the code.
 - While the GPU is off, **live `/knowledge` search returns 500** (the
   embedding service is unreachable). Re-check citations when Lam restarts
   the GPU. Everything else on the website works without the GPU.
+
+## Dark mode + header (Dashboard Phase A, 2026-11-22)
+
+- Two DaisyUI themes in `web/src/index.css`: `imsf-swiss` (light,
+  default) + `imsf-swiss-dark`. All custom CSS colours are
+  `var(--im-*)` — no hardcoded hex outside the theme blocks and the
+  variable definitions.
+- **Theme choice:** localStorage `imsf.theme` (`light` | `dark`),
+  default light. An inline script in `web/index.html` applies it
+  before first paint (no flash of the wrong theme). If a CSP is ever
+  added, that script needs `'unsafe-inline'` or a hash.
+  `prefers-color-scheme` is never consulted anywhere.
+- **Toggle:** in every header (landing, public, auth, app topbar) +
+  the 我的 page (segmented 外观 control). Both read the same
+  `ThemeProvider` context.
+- **Logo:** `web/src/assets/logo-dark.svg` is the dark wordmark; the
+  header swaps `src` by theme.
+- **Verify both themes:** build `web/` (`npm run build`), then check
+  the landing / login / register pages at 1280px + 375px in light and
+  dark, the language dropdown open (must read as a flat extension of
+  the header — no shadow), and a hard reload with
+  `localStorage['imsf.theme']='dark'` (first paint must already be
+  dark).
 
 ## Website deploys
 

@@ -26,7 +26,9 @@ track what they spend, and want nothing wasted.
 - Backend: Python FastAPI, API `/api/v2`, on Oregon EC2 :8002 behind Caddy
   :80; PostgreSQL + Redis. No API change in this reform.
 - Website (`web/`): Vite 8.3.8 + React 18.3.1 + TypeScript 5.9.3 +
-  Tailwind CSS 4.3.0 + DaisyUI 5.8.2 (theme `imsf-swiss`), react-router-dom
+  Tailwind CSS 4.3.0 + DaisyUI 5.8.2 (themes `imsf-swiss` light +
+  `imsf-swiss-dark`, default light, choice in localStorage
+  `imsf.theme`), react-router-dom
   6.x. MUI is the fallback only and is NOT installed in `web/`.
 - Mini Program (`frontend/`): Taro 4.3.3 + React 18 + MUI 9.5.0 (H5) +
   NutUI 3.0.20 (Mini Program). Never mix DaisyUI + MUI in one app.
@@ -98,6 +100,27 @@ Around that core, IMSF provides:
 - **No automatic shutdown of the GPU host; no deployment without Lam's
   separate approval.** Verification green auto-pushes/auto-merges; deploy
   still needs his word.
+- **Dark mode (Dashboard Phase A, 2026-11-22):** two DaisyUI themes,
+  `imsf-swiss` (light, default) + `imsf-swiss-dark`; the choice is
+  stored in localStorage `imsf.theme` and applied before first paint
+  by an inline script in `web/index.html` (no flash of the wrong
+  theme). `prefers-color-scheme` is never consulted. The toggle sits
+  in every header (landing, public, auth, app topbar) + the 我的 page
+  (segmented 外观 control). All custom CSS colours are `var(--im-*)`
+  (see DESIGN.md); the header follows the page theme. The language
+  dropdown panel is âm tường — same background as the header, no
+  shadow, one hairline — in both themes. The hero is a solid dark
+  band (no gradient, no mock screenshot); the real dashboard
+  screenshot is a Phase B step.
+- **Dark error-text correction (R3):** the plan's dark error `#EF5350`
+  is 4.38:1 on card surfaces (below 4.5:1), so dark error *text* is
+  `#FF8A80` (6.69:1 on cards); `#EF5350` survives only as DaisyUI
+  `--color-error` (a background) with dark content `#1A1C1A`.
+- **Known light-theme gap (R7, documented, not fixed):** the light
+  input border `#E3E3E4` on white is 1.28:1 (below WCAG 1.4.11's 3:1
+  for UI boundaries) — kept deliberately to avoid visibly changing
+  the approved light design; the `:focus-visible` ring is the focused
+  boundary. The dark input border `#6E756E` passes (3.62:1 / 3.22:1).
 
 ## Capabilities and Constraints
 
@@ -126,10 +149,10 @@ Constraints that future work must preserve:
 - **Known open gaps (do not paper over):** D-F3 added receipt lines
   return 422 on the current backend (confirm only UPDATEs, never
   INSERTs — needs a backend change); the topbar shows the user id because
-  no display name exists in the backend yet; the failed status chip
-  `#D32F2F` on `#FCE8E6` is 4.23:1 (below 4.5:1 — fix when the chip is
-  rebuilt on the web app); SMS OTP H5 login, dark mode, offline queue and
-  WebSocket are deferred.
+  no display name exists in the backend yet; SMS OTP H5 login, offline
+  queue and WebSocket are deferred. (Dark mode shipped in Dashboard
+  Phase A; the `#D32F2F` error-text gap is closed too — all light
+  error text is now `#B71C1C`.)
 
 ## Brand Commitments
 
@@ -179,11 +202,13 @@ Constraints that future work must preserve:
 
 ## Accessibility & Inclusion
 
-- All text ≥ 4.5:1 contrast against its background (contrast table in
-  DESIGN.md). Never use `#79747E` (outline) as text colour; never use
+- All text ≥ 4.5:1 contrast against its background in BOTH themes
+  (contrast table in DESIGN.md, dark palette added in Dashboard
+  Phase A). Never use `#79747E` (outline) as text colour; never use
   warning `#B45309` on white at 12px.
 - Every interactive element has a visible `:focus-visible` outline:
-  2px solid `#9A3412`, offset 2px.
+  2px solid `var(--im-focus)` (`#9A3412` light / `#F97316` dark),
+  offset 2px.
 - Real links and buttons (not divs with click handlers), labels on
   inputs, `aria-current` on the active nav item, `aria-expanded` /
   `aria-controls` on the FAQ accordion.
