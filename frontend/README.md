@@ -6,6 +6,15 @@ Needs Review), API client đầy đủ cho GĐ1. Thiết kế: xem
 `~/workspace/user/files/IMSF-v2-frontend-design.md` (§§1–11) — tài liệu này là
 nguồn chân lý duy nhất; mọi lệch khỏi nó phải ghi số section trong báo cáo.
 
+> **Taro H5 ĐÃ RETIRE (Phase 5, 2026-11-22, reform §10 Q1).** Frontend này
+> giờ **chỉ làm WeChat Mini Program** (build `weapp`). Bản web H5 không còn
+> được build ở CI (`build:h5` đã bỏ khỏi `.github/workflows/frontend.yml`),
+> không còn được serve ở đâu — website thật là `web/` (Vite + React +
+> DaisyUI, https://imsf-web.vercel.app; đã verify: live site serve đúng
+> bản build `web/` từ `main`). Script `build:h5` vẫn còn trong
+> `package.json` và các twin `.h5.tsx` vẫn còn trong source (không xóa ở
+> bước này); chỉ target build H5 là retire, không phải code H5.
+
 ## Stack đã pin (§8.1)
 
 - Taro CLI **4.3.3**, React **18**, TypeScript (strict), sass, compiler **webpack5**
@@ -25,14 +34,16 @@ nguồn chân lý duy nhất; mọi lệch khỏi nó phải ghi số section tr
 | `npm run lint` | ESLint (gồm no-restricted-imports + quy tắc TARO_ENV) |
 | `npm run test` | Vitest |
 | `npm run build:weapp` | `taro build --type weapp` → `dist/` |
-| `npm run build:h5` | `taro build --type h5` → `dist/` (cùng outputRoot — xem dưới) |
+| `npm run build:h5` | **RETIRED (Phase 5)** — script còn đó nhưng CI không chạy, không serve ở đâu; website là `web/` |
 | `npm run check:twins` | Mọi `*.weapp.*` đều có twin `*.h5.*` |
 | `npm run check:bundle` | Main package weapp < 2 MB (chạy sau build:weapp) |
 
 **Lưu ý output:** Taro 4.3.3 webpack5 không hỗ trợ outputRoot riêng theo
 target — cả hai build đều ghi vào `dist/`, build sau ghi đè build trước.
-CI chạy `build:h5` trước rồi `build:weapp` sau để `dist/` cuối cùng là output
-weapp (mở bằng WeChat DevTools). Lệch với design doc §8.8 (ghi `dist/h5/`).
+Từ Phase 5, CI chỉ chạy `build:weapp` nên `dist/` luôn là output weapp (mở
+bằng WeChat DevTools). Trước đây CI chạy `build:h5` trước rồi `build:weapp`
+sau để `dist/` cuối cùng là output weapp. Lệch với design doc §8.8 (ghi
+`dist/h5/`).
 
 ## Quy tắc bắt buộc (§8.2)
 
@@ -220,8 +231,9 @@ nhau ở cả 2 platform).
 CI: `.github/workflows/frontend.yml` (job riêng, paths `frontend/**`, không
 đụng job Python). Lệch khỏi doc §8.8 (ghi trong header workflow): paths
 `frontend/**` (không phải `imsf-frontend/**`); build H5 trước, weapp sau
-(cả hai cùng ghi `dist/`, weapp phải là artifact cuối cho DevTools); thêm
-`theme:check`; `npm ci --legacy-peer-deps` (vite 8 vs peerOptional vite ^4
+(cả hai cùng ghi `dist/`, weapp phải là artifact cuối cho DevTools) — **bước
+build H5 này đã bỏ khỏi CI ở Phase 5 (H5 retire), chỉ còn `build:weapp`**;
+thêm `theme:check`; `npm ci --legacy-peer-deps` (vite 8 vs peerOptional vite ^4
 của `@tarojs/plugin-framework-react` — `npm ci` thường fail ERESOLVE).
 
 Ba lỗi chỉ lộ khi chạy H5 build thật trên trình duyệt (build exit 0 nhưng

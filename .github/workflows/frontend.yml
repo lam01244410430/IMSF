@@ -3,10 +3,14 @@
 # Lệch so với doc §8.8 (ghi rõ lý do):
 # - paths dùng `frontend/**` (doc ghi `imsf-frontend/**` — repo thực tế
 #   scaffold một thư mục `frontend/` ở root, theo task Phase B).
-# - Thứ tự build: `build:h5` TRƯỚC, `build:weapp` SAU — Taro 4.3.3 webpack5
-#   không có per-target outputRoot, cả hai build đều ghi vào `dist/`, build
-#   sau ghi đè build trước; weapp cuối để `dist/` là artifact Mini Program
-#   cho DevTools (phát hiện Gate 0, ghi trong frontend/README.md).
+# - H5 ĐÃ RETIRE (Phase 5, 2026-11-22, reform §10 Q1): CI chỉ build
+#   `build:weapp`; `dist/` luôn là artifact Mini Program cho DevTools.
+#   Trước đây CI chạy `build:h5` trước rồi `build:weapp` sau (cả hai cùng
+#   ghi `dist/`, build sau ghi đè build trước). Script `build:h5` vẫn còn
+#   trong frontend/package.json (không xóa ở bước này) và các twin
+#   `.h5.tsx` vẫn còn trong source (check-platform-twins vẫn chạy), nhưng
+#   H5 không còn được build ở CI và không còn được serve ở đâu — website
+#   là `web/` (https://imsf-web.vercel.app).
 # - Thêm `theme:check` (doc không liệt kê) — tokens.css/nutui.css sinh từ
 #   tokens.ts, CI phải bắt khi file sinh ra lệch khỏi source.
 # - `npm ci` có `--legacy-peer-deps`: vite 8 (vitest peer) xung đột với
@@ -60,8 +64,6 @@ jobs:
         run: npm run lint
       - name: Unit + component tests
         run: npm run test -- --run
-      - name: Build H5
-        run: npm run build:h5
       - name: Build weapp
         run: npm run build:weapp
       - name: Platform twins check
