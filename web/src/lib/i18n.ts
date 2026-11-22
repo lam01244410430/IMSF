@@ -61,6 +61,7 @@ const zh = {
   'header.menuOpen': '打开菜单',
   'header.menuClose': '关闭菜单',
   'header.menuLabel': '菜单',
+  'header.account': '账户',
   'hero.title': '拍一张小票，冰箱和账本都记好了。',
   'hero.subtitle':
     'IMSF 帮一家人管好冰箱、记好每一笔支出，快过期的食材还会推荐菜谱。',
@@ -469,6 +470,7 @@ const vi: Dict = {
   'header.menuOpen': 'Mở menu',
   'header.menuClose': 'Đóng menu',
   'header.menuLabel': 'Menu',
+  'header.account': 'Tài khoản',
   'hero.title': 'Chụp một tờ hoá đơn, tủ lạnh và sổ chi tiêu đều đã ghi xong.',
   'hero.subtitle':
     'IMSF giúp cả nhà quản tủ lạnh, ghi từng khoản chi, và gợi ý món ăn từ nguyên liệu sắp hết hạn.',
@@ -881,6 +883,7 @@ const en: Dict = {
   'header.menuOpen': 'Open menu',
   'header.menuClose': 'Close menu',
   'header.menuLabel': 'Menu',
+  'header.account': 'Account',
   'hero.title': 'Snap one receipt — your fridge and ledger are done.',
   'hero.subtitle':
     'IMSF helps your family manage the fridge, track every expense, and suggests recipes for food about to expire.',

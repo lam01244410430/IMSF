@@ -1,11 +1,7 @@
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
-import {
-  getStoredHouseholdName,
-  getStoredUserEmail,
-  getStoredUserName,
-  isLoggedIn,
-} from '../lib/auth'
+import { getStoredHouseholdName } from '../lib/auth'
 import { Icon, type IconName } from './Icon'
+import { AccountMenu } from './AccountMenu'
 import { NotificationsBell } from './NotificationsBell'
 import { ThemeToggle } from './ThemeToggle'
 import logoMarkUrl from '../assets/logo-mark.svg'
@@ -68,14 +64,14 @@ function SidebarNavGroup({
  * 1024px the mobile bottom-nav layout (bottom nav + centre FAB, no
  * sidebar). Sidebar hover follows the EXACT §5.1 spec in index.css.
  *
- * Topbar shows the stored display name (from the login/register
- * response), falling back to the email local part, then '用户' when
- * logged in with nothing stored — never the raw user id (Phase 4).
+ * Topbar account control is the AccountMenu button (icon + display
+ * name on desktop, icon-only below 768px) with a dropdown for the
+ * account info, a link to /app/mine and logout — the name was plain
+ * text and logout lived only on /app/mine before (Lam 2026-11-22).
  */
 export function AppShell() {
   const navigate = useNavigate()
   const householdName = getStoredHouseholdName()
-  const displayName = getTopbarDisplayName()
 
   return (
     <div className="app-shell">
@@ -121,9 +117,7 @@ export function AppShell() {
           <span className="app-topbar-spacer" />
           <ThemeToggle />
           <NotificationsBell />
-          <span className="app-topbar-user">
-            {displayName ?? (isLoggedIn() ? '用户' : '未登录')}
-          </span>
+          <AccountMenu />
         </header>
         <main className="app-content">
           <Outlet />
@@ -155,20 +149,4 @@ export function AppShell() {
       </button>
     </div>
   )
-}
-
-/**
- * Topbar display name (Phase 4): the stored name from the
- * login/register response, else the email local part — never the raw
- * user id (UUID) decoded from the JWT.
- */
-function getTopbarDisplayName(): string | null {
-  const name = getStoredUserName()
-  if (name) return name
-  const email = getStoredUserEmail()
-  if (email) {
-    const local = email.split('@')[0]?.trim()
-    if (local) return local
-  }
-  return null
 }
