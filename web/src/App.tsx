@@ -1,6 +1,13 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { AdminShell, RequireAdmin } from './components/AdminShell'
 import { AppShell } from './components/AppShell'
 import { PublicOnly, RequireAuth } from './components/guards'
+import { AdminAuditPage } from './pages/admin/Audit'
+import { AdminOverviewPage } from './pages/admin/Overview'
+import { AdminRecipesPage } from './pages/admin/Recipes'
+import { AdminSystemPage } from './pages/admin/System'
+import { AdminUserDetailPage } from './pages/admin/UserDetail'
+import { AdminUsersPage } from './pages/admin/Users'
 import { BlogPage } from './pages/Blog'
 import { BlogPostPage } from './pages/BlogPost'
 import { KnowledgePage } from './pages/Knowledge'
@@ -51,6 +58,17 @@ import { ThemeProvider } from './lib/ThemeProvider'
  * reached from the upload page and from receipt rows.
  * /app/maintenance is NOT in the sidebar; it is linked from 我的.
  * Shopping lists are NOT built in this wave (no route in §3.2).
+ *
+ * /admin/* (Dashboard Phase C, plan §4 + contract §5): the admin
+ * dashboard — own shell (AdminShell), NOT the user AppShell, with a
+ * persistent "Admin / 管理后台" banner + a "Return to family app"
+ * link to /app/dashboard. Guarded by RequireAdmin (GET
+ * /api/v2/admin/me on mount: 401 → /login, 403 → a plain "no access"
+ * page). The admin link on 我的 is shown only when that same /me
+ * check says admin (see Mine.tsx) — the user sidebar is unchanged.
+ * Backend enforcement is the `require_admin` dependency
+ * (`IMSF_ADMIN_USER_IDS` allowlist); the frontend guard only
+ * decides what to show.
  */
 export function AppRoutes() {
   return (
@@ -90,6 +108,22 @@ export function AppRoutes() {
         <Route path="receipts" element={<ReceiptsPage />} />
         <Route path="receipts/:id" element={<ReceiptDetailPage />} />
         <Route path="mine" element={<MinePage />} />
+        <Route path="*" element={<NotFoundPage />} />
+      </Route>
+      <Route
+        path="/admin/*"
+        element={
+          <RequireAdmin>
+            <AdminShell />
+          </RequireAdmin>
+        }
+      >
+        <Route index element={<AdminOverviewPage />} />
+        <Route path="users" element={<AdminUsersPage />} />
+        <Route path="users/:id" element={<AdminUserDetailPage />} />
+        <Route path="recipes" element={<AdminRecipesPage />} />
+        <Route path="system" element={<AdminSystemPage />} />
+        <Route path="audit" element={<AdminAuditPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
       <Route path="/blog" element={<BlogPage />} />

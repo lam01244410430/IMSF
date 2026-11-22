@@ -172,6 +172,26 @@ export function formatRelativeDate(iso: string | null | undefined, timeZone = 'A
   return `${date.getMonth() + 1}月${date.getDate()}日`
 }
 
+/**
+ * Absolute date-time for the admin pages (audit log, health checks,
+ * job runs): the user dashboard uses relative dates, but an audit
+ * trail needs the exact time. Rendered in Asia/Shanghai (the
+ * household default timezone) in the UI language; "—" when unknown.
+ */
+export function formatDateTime(
+  iso: string | null | undefined,
+  locale = 'zh-CN',
+): string {
+  if (!iso) return '—'
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return iso
+  return date.toLocaleString(locale, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'Asia/Shanghai',
+  })
+}
+
 /** Strip redundant trailing zeros: "100.00" → "100", "100.50" → "100.5". */
 function stripTrailingZeros(fixed: string): string {
   if (!fixed.includes('.')) return fixed

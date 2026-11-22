@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   dateToOccurredAt,
   formatAmount,
+  formatDateTime,
   formatMoney,
   monthLabel,
   monthRange,
@@ -104,5 +105,20 @@ describe('month / date helpers', () => {
 
   it('todayDate returns YYYY-MM-DD', () => {
     expect(todayDate('Asia/Shanghai')).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
+})
+
+describe('formatDateTime — admin absolute timestamps', () => {
+  it('renders an ISO timestamp in Asia/Shanghai', () => {
+    const out = formatDateTime('2026-11-22T00:00:00Z', 'zh-CN')
+    // 2026-11-22 00:00 UTC = 08:00 in Asia/Shanghai.
+    expect(out).toContain('2026')
+    expect(out).toContain('8:00')
+  })
+
+  it('null / garbage → em dash / passthrough, never a crash', () => {
+    expect(formatDateTime(null)).toBe('—')
+    expect(formatDateTime(undefined)).toBe('—')
+    expect(formatDateTime('not-a-date')).toBe('not-a-date')
   })
 })

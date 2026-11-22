@@ -289,6 +289,43 @@ No tertiary colour. Semantic colours below are functional, not brand.
   colours only for expiry/maintenance status, always with text,
   never colour alone.
 
+### Admin dashboard (`/admin/*`, Dashboard Phase C, 2026-11-22)
+
+- **Shell:** own layout, not the user AppShell — a persistent
+  banner strip (`Admin / 管理后台`, `var(--im-surface-2)`
+  background, hairline below) with a "Return to family app" link,
+  a 240px sidebar with the 5 pages (Overview, Users, Recipes,
+  System, Audit), content max-width 1200px. Below 1024px the
+  sidebar becomes a horizontal scroll row under the banner. The
+  active nav item uses the same treatment as the user sidebar
+  (`var(--im-accent-tint)` background + accent text). The admin
+  area is deliberately plain — it is an operations tool, not a
+  second product — but it follows the same Swiss rules (4px,
+  hairlines, no shadows, `var(--im-*)` only) and passed the same
+  taste review as the user dashboard.
+- **Tables:** the shared `.tx-table` (14px, hairline rows, muted
+  600-weight headers) for Users, Recipes, System and Audit; the
+  Overview counts reuse the user dashboard's `.dash-widget` cards
+  (28px numbers, 4 per row desktop, 2 per row tablet, 1 per row
+  mobile) with the "accounts are not people" note in muted 14px.
+  Status is always a `StatusChip` (text + glyph, never colour
+  alone): healthy/success green, unavailable/failed error red,
+  offline-expected neutral, unknown warning amber.
+- **Actions:** destructive or irreversible-looking actions are
+  never one click. Disable / re-enable opens an inline confirm
+  panel that names the target (`name · email`) and requires a
+  reason before the Confirm button works; "Inspect household
+  data" is a separate form (household + record type + required
+  reason) with a note that the view is audit-logged. No delete,
+  no password reset, no bulk export, no retry-all controls exist
+  in the UI at all — their absence is the design.
+- **States:** every page has loading / load-error-with-retry /
+  honest empty states; a failed health check shows "API
+  unreachable" with the last successful check time (kept in
+  `localStorage`), never a green board. Empty job history and
+  unavailable receipt-job tracking are stated as such — nothing
+  is fabricated to fill a table.
+
 ## Typography
 
 - **System fonts only.** `"PingFang SC", "Hiragino Sans GB",

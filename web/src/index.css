@@ -3913,3 +3913,269 @@ select:focus-visible {
 .dash-notif-time {
   color: var(--im-muted);
 }
+
+/* ------------------------------------------------------------------ */
+/* Admin dashboard (Dashboard Phase C, plan §4 + contract §5).        */
+/* Own shell, separate from the user AppShell: a persistent banner    */
+/* strip ("Admin / 管理后台" + return link) on top, a 240px sidebar    */
+/* with the 5 pages, content max-width 1200px like .page. Colours    */
+/* are var(--im-*) only, radius 4px, hairlines, no shadows — the     */
+/* same Swiss rules as the user dashboard.                            */
+/* ------------------------------------------------------------------ */
+
+.admin-shell {
+  min-height: 100svh;
+  background: var(--im-bg);
+  color: var(--im-text);
+}
+
+.admin-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 24px;
+  background: var(--im-surface-2);
+  border-bottom: 1px solid var(--im-border);
+}
+
+.admin-banner-title {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 24px;
+  color: var(--im-text);
+  white-space: nowrap;
+}
+
+.admin-banner-spacer {
+  flex: 1;
+}
+
+.admin-banner-return {
+  font-size: 14px;
+  color: var(--im-accent-text);
+  white-space: nowrap;
+}
+
+.admin-body {
+  display: flex;
+  align-items: stretch;
+}
+
+.admin-sidebar {
+  flex: 0 0 240px;
+  width: 240px;
+  padding: 16px 12px;
+  border-right: 1px solid var(--im-border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.admin-nav-item {
+  display: block;
+  padding: 10px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  color: var(--im-text);
+  text-decoration: none;
+}
+
+.admin-nav-item:hover {
+  background: var(--im-hover);
+}
+
+.admin-nav-item.active {
+  background: var(--im-accent-tint);
+  color: var(--im-accent-text);
+}
+
+.admin-content {
+  flex: 1;
+  min-width: 0;
+  padding: 24px;
+}
+
+.admin-content .page {
+  max-width: 1200px;
+}
+
+@media (max-width: 1023px) {
+  .admin-body {
+    flex-direction: column;
+  }
+
+  .admin-sidebar {
+    flex: none;
+    width: auto;
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 8px 12px;
+    border-right: none;
+    border-bottom: 1px solid var(--im-border);
+  }
+
+  .admin-nav-item {
+    white-space: nowrap;
+  }
+
+  .admin-content {
+    padding: 16px;
+  }
+
+  .admin-banner {
+    padding: 8px 16px;
+  }
+}
+
+/* Admin count cards (Overview): 4 per row on desktop, same widget
+ * shell as the user dashboard. Counts are 28px like .dash-total;
+ * the "accounts are not people" note stays muted 14px. */
+.admin-count-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.admin-count-card {
+  grid-column: span 1;
+}
+
+.admin-count-label {
+  font-size: 14px;
+  color: var(--im-muted);
+  margin-top: 4px;
+}
+
+@media (max-width: 1023px) {
+  .admin-count-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-count-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.admin-exception-list {
+  /* Taste review: the "查看系统状态" link sat tight under the last
+   * exception box — the list needs bottom margin. */
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-exception-list li {
+  padding: 12px 16px;
+  background: var(--im-surface);
+  border: 1px solid var(--im-border);
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+/* Admin filter rows: search + selects + actions in one wrapping row. */
+.admin-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.admin-filter-field {
+  flex: 1 1 200px;
+  min-width: 0;
+  /* Taste review: a lone filter (Recipes status) stretched across
+   * the whole content width. Cap every filter field so the row
+   * keeps its proportions. */
+  max-width: 320px;
+  margin-bottom: 0;
+}
+
+/* Taste review: the Users search placeholder ("邮箱（精确）/
+ * OpenID（精确）/ 姓名") was truncated at 1280px — the search field
+ * gets a wider share of the row. */
+.admin-filter-field-wide {
+  flex: 2 1 320px;
+  max-width: 480px;
+}
+
+.admin-filter-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Admin form rows (Recipes): two fields side by side on desktop. */
+.admin-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 767px) {
+  .admin-form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.admin-form-panel {
+  background: var(--im-surface);
+  border: 1px solid var(--im-border);
+  border-radius: 4px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.admin-form-panel h2 {
+  margin-top: 0;
+}
+
+.admin-form-panel textarea {
+  min-height: 110px;
+  padding: 12px;
+  border: 1px solid var(--im-border-strong);
+  border-radius: 4px;
+  background: var(--im-surface);
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--im-text);
+  box-sizing: border-box;
+  width: 100%;
+  resize: vertical;
+}
+
+/* Confirm panel (disable/re-enable): target named clearly on top,
+ * reason required, actions in a row. */
+.admin-confirm {
+  background: var(--im-surface);
+  border: 1px solid var(--im-border);
+  border-radius: 4px;
+  padding: 16px;
+  margin-top: 12px;
+}
+
+.admin-confirm-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* Pager: total on the left, prev/next on the right. */
+.admin-pager {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  font-size: 14px;
+  color: var(--im-muted);
+}
+
+.admin-pager-spacer {
+  flex: 1;
+}

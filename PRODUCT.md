@@ -133,6 +133,38 @@ Around that core, IMSF provides:
   4+4+4), mobile 1 column, quick actions a 2×2 grid. Hero image:
   `web/public/dashboard-hero.png` — the 1280 light screenshot from
   the Phase B verification session (milk row visible, chip 还剩 2 天).
+- **Admin dashboard (Dashboard Phase C, 2026-11-22):** `/admin/*` is
+  a separate area from the family app, with its own shell
+  (`AdminShell` — the user `AppShell` sidebar is unchanged) and a
+  persistent "Admin / 管理后台" banner + a "Return to family app"
+  link to `/app/dashboard`, so admin scope is never confused with
+  household scope. 5 pages: Overview (operational counts — accounts
+  are labelled as not-people — + actionable exceptions linking to
+  System), Users (search by email exact / openid exact / name,
+  login-method + enabled/disabled filters, paginated; detail with
+  households, ownership and data counts; Disable / Re-enable with a
+  REQUIRED reason; deliberate audited "Inspect household data",
+  read-only, paginated), Recipes (seed list incl. drafts + hidden,
+  create/edit draft, publish / hide / republish; honest empty state
+  "No recipes yet."; no community approval states in v1), System
+  (dependency statuses with check timestamps, cron last/next run +
+  `job_runs` history, receipt worker + receipt jobs, Vercel links
+  with `imsf-api` marked hollow/unconfigured, read-only config),
+  Audit (filterable, paginated, append-only). Guard: `GET
+  /api/v2/admin/me` on mount — 401 → `/login`, 403 → a plain
+  "no access" page that names no admin. The "管理后台" link on 我的
+  appears only when that same `/me` check says admin (checked on
+  我的, never on every app page). Admin identity is the env
+  allowlist `IMSF_ADMIN_USER_IDS` (user IDs, never email; empty /
+  missing / malformed → nobody is admin); `demo@imsf.app` is never
+  in it. Every admin response sets `Cache-Control: no-store`. v1 has
+  NO user/household delete, NO password reset UI, NO bulk export, NO
+  secret editor, NO deploy/GPU controls, NO blind retry buttons.
+  The frontend guard only decides what to show — enforcement is the
+  backend `require_admin` dependency on every `/api/v2/admin`
+  request (JWT + enabled user + allowlist; disabled → 403, stale
+  token version → 401). Knowledge search returns a controlled 503
+  when the GPU is off (was 500).
 - **Dark error-text correction (R3):** the plan's dark error `#EF5350`
   is 4.38:1 on card surfaces (below 4.5:1), so dark error *text* is
   `#FF8A80` (6.69:1 on cards); `#EF5350` survives only as DaisyUI

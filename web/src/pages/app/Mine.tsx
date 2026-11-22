@@ -13,6 +13,7 @@ import {
   getStoredUserName,
   logout,
 } from '../../lib/auth'
+import { getAdminMe } from '../../lib/admin'
 import { listHouseholds, type Household } from '../../lib/api'
 import { resolveCurrency } from '../../lib/format'
 import { useLanguage } from '../../lib/i18n'
@@ -29,6 +30,11 @@ export function MinePage() {
   const [households, setHouseholds] = useState<Household[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // Admin link (Dashboard Phase C, contract §5): the "管理后台" link
+  // is shown ONLY when GET /api/v2/admin/me succeeds. The check runs
+  // here on 我的 — never on every app page — and any failure (403 for
+  // a normal user, expired session, network) simply hides the link.
+  const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -41,6 +47,13 @@ export function MinePage() {
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
+      })
+    getAdminMe()
+      .then(() => {
+        if (!cancelled) setIsAdmin(true)
+      })
+      .catch(() => {
+        if (!cancelled) setIsAdmin(false)
       })
     return () => {
       cancelled = true
@@ -114,6 +127,11 @@ export function MinePage() {
       <section className="mine-section" aria-label="更多">
         <h2>更多</h2>
         <ul className="mine-links">
+          {isAdmin && (
+            <li>
+              <Link to="/admin">{t['admin.mineLink']}</Link>
+            </li>
+          )}
           <li>
             <Link to="/app/receipts">小票列表</Link>
           </li>

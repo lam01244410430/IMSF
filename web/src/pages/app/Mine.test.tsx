@@ -68,6 +68,14 @@ describe('MinePage display name (Phase 4, F-06b)', () => {
     expect(document.body.textContent).not.toContain('11111111')
   })
 
+  it('admin link hidden when /admin/me is not an admin (404 stub)', async () => {
+    setTokens('access-1', 'refresh-1')
+    window.localStorage.setItem(STORAGE_KEYS.email, 'lam@example.com')
+    renderPage()
+    await screen.findByText('lam@example.com')
+    expect(screen.queryByRole('link', { name: '管理后台' })).toBeNull()
+  })
+
   it('missing name → email local part, never the full email or a UUID', async () => {
     setTokens('access-1', 'refresh-1')
     window.localStorage.setItem(STORAGE_KEYS.email, 'lam@example.com')
@@ -80,5 +88,68 @@ describe('MinePage display name (Phase 4, F-06b)', () => {
     ).map((el) => el.textContent)
     expect(values[0]).toBe('lam')
     expect(values[1]).toBe('lam@example.com')
+  })
+})
+
+describe('MinePage admin link (Dashboard Phase C, contract §5)', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    resetAuthState()
+  })
+
+  afterEach(() => {
+    cleanup()
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  function stubFetch(meStatus: number) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url.startsWith('/api/v2/households'))
+          return Promise.resolve(jsonResponse([HOUSEHOLD]))
+        if (url.startsWith('/api/v2/admin/me'))
+          return Promise.resolve(
+            jsonResponse(
+              {
+                user_id: 'u-1',
+                name: 'Lam',
+                email: 'lam@example.com',
+                login_method: 'email',
+                capabilities: ['users:read'],
+              },
+              meStatus,
+            ),
+          )
+        return Promise.resolve(jsonResponse(null, 404))
+      }),
+    )
+  }
+
+  function renderPage() {
+    return render(
+      <MemoryRouter>
+        <MinePage />
+      </MemoryRouter>,
+    )
+  }
+
+  it('admin → "管理后台" link to /admin is shown', async () => {
+    stubFetch(200)
+    setTokens('access-1', 'refresh-1')
+    window.localStorage.setItem(STORAGE_KEYS.email, 'lam@example.com')
+    renderPage()
+    const link = await screen.findByRole('link', { name: '管理后台' })
+    expect(link.getAttribute('href')).toBe('/admin')
+  })
+
+  it('non-admin (403) → no "管理后台" link', async () => {
+    stubFetch(403)
+    setTokens('access-1', 'refresh-1')
+    window.localStorage.setItem(STORAGE_KEYS.email, 'lam@example.com')
+    renderPage()
+    await screen.findByText('lam@example.com')
+    expect(screen.queryByRole('link', { name: '管理后台' })).toBeNull()
   })
 })
