@@ -372,7 +372,8 @@ def test_wechat_login_still_present_503(monkeypatch):
 # --- migration gate (LAST: downgrades the disposable DB, then restores) ----
 
 # NOTE (Phase 3 blog): this gate tracks alembic HEAD, not a fixed
-# revision -- it was "0007" until migration 0008 landed.
+# revision -- it was "0008" until migration 0010 landed;
+# 0011 (Phase C admin) is the new head.
 def test_migration_0011_gate(test_db):
     from alembic import command
     from alembic.config import Config
