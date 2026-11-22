@@ -164,6 +164,29 @@ def _load_published_or_404(conn, recipe_id: uuid.UUID):
     return row
 
 
+def _load_published_by_slug_or_404(conn, slug: str):
+    """Same published row, looked up by slug instead of id.
+
+    Slugs are unique across the live seed (186 recipes, 186 distinct
+    slugs), so a slug match is unambiguous. An unknown slug is a 404,
+    never a 422 — the path value is not a UUID, so FastAPI must not
+    validate it as one.
+    """
+    row = conn.execute(
+        text(f"SELECT {_RECIPE_COLS},"
+             " (SELECT COUNT(*) FROM recipe_ingredients ri"
+             " WHERE ri.recipe_id = r.id) AS ingredient_count,"
+             " u.name AS author_name"
+             " FROM community_recipes r"
+             " LEFT JOIN users u ON u.id = r.author_id"
+             " WHERE r.slug = :slug AND r.status = :published"),
+        {"slug": slug, "published": PUBLISHED},
+    ).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+    return row
+
+
 @router.get("")
 def list_recipes(
     limit: int = Query(20),
@@ -243,11 +266,26 @@ def list_recipes(
 
 
 @router.get("/{recipe_id}")
-def get_recipe(recipe_id: uuid.UUID,
+def get_recipe(recipe_id: str,
                ident: Identity | None = Depends(optional_auth)):
+    """Detail by UUID or by slug.
+
+    The path value is a plain str (not uuid.UUID): a slug such as
+    ``ga-nuong-co-xa-huong`` must not 422. A value that parses as a
+    UUID is looked up by id (unchanged behaviour); anything else is
+    looked up by slug. Unknown id and unknown slug are both 404.
+    """
     engine = get_engine()
     with engine.connect() as conn:
-        row = _load_published_or_404(conn, recipe_id)
+        try:
+            recipe_uuid = uuid.UUID(recipe_id)
+        except ValueError:
+            row = _load_published_by_slug_or_404(conn, recipe_id)
+        else:
+            row = _load_published_or_404(conn, recipe_uuid)
+        # The resolved id — the sub-queries below always use the row's
+        # own id, never the raw path value (a slug is not an id).
+        rid = row[0]
         ing_rows = conn.execute(
             text("SELECT COALESCE(mi.canonical_name, ri.raw_name) AS name,"
                  " ri.amount, ri.unit"
@@ -256,7 +294,7 @@ def get_recipe(recipe_id: uuid.UUID,
                  " ON mi.id = ri.canonical_ingredient_id"
                  " WHERE ri.recipe_id = :rid"
                  " ORDER BY ri.created_at ASC, ri.id ASC"),
-            {"rid": recipe_id},
+            {"rid": rid},
         ).all()
         ingredients = [
             {"name": name,
@@ -267,17 +305,17 @@ def get_recipe(recipe_id: uuid.UUID,
         steps_row = conn.execute(
             text("SELECT steps_json FROM community_recipes"
                  " WHERE id = :rid"),
-            {"rid": recipe_id},
+            {"rid": rid},
         ).first()
         comment_count = conn.execute(
             text("SELECT COUNT(*) FROM recipe_comments"
                  " WHERE recipe_id = :rid"),
-            {"rid": recipe_id},
+            {"rid": rid},
         ).scalar_one()
         saved_count = conn.execute(
             text("SELECT COUNT(*) FROM saved_recipes"
                  " WHERE recipe_id = :rid"),
-            {"rid": recipe_id},
+            {"rid": rid},
         ).scalar_one()
         author_recipe_count = 0
         if row[1] is not None:
@@ -291,12 +329,12 @@ def get_recipe(recipe_id: uuid.UUID,
             liked = conn.execute(
                 text("SELECT 1 FROM recipe_likes"
                      " WHERE recipe_id = :rid AND user_id = :uid"),
-                {"rid": recipe_id, "uid": ident.user_id},
+                {"rid": rid, "uid": ident.user_id},
             ).first() is not None
             saved = conn.execute(
                 text("SELECT 1 FROM saved_recipes"
                      " WHERE recipe_id = :rid AND user_id = :uid"),
-                {"rid": recipe_id, "uid": ident.user_id},
+                {"rid": rid, "uid": ident.user_id},
             ).first() is not None
     out = _recipe_row(row, liked, saved)
     out["ingredients"] = ingredients

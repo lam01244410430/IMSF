@@ -433,6 +433,39 @@ def test_detail_full_and_404(db_engine):
     assert client.get(f"/api/v2/recipes/{draft}").status_code == 404
 
 
+def test_detail_by_slug_and_uuid(db_engine):
+    author = mk_user(db_engine, "Đầu bếp S")
+    rid = seed_recipe(db_engine, author, "Phở bò",
+                      slug="pho-bo",
+                      source_url="https://example.com/pho-bo",
+                      steps=["Bước 1"])
+    add_ingredient(db_engine, rid, "Thịt bò", "thịt bò", 200, "g")
+    draft = seed_recipe(db_engine, author, "Nháp có slug",
+                        status="draft", slug="nhap-co-slug")
+
+    by_slug = client.get("/api/v2/recipes/pho-bo")
+    assert by_slug.status_code == 200, by_slug.text
+    slug_body = by_slug.json()
+    assert slug_body["title"] == "Phở bò"
+    assert slug_body["slug"] == "pho-bo"
+    assert slug_body["source_url"] == "https://example.com/pho-bo"
+    assert slug_body["id"] == str(rid)
+    assert slug_body["ingredients"] == [
+        {"name": "Thịt bò", "quantity": 200.0, "unit": "g"},
+    ]
+
+    by_uuid = client.get(f"/api/v2/recipes/{rid}")
+    assert by_uuid.status_code == 200, by_uuid.text
+    assert by_uuid.json() == slug_body
+
+    # Unknown slug and slug-shaped values are 404, never 422.
+    assert client.get("/api/v2/recipes/khong-co-mon-nay").status_code == 404
+    assert client.get("/api/v2/recipes/ga-nuong-co-xa-huong").status_code == 404
+    assert client.get("/api/v2/recipes/not-a-recipe").status_code == 404
+    # A draft is invisible by slug too (same published-only rule).
+    assert client.get("/api/v2/recipes/nhap-co-slug").status_code == 404
+
+
 def test_detail_comment_count_real(db_engine):
     author = mk_user(db_engine, "Đầu bếp E")
     commenter = mk_user(db_engine, "Người bình luận",
