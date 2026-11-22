@@ -372,8 +372,8 @@ def test_wechat_login_still_present_503(monkeypatch):
 # --- migration gate (LAST: downgrades the disposable DB, then restores) ----
 
 # NOTE (Phase 3 blog): this gate tracks alembic HEAD, not a fixed
-# revision -- it was "0007" until migration 0008 landed.
-def test_migration_0008_gate(test_db):
+# revision -- it was "0008" until migration 0010 landed.
+def test_migration_0010_gate(test_db):
     from alembic import command
     from alembic.config import Config
 
@@ -390,7 +390,7 @@ def test_migration_0008_gate(test_db):
         engine.dispose()
         return rev
 
-    assert current() == "0008"
+    assert current() == "0010"
     command.downgrade(cfg, "base")
     assert current() is None
     engine = sa.create_engine(_test_url())
@@ -408,4 +408,4 @@ def test_migration_0008_gate(test_db):
     assert tables == 0
     assert users == 0
     command.upgrade(cfg, "head")
-    assert current() == "0008"
+    assert current() == "0010"
