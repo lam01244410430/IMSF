@@ -5,8 +5,9 @@ pagination + 400s), detail (full shape, 404 for missing/draft),
 ingredient search filter (canonical join only -- a raw-name-only
 line NEVER matches), like/unlike idempotency + likes_count updates,
 save/unsave idempotency, auth-required 401s, anonymous list (no
-liked/saved keys), authenticated list flags, and the 0007 migration
-gate on the disposable DB.
+liked/saved keys), authenticated list flags, the 0008 migration
+gate on the disposable DB, and the 0008 columns (new fields in list
++ detail, ?language= / ?category= filters, blank filter -> 400).
 
 Runs against the disposable ``imsf_test`` database (same pattern as
 the Step 2/3/4 and email-auth test files) so the dev DB is never
@@ -111,20 +112,28 @@ def auth_headers(user_id):
 
 
 def seed_recipe(db_engine, author_id, title, status="published",
-                cook_time=30, steps=None, cover_image=None):
+                cook_time=30, steps=None, cover_image=None,
+                description=None, source_url=None, category=None,
+                language=None, difficulty=None, taste=None, slug=None,
+                author_name=None):
     recipe_id = uuid.uuid4()
     with db_engine.begin() as conn:
         conn.execute(
             text("INSERT INTO community_recipes"
                  " (id, author_id, title, cover_image, steps_json,"
-                 "  cook_time, status)"
+                 "  cook_time, status, description, source_url,"
+                 "  category, language, difficulty, taste, slug, author)"
                  " VALUES (:id, :aid, :t, :cover,"
-                 "  CAST(:steps AS jsonb), :ct, :s)"),
+                 "  CAST(:steps AS jsonb), :ct, :s, :desc, :src,"
+                 "  :cat, :lang, :diff, :taste, :slug, :aname)"),
             {"id": recipe_id, "aid": author_id, "t": title,
              "cover": cover_image,
              "steps": json.dumps(steps if steps is not None
                                  else ["Bước 1", "Bước 2"]),
-             "ct": cook_time, "s": status},
+             "ct": cook_time, "s": status, "desc": description,
+             "src": source_url, "cat": category, "lang": language,
+             "diff": difficulty, "taste": taste, "slug": slug,
+             "aname": author_name},
         )
     return recipe_id
 
@@ -172,12 +181,12 @@ def count_rows(db_engine, table, recipe_id, user_id):
 
 # --- migration gate ----------------------------------------------------------
 
-def test_migration_0007_is_head(db_engine):
+def test_migration_0008_is_head(db_engine):
     with db_engine.connect() as conn:
         version = conn.execute(
             text("SELECT version_num FROM alembic_version")
         ).scalar_one()
-        assert version == "0007"
+        assert version == "0008"
         for table in ("recipe_likes", "saved_recipes"):
             exists = conn.execute(
                 text("SELECT 1 FROM information_schema.tables"
@@ -192,6 +201,20 @@ def test_migration_0007_is_head(db_engine):
                 {"t": table},
             ).first()
             assert uq is not None, f"{table} has no UNIQUE constraint"
+        # 0008 columns: all nullable TEXT, no defaults.
+        cols = conn.execute(
+            text("SELECT column_name, is_nullable, column_default"
+                 " FROM information_schema.columns"
+                 " WHERE table_name = 'community_recipes'"
+                 " AND column_name IN ('description', 'source_url',"
+                 "  'category', 'language', 'difficulty', 'taste',"
+                 "  'slug', 'author')"),
+        ).all()
+        assert {c[0] for c in cols} == {
+            "description", "source_url", "category", "language",
+            "difficulty", "taste", "slug", "author",
+        }
+        assert all(c[1] == "YES" and c[2] is None for c in cols)
 
 
 # --- list --------------------------------------------------------------------
@@ -298,6 +321,85 @@ def test_ingredient_filter_canonical_only(db_engine):
                         "offset": 0}
     assert client.get("/api/v2/recipes",
                       params={"ingredient": "  "}).status_code == 400
+
+
+# --- 0008 columns: new fields + language/category filters ----------------
+
+def test_new_fields_in_list_and_detail(db_engine):
+    author = mk_user(db_engine, "Đầu bếp J")
+    rid = seed_recipe(
+        db_engine, author, "Phở bò",
+        description="Nước dùng trong, thơm quế hồi.",
+        source_url="https://example.com/pho-bo",
+        category="Món nước", language="vi", difficulty="vừa",
+        taste="mặn", slug="pho-bo", author_name="Món Ngon Mỗi Ngày")
+    # A recipe with no 0008 metadata: every new field is null, and
+    # the existing `author` object (from author_id) is untouched.
+    plain = seed_recipe(db_engine, author, "Món trơn")
+    r = client.get("/api/v2/recipes")
+    assert r.status_code == 200, r.text
+    by_id = {item["id"]: item for item in r.json()["items"]}
+    item = by_id[str(rid)]
+    assert item["description"] == "Nước dùng trong, thơm quế hồi."
+    assert item["source_url"] == "https://example.com/pho-bo"
+    assert item["category"] == "Món nước"
+    assert item["language"] == "vi"
+    assert item["difficulty"] == "vừa"
+    assert item["taste"] == "mặn"
+    assert item["slug"] == "pho-bo"
+    # TEXT author is `author_name`; `author` stays the {id, name} object.
+    assert item["author_name"] == "Món Ngon Mỗi Ngày"
+    assert item["author"] == {"id": str(author), "name": "Đầu bếp J"}
+    plain_item = by_id[str(plain)]
+    for key in ("description", "source_url", "category", "language",
+                "difficulty", "taste", "slug", "author_name"):
+        assert plain_item[key] is None, key
+
+    r = client.get(f"/api/v2/recipes/{rid}")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["description"] == "Nước dùng trong, thơm quế hồi."
+    assert body["category"] == "Món nước"
+    assert body["language"] == "vi"
+    assert body["slug"] == "pho-bo"
+    assert body["author_name"] == "Món Ngon Mỗi Ngày"
+    assert body["author"] == {"id": str(author), "name": "Đầu bếp J"}
+
+
+def test_language_and_category_filters(db_engine):
+    author = mk_user(db_engine, "Đầu bếp K")
+    vi = seed_recipe(db_engine, author, "Canh chua",
+                     language="vi", category="Món nước")
+    zh = seed_recipe(db_engine, author, "番茄炒蛋",
+                     language="zh", category="家常菜")
+    other = seed_recipe(db_engine, author, "Salad",
+                        language="vi", category="Món nguội")
+
+    r = client.get("/api/v2/recipes", params={"language": "vi"})
+    assert r.status_code == 200, r.text
+    assert {i["id"] for i in r.json()["items"]} == {str(vi), str(other)}
+    assert r.json()["total"] == 2
+
+    r = client.get("/api/v2/recipes", params={"language": "zh"})
+    assert [i["id"] for i in r.json()["items"]] == [str(zh)]
+
+    r = client.get("/api/v2/recipes", params={"category": "Món nước"})
+    assert [i["id"] for i in r.json()["items"]] == [str(vi)]
+
+    # Filters compose.
+    r = client.get("/api/v2/recipes",
+                   params={"language": "vi", "category": "Món nguội"})
+    assert [i["id"] for i in r.json()["items"]] == [str(other)]
+
+    r = client.get("/api/v2/recipes", params={"language": "en"})
+    assert r.json() == {"items": [], "total": 0, "limit": 20,
+                        "offset": 0}
+
+    # Blank filter values are 400, same contract as ?ingredient=.
+    assert client.get("/api/v2/recipes",
+                      params={"language": "  "}).status_code == 400
+    assert client.get("/api/v2/recipes",
+                      params={"category": ""}).status_code == 400
 
 
 # --- detail ------------------------------------------------------------------

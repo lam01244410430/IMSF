@@ -3,10 +3,10 @@
 - GET /api/v2/recipes -- public list, paginated (limit default 20,
   max 100), optional ?ingredient=<canonical_name> (matches via
   recipe_ingredients.canonical_ingredient_id -> master_ingredients,
-  NEVER on raw OCR strings) and ?author=<user uuid>. Only
-  status='published' recipes are listed. ``liked`` / ``saved`` are
-  included ONLY when the request is authenticated (optional auth --
-  anonymous readers are never 401'd).
+  NEVER on raw OCR strings), ?author=<user uuid>, ?language=<vi|zh|...>
+  and ?category=<category>. Only status='published' recipes are
+  listed. ``liked`` / ``saved`` are included ONLY when the request is
+  authenticated (optional auth -- anonymous readers are never 401'd).
 - GET /api/v2/recipes/{id} -- public detail: same fields + ingredients
   (canonical name + quantity + unit per line) + steps (parsed from
   steps_json) + comment_count (real count from recipe_comments) +
@@ -17,6 +17,14 @@
   increments community_recipes.likes_count by 1 ONLY when a new row
   was inserted; unlike deletes and decrements (never below 0, guarded
   by GREATEST). Same pattern for save/unsave on saved_recipes.
+
+New fields (migration 0008): description, source_url, category,
+language, difficulty, taste, slug and author (TEXT). The TEXT author
+is the source's display name for the recipe (e.g. the site it was
+scraped from); it is exposed as ``author_name`` in the JSON because
+the ``author`` key is already the ``{id, name}`` object built from
+``author_id`` (the users FK), and renaming that would break existing
+clients. ``author_name`` is null when the column is null.
 
 DEFERRED (plan SS6.4): posting a recipe, comments -- no endpoints
 here. No ``servings`` field anywhere: community_recipes has no such
@@ -35,9 +43,19 @@ router = APIRouter(prefix="/api/v2/recipes", tags=["recipes"])
 
 PUBLISHED = "published"
 
+# Positional columns: _recipe_row indexes into these by position.
+# The 8 migration-0008 columns are appended AFTER updated_at, so the
+# two appended select expressions shift from 9/10 to 17/18:
+#   0 id, 1 author_id, 2 title, 3 cover_image, 4 cook_time,
+#   5 likes_count, 6 status, 7 created_at, 8 updated_at,
+#   9 description, 10 source_url, 11 category, 12 language,
+#   13 difficulty, 14 taste, 15 slug, 16 author (TEXT),
+#   17 ingredient_count, 18 author_name.
 _RECIPE_COLS = ("r.id, r.author_id, r.title, r.cover_image,"
                 " r.cook_time, r.likes_count, r.status,"
-                " r.created_at, r.updated_at")
+                " r.created_at, r.updated_at,"
+                " r.description, r.source_url, r.category, r.language,"
+                " r.difficulty, r.taste, r.slug, r.author")
 
 
 def _author_shape(author_id, author_name):
@@ -52,10 +70,18 @@ def _recipe_row(row, liked=None, saved=None) -> dict:
         "title": row[2],
         "cover_image": row[3],
         "cook_time": row[4],
-        "ingredient_count": row[9],
+        "ingredient_count": row[17],
         "likes_count": row[5],
         "created_at": row[7].isoformat() if row[7] else None,
-        "author": _author_shape(row[1], row[10]),
+        "author": _author_shape(row[1], row[18]),
+        "description": row[9],
+        "source_url": row[10],
+        "category": row[11],
+        "language": row[12],
+        "difficulty": row[13],
+        "taste": row[14],
+        "slug": row[15],
+        "author_name": row[16],
     }
     if liked is not None:
         out["liked"] = liked
@@ -93,7 +119,9 @@ def _parse_steps(steps_json) -> list[dict]:
     return steps
 
 
-def _list_where(ingredient: str | None, author_id: uuid.UUID | None):
+def _list_where(ingredient: str | None, author_id: uuid.UUID | None,
+                language: str | None = None,
+                category: str | None = None):
     """Shared WHERE fragments + params for the list query."""
     where = ["r.status = :published"]
     params: dict = {"published": PUBLISHED}
@@ -111,6 +139,12 @@ def _list_where(ingredient: str | None, author_id: uuid.UUID | None):
     if author_id is not None:
         where.append("r.author_id = :author_id")
         params["author_id"] = author_id
+    if language is not None:
+        where.append("r.language = :language")
+        params["language"] = language
+    if category is not None:
+        where.append("r.category = :category")
+        params["category"] = category
     return " AND ".join(where), params
 
 
@@ -136,6 +170,8 @@ def list_recipes(
     offset: int = Query(0),
     ingredient: str | None = Query(None),
     author: uuid.UUID | None = Query(None),
+    language: str | None = Query(None),
+    category: str | None = Query(None),
     ident: Identity | None = Depends(optional_auth),
 ):
     # Query params are validated by hand (not FastAPI Query(ge/le))
@@ -150,8 +186,16 @@ def list_recipes(
     if ingredient is not None and not ingredient.strip():
         raise HTTPException(status_code=400,
                             detail="ingredient must not be blank")
+    if language is not None and not language.strip():
+        raise HTTPException(status_code=400,
+                            detail="language must not be blank")
+    if category is not None and not category.strip():
+        raise HTTPException(status_code=400,
+                            detail="category must not be blank")
     where, params = _list_where(
-        ingredient.strip() if ingredient is not None else None, author)
+        ingredient.strip() if ingredient is not None else None, author,
+        language.strip() if language is not None else None,
+        category.strip() if category is not None else None)
     engine = get_engine()
     with engine.connect() as conn:
         total = conn.execute(
