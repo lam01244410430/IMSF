@@ -2960,6 +2960,45 @@ select:focus-visible {
   margin: 0 0 32px;
 }
 
+/* Recipe source credit line (blog attribution): muted label + accent
+   link, readable but quiet -- a credit line, not a headline. The link
+   follows the blog's author-link style (accent text, underline on
+   hover). */
+.blog-source {
+  font-size: 14px;
+  color: var(--im-muted);
+  margin: 0;
+}
+
+.blog-source a {
+  color: var(--im-accent-text);
+  text-decoration: none;
+}
+
+.blog-source a:hover {
+  text-decoration: underline;
+}
+
+/* Detail page: meta + source grouped under the title; the wrapper
+   keeps the original 32px gap to the ingredients section. */
+.blog-article-head {
+  margin: 0 0 32px;
+}
+
+.blog-article-head .blog-article-meta {
+  margin: 0;
+}
+
+.blog-article-head .blog-source {
+  margin-top: 8px;
+}
+
+/* List card: inside the card, aligned with the body text (16px sides),
+   below the card link. */
+.blog-card-source {
+  padding: 0 16px 16px;
+}
+
 .blog-section-title {
   font-size: 20px;
   font-weight: 700;

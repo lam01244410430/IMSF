@@ -13,6 +13,7 @@ const DETAIL = {
   likes_count: 3,
   created_at: '2026-11-21T10:00:00+00:00',
   author: { id: 'author-1', name: '小林' },
+  source_url: 'https://m.meishichina.com/recipe/455851/',
   ingredients: [
     { name: '鸡蛋', quantity: 2, unit: '个' },
     { name: '番茄', quantity: 3, unit: '个' },
@@ -85,6 +86,37 @@ describe('blog article', () => {
     // Steps are numbered in accent, no icon tiles.
     expect(screen.getByText('鸡蛋打散。')).toBeDefined()
     expect(screen.getByText('下锅翻炒。')).toBeDefined()
+  })
+
+  it('article shows the source credit line under the title with a link to the source site', async () => {
+    renderAt('/blog/recipe-1')
+    await screen.findByRole('heading', { name: '番茄炒蛋' })
+    const sourceLink = screen.getByRole('link', { name: '美食天下' })
+    expect(sourceLink.getAttribute('href')).toBe(
+      'https://m.meishichina.com/recipe/455851/',
+    )
+    expect(sourceLink.getAttribute('target')).toBe('_blank')
+    expect(sourceLink.getAttribute('rel')).toBe('noopener noreferrer')
+    // The credit line sits under the title/meta, before the ingredients.
+    const sourceLine = sourceLink.closest('p')
+    const ingredientsHeading = screen.getByRole('heading', { name: '食材' })
+    expect(
+      sourceLine?.compareDocumentPosition(ingredientsHeading) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it('article with no source_url shows no credit line', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve(jsonResponse({ ...DETAIL, source_url: null })),
+      ),
+    )
+    renderAt('/blog/recipe-1')
+    await screen.findByRole('heading', { name: '番茄炒蛋' })
+    expect(screen.queryByText('来源：')).toBeNull()
+    expect(screen.queryByText('美食天下')).toBeNull()
   })
 
   it('comment area shows the honest upcoming line, no form', async () => {

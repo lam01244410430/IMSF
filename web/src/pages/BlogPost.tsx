@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { PublicHeader } from '../components/PublicHeader'
+import { RecipeSource } from '../components/RecipeSource'
 import { ApiError, isLoggedIn } from '../lib/auth'
 import { fill, useLanguage } from '../lib/i18n'
 import {
@@ -261,7 +262,10 @@ export function BlogPostPage() {
               </div>
             )}
             <h1 className="blog-title">{recipe.title}</h1>
-            <p className="blog-article-meta">{metaParts.join(' · ')}</p>
+            <div className="blog-article-head">
+              <p className="blog-article-meta">{metaParts.join(' · ')}</p>
+              <RecipeSource sourceUrl={recipe.source_url} />
+            </div>
 
             <section aria-labelledby="blog-ingredients-heading">
               <h2 id="blog-ingredients-heading" className="blog-section-title">

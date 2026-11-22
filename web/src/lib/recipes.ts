@@ -31,6 +31,7 @@ export interface RecipeListItem {
   likes_count: number
   created_at: string | null
   author: RecipeAuthor | null
+  source_url: string | null
   liked?: boolean
   saved?: boolean
 }
@@ -179,4 +180,25 @@ export function formatQuantity(value: number): string {
 export function formatDate(iso: string | null): string | null {
   if (!iso) return null
   return iso.slice(0, 10)
+}
+
+/**
+ * Display name for a recipe source URL.
+ *
+ * The two seed sources use their own site titles (never invented);
+ * any other source falls back to its hostname. The `www.` / `m.`
+ * prefix is ignored when matching (the Chinese seed uses the mobile
+ * host m.meishichina.com).
+ */
+export function sourceSiteName(sourceUrl: string): string {
+  let hostname = ''
+  try {
+    hostname = new URL(sourceUrl).hostname.toLowerCase()
+  } catch {
+    return sourceUrl
+  }
+  const bare = hostname.replace(/^(www|m)\./, '')
+  if (bare === 'monngonmoingay.com') return 'Món Ngon Mỗi Ngày'
+  if (bare === 'meishichina.com') return '美食天下'
+  return hostname
 }

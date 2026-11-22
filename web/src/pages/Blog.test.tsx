@@ -131,6 +131,101 @@ describe('blog list', () => {
     expect(screen.getByText('5')).toBeDefined()
   })
 
+  it('card shows the source credit line with a link to the source site', async () => {
+    mockFetch(() =>
+      jsonResponse({
+        items: [
+          {
+            id: 'recipe-1',
+            title: '番茄炒蛋',
+            cover_image: null,
+            cook_time: 15,
+            ingredient_count: 3,
+            likes_count: 0,
+            created_at: '2026-11-21T10:00:00+00:00',
+            author: { id: 'author-1', name: '小林' },
+            source_url: 'https://monngonmoingay.com/fan-qie-chao-dan/',
+          },
+          {
+            id: 'recipe-2',
+            title: '红烧肉',
+            cover_image: null,
+            cook_time: 60,
+            ingredient_count: 5,
+            likes_count: 2,
+            created_at: '2026-11-21T10:00:00+00:00',
+            author: null,
+            source_url: 'https://m.meishichina.com/recipe/455851/',
+          },
+          {
+            id: 'recipe-3',
+            title: '家常菜',
+            cover_image: null,
+            cook_time: null,
+            ingredient_count: 2,
+            likes_count: 0,
+            created_at: '2026-11-21T10:00:00+00:00',
+            author: null,
+            source_url: 'https://example.com/recipe/1',
+          },
+        ],
+        total: 3,
+        limit: 20,
+        offset: 0,
+      }),
+    )
+    renderAt('/blog')
+    await screen.findByText('番茄炒蛋')
+    // Known hosts map to their site names; the link opens in a new tab.
+    const vnLink = screen.getByRole('link', { name: 'Món Ngon Mỗi Ngày' })
+    expect(vnLink.getAttribute('href')).toBe(
+      'https://monngonmoingay.com/fan-qie-chao-dan/',
+    )
+    expect(vnLink.getAttribute('target')).toBe('_blank')
+    expect(vnLink.getAttribute('rel')).toBe('noopener noreferrer')
+    const cnLink = screen.getByRole('link', { name: '美食天下' })
+    expect(cnLink.getAttribute('href')).toBe(
+      'https://m.meishichina.com/recipe/455851/',
+    )
+    expect(cnLink.getAttribute('target')).toBe('_blank')
+    expect(cnLink.getAttribute('rel')).toBe('noopener noreferrer')
+    // Unknown host falls back to its hostname.
+    const otherLink = screen.getByRole('link', { name: 'example.com' })
+    expect(otherLink.getAttribute('href')).toBe(
+      'https://example.com/recipe/1',
+    )
+    // One credit line per card with a source.
+    expect(screen.getAllByText('来源：')).toHaveLength(3)
+  })
+
+  it('card with no source_url shows no credit line (never invent a source)', async () => {
+    mockFetch(() =>
+      jsonResponse({
+        items: [
+          {
+            id: 'recipe-1',
+            title: '番茄炒蛋',
+            cover_image: null,
+            cook_time: 15,
+            ingredient_count: 3,
+            likes_count: 0,
+            created_at: '2026-11-21T10:00:00+00:00',
+            author: { id: 'author-1', name: '小林' },
+            source_url: null,
+          },
+        ],
+        total: 1,
+        limit: 20,
+        offset: 0,
+      }),
+    )
+    renderAt('/blog')
+    await screen.findByText('番茄炒蛋')
+    expect(screen.queryByText('来源：')).toBeNull()
+    expect(screen.queryByText('Món Ngon Mỗi Ngày')).toBeNull()
+    expect(screen.queryByText('美食天下')).toBeNull()
+  })
+
   it('public header shows the logo mark, not text-only brand (Phase 4, F-04)', async () => {
     mockFetch(() => jsonResponse(EMPTY_LIST))
     renderAt('/blog')

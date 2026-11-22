@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { PublicHeader } from '../components/PublicHeader'
+import { RecipeSource } from '../components/RecipeSource'
 import { fill, useLanguage } from '../lib/i18n'
 import {
   fetchRecipes,
@@ -118,6 +119,10 @@ function RecipeCard({ recipe }: { recipe: RecipeListItem }) {
           </p>
         </div>
       </Link>
+      <RecipeSource
+        sourceUrl={recipe.source_url}
+        className="blog-card-source"
+      />
     </article>
   )
 }
