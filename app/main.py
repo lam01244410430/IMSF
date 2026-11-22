@@ -5,11 +5,12 @@ upload/list/detail/image. POST .../confirm lands in Step 3.
 Phase 2 Step 2 adds the spending ledger (transactions + summary).
 Phase 2 Step 4 adds equipments + maintenance logs.
 Phase 2 Step 5 adds knowledge search (RAG, design §7).
+Phase C adds the admin dashboard router (/api/v2/admin).
 """
 
 from fastapi import FastAPI
 
-from app.api import (auth, equipments, fridge, households, knowledge,
+from app.api import (admin, auth, equipments, fridge, households, knowledge,
                      notifications, receipts, recipes, shopping_lists,
                      transactions)
 
@@ -32,3 +33,4 @@ app.include_router(shopping_lists.router)
 app.include_router(recipes.router)
 app.include_router(equipments.router)
 app.include_router(knowledge.router)
+app.include_router(admin.router)

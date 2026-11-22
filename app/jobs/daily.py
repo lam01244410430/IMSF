@@ -24,6 +24,12 @@ The scan matches ``auto_expiry_date = today`` exactly — items already
 past expiry with no notification are NOT re-notified, which is what
 makes "no re-send if unanswered after 2 days" (design §3.4) hold.
 
+Phase C (contract §4): every run writes one ``job_runs`` row
+(running at start, success/failed at finish, with duration and the
+notifications count), so the admin dashboard can show the cron
+history. Recording is best-effort: if the table is missing the scan
+still runs and only logs a warning.
+
 NOTE on the ON CONFLICT form: migration 0003 creates those indexes
 with ``CREATE UNIQUE INDEX`` (not a UNIQUE CONSTRAINT), so
 ``ON CONFLICT ON CONSTRAINT ux_notifications_open_lazy`` is invalid
@@ -46,6 +52,7 @@ continues. Exit code is 0 even when nothing was created.
 import json
 import logging
 import sys
+import time
 from datetime import datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -178,37 +185,86 @@ def scan_maintenance(engine, household_id, owner_id, today):
     return created, skipped
 
 
+def _record_job_start(engine):
+    """Insert a ``job_runs`` row (status=running); return its id or None.
+
+    Phase C (contract §4). Returns None — and only logs — when the
+    table does not exist yet (migration not applied) so the scan
+    itself never fails because recording is unavailable.
+    """
+    try:
+        with engine.begin() as conn:
+            return conn.execute(
+                text("INSERT INTO job_runs (job_name, started_at, status)"
+                     " VALUES ('daily', now(), 'running') RETURNING id"),
+            ).scalar_one()
+    except Exception as exc:  # noqa: BLE001 — recording is best-effort
+        log.warning("job_runs start record failed (continuing scan): %s",
+                    exc)
+        return None
+
+
+def _record_job_finish(engine, run_id, started_ms, counts, error=None):
+    """Update the ``job_runs`` row to success/failed (best-effort)."""
+    if run_id is None:
+        return
+    duration_ms = int(time.monotonic() * 1000 - started_ms)
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text("UPDATE job_runs SET finished_at = now(),"
+                     " status = :status,"
+                     " notifications_created = :n, error = :err,"
+                     " duration_ms = :dur WHERE id = :id"),
+                {"status": "failed" if error else "success",
+                 "n": counts["lazy_created"] + counts["maint_created"],
+                 "err": str(error)[:1000] if error else None,
+                 "dur": duration_ms, "id": run_id},
+            )
+    except Exception as exc:  # noqa: BLE001 — recording is best-effort
+        log.warning("job_runs finish record failed: %s", exc)
+
+
 def run_daily() -> dict:
     """Run the scan for every household. Returns the count dict."""
     engine = get_engine()
+    started_ms = int(time.monotonic() * 1000)
+    run_id = _record_job_start(engine)
     counts = {"lazy_created": 0, "lazy_skipped": 0,
               "maint_created": 0, "maint_skipped": 0}
-    with engine.connect() as conn:
-        households = conn.execute(
-            text("SELECT id, timezone FROM households")
-        ).all()
-    for household_id, timezone in households:
-        try:
-            tz_name, today = _household_today(timezone)
-            with engine.connect() as conn:
-                owner_id = _find_owner(conn, household_id)
-            if owner_id is None:
-                log.warning("household=%s has no owner, skipping"
-                            " notifications for today=%s",
-                            household_id, today)
-                continue
-            log.info("household=%s tz=%s today=%s owner=%s",
-                     household_id, tz_name, today, owner_id)
-            lc, ls = scan_lazy_tracking(engine, household_id, owner_id,
-                                        today)
-            mc, ms = scan_maintenance(engine, household_id, owner_id,
-                                      today)
-            counts["lazy_created"] += lc
-            counts["lazy_skipped"] += ls
-            counts["maint_created"] += mc
-            counts["maint_skipped"] += ms
-        except Exception as exc:  # noqa: BLE001 — per-household, keep going
-            log.error("household=%s scan failed: %s", household_id, exc)
+    error = None
+    try:
+        with engine.connect() as conn:
+            households = conn.execute(
+                text("SELECT id, timezone FROM households")
+            ).all()
+        for household_id, timezone in households:
+            try:
+                tz_name, today = _household_today(timezone)
+                with engine.connect() as conn:
+                    owner_id = _find_owner(conn, household_id)
+                if owner_id is None:
+                    log.warning("household=%s has no owner, skipping"
+                                " notifications for today=%s",
+                                household_id, today)
+                    continue
+                log.info("household=%s tz=%s today=%s owner=%s",
+                         household_id, tz_name, today, owner_id)
+                lc, ls = scan_lazy_tracking(engine, household_id, owner_id,
+                                            today)
+                mc, ms = scan_maintenance(engine, household_id, owner_id,
+                                          today)
+                counts["lazy_created"] += lc
+                counts["lazy_skipped"] += ls
+                counts["maint_created"] += mc
+                counts["maint_skipped"] += ms
+            except Exception as exc:  # noqa: BLE001 — per-household, keep going
+                log.error("household=%s scan failed: %s", household_id, exc)
+    except Exception as exc:  # top-level failure: record + re-raise
+        error = exc
+        raise
+    finally:
+        _record_job_finish(engine, run_id, started_ms, counts, error)
     return counts
 
 

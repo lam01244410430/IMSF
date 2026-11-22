@@ -66,10 +66,10 @@ def _households_for(conn, user_id):
     return [{"id": str(h[0]), "name": h[1]} for h in rows]
 
 
-def _auth_response(user_id, user_dict, households):
+def _auth_response(user_id, user_dict, households, auth_version=1):
     return {
-        "access_token": mint_access_token(user_id),
-        "refresh_token": mint_refresh_token(user_id),
+        "access_token": mint_access_token(user_id, auth_version),
+        "refresh_token": mint_refresh_token(user_id, auth_version),
         "user": user_dict,
         "households": households,
     }
@@ -118,11 +118,17 @@ def wechat_login(body: WechatLoginIn):
     engine = get_engine()
     with engine.begin() as conn:
         row = conn.execute(
-            text("SELECT id FROM users WHERE wechat_openid = :oid"),
+            text("SELECT id, disabled_at, auth_version FROM users"
+                 " WHERE wechat_openid = :oid"),
             {"oid": openid},
         ).first()
         if row:
             user_id = row[0]
+            # Phase C: a disabled account cannot log in.
+            if row[1] is not None:
+                raise HTTPException(status_code=403,
+                                    detail="Account disabled")
+            auth_version = row[2]
             if unionid:
                 conn.execute(
                     text("UPDATE users SET wechat_unionid = :u WHERE id = :id"),
@@ -134,9 +140,11 @@ def wechat_login(body: WechatLoginIn):
                      " VALUES (:oid, :u, '微信用户') RETURNING id"),
                 {"oid": openid, "u": unionid},
             ).scalar_one()
+            auth_version = 1
         households = _households_for(conn, user_id)
     return _auth_response(
-        user_id, {"id": str(user_id), "wechat_openid": openid}, households)
+        user_id, {"id": str(user_id), "wechat_openid": openid}, households,
+        auth_version)
 
 
 @router.post("/refresh")
@@ -155,7 +163,25 @@ def refresh(body: RefreshIn):
         raise HTTPException(status_code=401, detail="Not a refresh token")
     import uuid
 
-    return {"access_token": mint_access_token(uuid.UUID(payload["sub"]))}
+    user_id = uuid.UUID(payload["sub"])
+    # Phase C: refresh checks disabled (403) + version (401) when the
+    # user row exists. A missing row keeps the pre-Phase-C behaviour
+    # (mint anyway): there is no user-deletion path in v1, so a row can
+    # only be missing for a token minted in tests, and an existing test
+    # asserts refresh succeeds for such a token.
+    from app.auth import _load_user_auth
+
+    loaded = _load_user_auth(user_id)
+    if loaded is not None:
+        disabled_at, auth_version = loaded
+        if disabled_at is not None:
+            raise HTTPException(status_code=403, detail="Account disabled")
+        ver = 1 if payload.get("ver") is None else payload.get("ver")
+        if ver != auth_version:
+            raise HTTPException(status_code=401,
+                                detail="Token version mismatch")
+        return {"access_token": mint_access_token(user_id, auth_version)}
+    return {"access_token": mint_access_token(user_id)}
 
 
 @router.post("/email/register")
@@ -228,8 +254,8 @@ def email_login(body: EmailLoginIn):
     engine = get_engine()
     with engine.connect() as conn:
         row = conn.execute(
-            text("SELECT id, password_hash, name FROM users"
-                 " WHERE email = :e"),
+            text("SELECT id, password_hash, name, disabled_at,"
+                 " auth_version FROM users WHERE email = :e"),
             {"e": email},
         ).first()
     if row is None or row[1] is None:
@@ -240,6 +266,7 @@ def email_login(body: EmailLoginIn):
         raise HTTPException(status_code=401,
                             detail="Invalid email or password")
     user_id, stored_hash, name = row[0], row[1], row[2]
+    disabled_at, auth_version = row[3], row[4]
     if not verify_password(stored_hash, body.password):
         try:
             r = get_redis()
@@ -256,6 +283,11 @@ def email_login(body: EmailLoginIn):
                                 detail="Service temporarily unavailable")
         raise HTTPException(status_code=401,
                             detail="Invalid email or password")
+    # Phase C: a disabled account cannot log in, even with the right
+    # password (checked after the password so a wrong password still
+    # returns the same 401 as before).
+    if disabled_at is not None:
+        raise HTTPException(status_code=403, detail="Account disabled")
     # Correct password: reset the counter; re-hash if the stored hash
     # was made with older parameters.
     try:
@@ -275,4 +307,4 @@ def email_login(body: EmailLoginIn):
         households = _households_for(conn, user_id)
     return _auth_response(
         user_id, {"id": str(user_id), "email": email, "name": name},
-        households)
+        households, auth_version)

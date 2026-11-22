@@ -7,8 +7,18 @@ Two bearer schemes, both checked by ``require_auth``:
   created on first use, so household-membership checks work uniformly.
 
 Refresh tokens are JWTs with ``typ`` = "refresh" (7 days).
+
+Phase C (admin dashboard, contract §1.2): both token types carry a
+``ver`` claim = the user's ``auth_version`` at mint time. ``require_auth``
+(and ``optional_auth``) check the account is enabled (``disabled_at``
+NULL) and the token version matches the row; a disabled account gets
+403, a stale version gets 401. Tokens minted before this change have
+no ``ver`` claim: a missing ``ver`` is treated as version 1. Disabling
+or re-enabling a user (and a password reset) bumps ``auth_version``,
+so old tokens stay invalid even after re-enable.
 """
 
+import logging
 import os
 import secrets
 import uuid
@@ -20,6 +30,8 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import text
 
 from app.db import get_engine
+
+log = logging.getLogger("imsf-auth")
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -35,19 +47,19 @@ def _service_token() -> str:
     return os.environ.get("IMSF_SERVICE_TOKEN", "")
 
 
-def mint_access_token(user_id: uuid.UUID) -> str:
+def mint_access_token(user_id: uuid.UUID, auth_version: int = 1) -> str:
     now = datetime.now(timezone.utc)
     return jwt.encode(
-        {"sub": str(user_id), "typ": "access",
+        {"sub": str(user_id), "typ": "access", "ver": auth_version,
          "exp": now + timedelta(minutes=15), "iat": now},
         _jwt_secret(), algorithm="HS256",
     )
 
 
-def mint_refresh_token(user_id: uuid.UUID) -> str:
+def mint_refresh_token(user_id: uuid.UUID, auth_version: int = 1) -> str:
     now = datetime.now(timezone.utc)
     return jwt.encode(
-        {"sub": str(user_id), "typ": "refresh",
+        {"sub": str(user_id), "typ": "refresh", "ver": auth_version,
          "exp": now + timedelta(days=7), "iat": now},
         _jwt_secret(), algorithm="HS256",
     )
@@ -76,6 +88,61 @@ class Identity:
         self.via_service_token = via_service_token
 
 
+def _load_user_auth(user_id: uuid.UUID):
+    """(disabled_at, auth_version) for a user, or None if no such row."""
+    engine = get_engine()
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT disabled_at, auth_version FROM users"
+                 " WHERE id = :id"),
+            {"id": user_id},
+        ).first()
+    if row is None:
+        return None
+    return row[0], row[1]
+
+
+def _check_user_auth(user_id: uuid.UUID, token_ver) -> None:
+    """Phase C enabled + version check (contract §1.2).
+
+    Raises 401 when the user does not exist or the token version is
+    stale (a missing ``ver`` claim counts as version 1), and 403 when
+    the account is disabled. Service-token identities never reach
+    here (they skip this check by design).
+    """
+    loaded = _load_user_auth(user_id)
+    if loaded is None:
+        raise HTTPException(status_code=401, detail="User not found")
+    disabled_at, auth_version = loaded
+    if disabled_at is not None:
+        raise HTTPException(status_code=403, detail="Account disabled")
+    ver = 1 if token_ver is None else token_ver
+    if ver != auth_version:
+        raise HTTPException(status_code=401,
+                            detail="Token version mismatch")
+
+
+def get_admin_user_ids() -> set[uuid.UUID]:
+    """Admin allowlist from env ``IMSF_ADMIN_USER_IDS`` (contract §1.3).
+
+    Comma-separated user UUIDs. Empty / missing / malformed (any entry
+    not a UUID) grants NOBODY admin access. Never authorize by email.
+    Read on every call so a config change takes effect on restart
+    without a code change.
+    """
+    raw = os.environ.get("IMSF_ADMIN_USER_IDS", "")
+    ids: set[uuid.UUID] = set()
+    for part in raw.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            ids.add(uuid.UUID(part))
+        except ValueError:
+            return set()
+    return ids
+
+
 def require_auth(
     creds: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
 ) -> Identity:
@@ -97,6 +164,7 @@ def require_auth(
         user_id = uuid.UUID(payload["sub"])
     except (KeyError, ValueError):
         raise HTTPException(status_code=401, detail="Invalid token")
+    _check_user_auth(user_id, payload.get("ver"))
     return Identity(user_id, via_service_token=False)
 
 def optional_auth(
@@ -108,7 +176,8 @@ def optional_auth(
     never 401'd. A missing credential is anonymous; an expired /
     invalid token is also treated as anonymous (the web client
     refreshes before calling, so a stale token here means the caller
-    is effectively logged out).
+    is effectively logged out). A disabled account or a stale token
+    version likewise degrades to anonymous instead of raising.
     """
     if creds is None or not creds.credentials:
         return None
@@ -127,7 +196,35 @@ def optional_auth(
         user_id = uuid.UUID(payload["sub"])
     except (KeyError, ValueError):
         return None
+    try:
+        _check_user_auth(user_id, payload.get("ver"))
+    except HTTPException:
+        return None
     return Identity(user_id, via_service_token=False)
+
+
+def require_admin(
+    ident: Identity = Depends(require_auth),
+) -> Identity:
+    """Shared admin dependency for the whole admin router (§1.3).
+
+    Order: valid JWT (401, via ``require_auth``, which already enforces
+    enabled + version) -> service-token identities are never admin
+    (403) -> user id must be in the ``IMSF_ADMIN_USER_IDS`` allowlist
+    (403). Denied attempts are logged by the caller / server log, not
+    written to the audit table.
+    """
+    if ident.via_service_token:
+        # Denied attempts go to the structured server log only,
+        # never to the audit table (contract §1.3). No token is logged.
+        log.warning("admin denied: service-token identity")
+        raise HTTPException(status_code=403,
+                            detail="Service token is not an admin")
+    if ident.user_id not in get_admin_user_ids():
+        log.warning("admin denied: user_id=%s not in allowlist",
+                    ident.user_id)
+        raise HTTPException(status_code=403, detail="Not an admin")
+    return ident
 
 
 def require_household_member(household_id: uuid.UUID, ident: Identity) -> None:

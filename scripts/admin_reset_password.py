@@ -18,6 +18,9 @@ Usage (from the repo root, env file sourced first):
 
 Output on success is only: ``password reset for <normalised email>``.
 The password and the hash are NEVER printed or logged.
+
+Phase C (contract §1.2): the reset also bumps ``auth_version`` (+1)
+so every existing session of that user dies immediately.
 """
 
 import argparse
@@ -47,7 +50,8 @@ def main() -> int:
     engine = get_engine()
     with engine.begin() as conn:
         result = conn.execute(
-            text("UPDATE users SET password_hash = :h WHERE email = :e"),
+            text("UPDATE users SET password_hash = :h,"
+                 " auth_version = auth_version + 1 WHERE email = :e"),
             {"h": hash_password(args.password), "e": email},
         )
         if result.rowcount == 0:
