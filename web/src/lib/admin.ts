@@ -13,9 +13,9 @@
  *   server-side only).
  * - Recipe statuses are only `draft` / `published` / `hidden`
  *   (`pending` / `rejected` community approval is a later phase).
- * - `GET /receipt-jobs` may honestly report
- *   `{items: [], total: 0, tracking: "unavailable"}` when the
- *   receipt pipeline has no durable job tracking.
+ * - `GET /receipt-jobs` returns receipt processing records from
+ *   the receipts table (the receipts table IS the durable tracking;
+ *   there is no separate job table and no `tracking` field).
  */
 import { ApiError, apiFetch, apiGetJson } from './auth'
 import type { Equipment, FridgeItem, Receipt, Transaction } from './api'
@@ -180,15 +180,18 @@ export interface AdminJobs {
 }
 
 /**
- * Receipt-job metadata. The contract fixes no item fields (the
- * pipeline's real queue/job shape is whatever the backend reads),
- * so items are read defensively: the System page shows `id`,
- * `status`, `error` and `created_at` when present as strings.
+ * One receipt processing record (contract §2 #9): a row of the
+ * receipts table, newest first. `status` is one of
+ * pending / processing / completed / failed / needs_review.
  */
 export interface AdminReceiptJob {
   id: string
   status: string
-  error?: string | null
+  store_name?: string | null
+  total_amount?: number
+  currency?: string | null
+  error_message?: string | null
+  processed_at?: string | null
   created_at?: string | null
   [key: string]: unknown
 }
@@ -196,7 +199,6 @@ export interface AdminReceiptJob {
 export interface AdminReceiptJobsResult {
   items: AdminReceiptJob[]
   total: number
-  tracking?: string
 }
 
 export type AdminRecipeStatus = 'draft' | 'published' | 'hidden'

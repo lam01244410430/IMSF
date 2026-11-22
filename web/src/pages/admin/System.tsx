@@ -14,8 +14,9 @@
  * "API unreachable" with the last successful check time (kept in
  * localStorage from the previous good check) instead of pretending
  * the system is fine. Nothing is fabricated: an empty job history
- * renders as empty, and receipt-job tracking reports "unavailable"
- * when the backend says so.
+ * renders as empty, and receipt jobs are receipt processing
+ * records from the receipts table — not a separate job queue
+ * (contract §2 #9: the receipts table IS the durable tracking).
  */
 import { useEffect, useState } from 'react'
 import {
@@ -43,6 +44,40 @@ function healthChip(status: AdminHealthStatus): { tone: ChipTone; key: keyof Dic
       return { tone: 'error', key: 'admin.sysUnavailable' }
     case 'offline_expected':
       return { tone: 'neutral', key: 'admin.sysOfflineExpected' }
+    default:
+      return { tone: 'warning', key: 'admin.sysUnknown' }
+  }
+}
+
+function cronStatusChip(status: string): { tone: ChipTone; key: keyof Dict } {
+  // Backend cron statuses (admin.py _cron_summary):
+  // healthy / overdue / failed / unknown.
+  switch (status) {
+    case 'healthy':
+      return { tone: 'success', key: 'admin.sysHealthy' }
+    case 'overdue':
+      return { tone: 'warning', key: 'admin.sysOverdue' }
+    case 'failed':
+      return { tone: 'error', key: 'admin.sysFailed' }
+    default:
+      return { tone: 'warning', key: 'admin.sysUnknown' }
+  }
+}
+
+function receiptJobChip(status: string): { tone: ChipTone; key: keyof Dict } {
+  // Backend receipt statuses (receipts.status): pending /
+  // processing / completed / failed / needs_review.
+  switch (status) {
+    case 'pending':
+      return { tone: 'neutral', key: 'admin.jobPending' }
+    case 'processing':
+      return { tone: 'accent', key: 'admin.jobProcessing' }
+    case 'completed':
+      return { tone: 'success', key: 'admin.jobCompleted' }
+    case 'failed':
+      return { tone: 'error', key: 'admin.jobFailed' }
+    case 'needs_review':
+      return { tone: 'warning', key: 'admin.jobNeedsReview' }
     default:
       return { tone: 'warning', key: 'admin.sysUnknown' }
   }
@@ -243,7 +278,12 @@ export function AdminSystemPage() {
           </div>
           <div>
             <dt>{t['admin.usersStatus']}</dt>
-            <dd>{health.cron.status}</dd>
+            <dd>
+              <StatusChip
+                tone={cronStatusChip(health.cron.status).tone}
+                label={t[cronStatusChip(health.cron.status).key]}
+              />
+            </dd>
           </div>
           <div>
             <dt>{t['admin.sysSchedule']}</dt>
@@ -296,7 +336,7 @@ export function AdminSystemPage() {
         {jobs && (
           <p className="page-note">
             {t['admin.sysHeartbeat']}: {formatDateTime(jobs.worker_heartbeat.at, lang)} ·{' '}
-            {jobs.worker_heartbeat.status}
+            {t[cronStatusChip(jobs.worker_heartbeat.status).key]}
           </p>
         )}
       </section>
@@ -330,12 +370,11 @@ export function AdminSystemPage() {
           </div>
         </dl>
         <h3>{t['admin.sysReceiptJobs']}</h3>
+        <p className="page-note">{t['admin.sysReceiptJobsNote']}</p>
         {receiptJobsError ? (
           <p className="page-error">{t['admin.loadError']}</p>
         ) : !receiptJobs ? (
           <p className="page-note">{t['admin.loading']}</p>
-        ) : receiptJobs.tracking === 'unavailable' ? (
-          <p className="page-empty">{t['admin.sysReceiptJobsUnavailable']}</p>
         ) : receiptJobs.items.length === 0 ? (
           <p className="page-empty">{t['admin.sysReceiptJobsEmpty']}</p>
         ) : (
@@ -351,19 +390,26 @@ export function AdminSystemPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {receiptJobs.items.map((job) => (
-                    <tr key={job.id}>
-                      <td title={job.id}>{job.id.slice(0, 8)}</td>
-                      <td>{job.status}</td>
-                      <td>{typeof job.error === 'string' ? job.error : '—'}</td>
-                      <td>
-                        {formatDateTime(
-                          typeof job.created_at === 'string' ? job.created_at : null,
-                          lang,
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {receiptJobs.items.map((job) => {
+                    const chip = receiptJobChip(job.status)
+                    return (
+                      <tr key={job.id}>
+                        <td title={job.id}>{job.id.slice(0, 8)}</td>
+                        <td>
+                          <StatusChip tone={chip.tone} label={t[chip.key]} />
+                        </td>
+                        <td>
+                          {typeof job.error_message === 'string' ? job.error_message : '—'}
+                        </td>
+                        <td>
+                          {formatDateTime(
+                            typeof job.created_at === 'string' ? job.created_at : null,
+                            lang,
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

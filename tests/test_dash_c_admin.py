@@ -6,7 +6,7 @@ Covers: all 13 admin endpoints with the 4 identities (anonymous ->
 tokens and the sole-admin self-disable block; audit rows on mutation
 + on household-records inspection; knowledge 503 when the embedding
 service is unreachable; the daily cron's job_runs recording; and the
-0009 migration upgrade + downgrade on a scratch database.
+0011 migration upgrade + downgrade on a scratch database.
 
 Runs against the disposable ``imsf_test`` database (same pattern as
 the Step 2/3/4 and email-auth test files) so the dev DB is never
@@ -818,14 +818,14 @@ def test_knowledge_503_live_ollama_down(db_engine):
     assert r.status_code == 503, r.text
 
 
-# --- (e) migration 0009 upgrade + downgrade on a scratch DB -----------------
+# --- (e) migration 0011 upgrade + downgrade on a scratch DB -----------------
 
 
-def test_migration_0009_upgrade_downgrade(monkeypatch):
+def test_migration_0011_upgrade_downgrade(monkeypatch):
     from alembic import command
     from alembic.config import Config
 
-    mig_db = "imsf_test_mig0009"
+    mig_db = "imsf_test_mig0011"
     url = urlparse(BASE_URL)
     mig_url = urlunparse(url._replace(path=f"/{mig_db}"))
     admin = sa.create_engine(BASE_URL, isolation_level="AUTOCOMMIT")
@@ -865,7 +865,7 @@ def test_migration_0009_upgrade_downgrade(monkeypatch):
         assert not has_column("users", "disabled_at")
         assert not has_column("users", "auth_version")
 
-        command.upgrade(cfg, "0009")
+        command.upgrade(cfg, "0011")
         assert has_table("admin_audit_events")
         assert has_table("job_runs")
         assert has_column("users", "disabled_at")

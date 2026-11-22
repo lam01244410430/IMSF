@@ -1,4 +1,4 @@
-"""0009_admin - admin dashboard auth + audit + job history (Phase C).
+"""0011_admin - admin dashboard auth + audit + job history (Phase C).
 
 Adds the auth/audit/job-run schema the admin dashboard (plan §4,
 contract §1.1) needs:
@@ -15,7 +15,7 @@ contract §1.1) needs:
 Follows the 0007 conventions (docstring, ``revision`` /
 ``down_revision``, ``_pk()`` / ``_timestamps()`` helpers).
 
-Revision ID: 0009
+Revision ID: 0011
 Revises: 0008
 Create Date: 2026-11-22
 """
@@ -24,8 +24,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 
-revision = "0009"
-down_revision = "0008"
+revision = "0011"
+down_revision = "0010"
 branch_labels = None
 depends_on = None
 

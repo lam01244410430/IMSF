@@ -118,11 +118,6 @@ export function AdminOverviewPage() {
             ))}
           </ul>
         )}
-        {exceptionItems.length > 0 && (
-          <p>
-            <Link to="/admin/system">{t['admin.ovViewSystem']}</Link>
-          </p>
-        )}
       </section>
     </div>
   )

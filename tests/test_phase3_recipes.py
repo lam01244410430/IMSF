@@ -181,12 +181,12 @@ def count_rows(db_engine, table, recipe_id, user_id):
 
 # --- migration gate ----------------------------------------------------------
 
-def test_migration_0009_is_head(db_engine):
+def test_migration_0011_is_head(db_engine):
     with db_engine.connect() as conn:
         version = conn.execute(
             text("SELECT version_num FROM alembic_version")
         ).scalar_one()
-        assert version == "0009"
+        assert version == "0011"
         for table in ("recipe_likes", "saved_recipes"):
             exists = conn.execute(
                 text("SELECT 1 FROM information_schema.tables"

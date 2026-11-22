@@ -169,6 +169,27 @@ describe('AdminRecipesPage', () => {
     expect(screen.getByRole('button', { name: '重新发布' })).toBeDefined()
   })
 
+  it('edit with no touched fields → Save disabled, no empty PATCH', async () => {
+    renderPage()
+    await screen.findByText(/Phở bò/)
+    fireEvent.click(screen.getAllByRole('button', { name: '编辑' })[0])
+    const save = screen.getByRole('button', { name: '保存' }) as HTMLButtonElement
+    expect(save.disabled).toBe(true)
+    expect(calls.some((c) => c.init?.method === 'PATCH')).toBe(false)
+    fireEvent.change(screen.getByLabelText('标题'), {
+      target: { value: 'Phở bò tái' },
+    })
+    expect(save.disabled).toBe(false)
+    fireEvent.click(save)
+    await waitFor(() => {
+      const patch = calls.find((c) => c.init?.method === 'PATCH')
+      expect(patch).toBeDefined()
+      expect(JSON.parse(patch?.init?.body as string)).toEqual({
+        title: 'Phở bò tái',
+      })
+    })
+  })
+
   it('empty list → honest empty state "No recipes yet." in English', async () => {
     vi.stubGlobal(
       'fetch',

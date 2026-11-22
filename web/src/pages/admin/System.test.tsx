@@ -29,7 +29,7 @@ const HEALTH = {
     last_run: '2026-11-22T00:00:00Z',
     last_success: '2026-11-22T00:00:00Z',
     next_run: '2026-11-23T00:00:00Z',
-    status: 'ok',
+    status: 'healthy',
   },
   receipt_worker: {
     status: 'unknown',
@@ -52,7 +52,7 @@ const JOBS = {
     last_run: '2026-11-22T00:00:00Z',
     last_success: '2026-11-22T00:00:00Z',
     next_run: '2026-11-23T00:00:00Z',
-    status: 'ok',
+    status: 'healthy',
   },
   history: [
     {
@@ -73,8 +73,14 @@ const RECEIPT_JOBS = {
   items: [
     {
       id: 'job-abc123',
+      household_id: 'h-1',
+      store_name: '超市',
+      purchased_at: '2026-11-21T00:00:00Z',
+      total_amount: 123.45,
+      currency: 'CNY',
       status: 'failed',
-      error: 'OCR timeout',
+      error_message: 'OCR timeout',
+      processed_at: null,
       created_at: '2026-11-21T09:00:00Z',
     },
   ],
@@ -165,11 +171,33 @@ describe('AdminSystemPage', () => {
     expect(screen.getByText(/hollow\/unconfigured/)).toBeDefined()
   })
 
-  it('receipt-job tracking unavailable → honest note, no fake jobs', async () => {
-    stubFetch({ receiptJobs: { items: [], total: 0, tracking: 'unavailable' } })
+  it('receipt jobs are receipt processing records, status translated', async () => {
+    stubFetch()
     renderPage()
-    expect(await screen.findByText('小票任务跟踪暂不可用')).toBeDefined()
-    expect(screen.queryByText('OCR timeout')).toBeNull()
+    expect(
+      await screen.findByText(
+        '以下为小票处理记录（按小票状态排序），不是独立的任务队列。',
+      ),
+    ).toBeDefined()
+    expect(screen.getByText('识别失败')).toBeDefined()
+    expect(screen.getByText('OCR timeout')).toBeDefined()
+    expect(screen.queryByText('小票任务跟踪暂不可用')).toBeNull()
+  })
+
+  it('cron status + worker heartbeat render translated, never raw English', async () => {
+    stubFetch({
+      health: {
+        ...HEALTH,
+        cron: { ...HEALTH.cron, status: 'unknown' },
+      },
+    })
+    renderPage()
+    // Cron status chip translates 'unknown'; the heartbeat line
+    // carries the same translated label (joined with the date).
+    expect((await screen.findAllByText('未知或数据过期')).length).toBe(1)
+    const heartbeat = screen.getByText(/心跳:/)
+    expect(heartbeat.textContent).toContain('未知或数据过期')
+    expect(screen.queryByText('unknown')).toBeNull()
   })
 
   it('empty job history → honest empty state, never fabricated runs', async () => {

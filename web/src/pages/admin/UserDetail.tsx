@@ -44,7 +44,10 @@ function isTransaction(r: HouseholdRecordItem): r is Transaction {
 }
 
 function isFridgeItem(r: HouseholdRecordItem): r is FridgeItem {
-  return 'raw_name' in r && 'days_left' in r
+  // Admin inventory rows carry raw_name/quantity/unit but NO days_left
+  // (that field exists only on the public /fridge shape) — match on
+  // raw_name + quantity + unit instead, or every row renders as "—".
+  return 'raw_name' in r && 'quantity' in r && 'unit' in r
 }
 
 function isEquipment(r: HouseholdRecordItem): r is Equipment {

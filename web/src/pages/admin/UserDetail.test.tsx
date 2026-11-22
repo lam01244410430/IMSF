@@ -35,6 +35,27 @@ const DETAIL = {
   counts: { receipts: 1, transactions: 2, inventory_items: 3, equipments: 0 },
 }
 
+const INVENTORY = {
+  items: [
+    {
+      id: 'i-1',
+      household_id: 'h-1',
+      receipt_id: null,
+      raw_name: '牛奶',
+      quantity: 2,
+      unit: '盒',
+      price: 12.5,
+      currency: 'CNY',
+      storage_zone: 'fridge',
+      added_date: '2026-11-21',
+      auto_expiry_date: '2026-11-25',
+      status: 'fresh',
+      created_at: '2026-11-21T00:30:00Z',
+    },
+  ],
+  total: 1,
+}
+
 const RECEIPTS = {
   items: [
     {
@@ -66,6 +87,9 @@ describe('AdminUserDetailPage', () => {
       vi.fn((url: string, init?: RequestInit) => {
         calls.push({ url, init })
         if (url.startsWith('/api/v2/admin/households/')) {
+          if (url.includes('type=inventory')) {
+            return Promise.resolve(jsonResponse(INVENTORY))
+          }
           return Promise.resolve(jsonResponse(RECEIPTS))
         }
         if (url.startsWith('/api/v2/admin/users/')) {
@@ -166,6 +190,24 @@ describe('AdminUserDetailPage', () => {
     const url = new URL(recordsCall!.url, 'http://localhost')
     expect(url.searchParams.get('type')).toBe('receipts')
     expect(url.searchParams.get('reason')).toBe('abuse report')
+  })
+
+  it('inspect inventory (admin shape, no days_left) renders name + quantity, not "—"', async () => {
+    stubFetch()
+    renderPage()
+    await screen.findByText('lam@example.com')
+    fireEvent.change(screen.getByLabelText('家庭', { selector: 'select' }), {
+      target: { value: 'h-1' },
+    })
+    fireEvent.change(screen.getByLabelText('数据类型'), {
+      target: { value: 'inventory' },
+    })
+    const reasonInput = document.querySelector(
+      '#admin-inspect-reason',
+    ) as HTMLInputElement
+    fireEvent.change(reasonInput, { target: { value: 'abuse report' } })
+    fireEvent.click(screen.getByRole('button', { name: '查看家庭数据' }))
+    expect(await screen.findByText(/牛奶 · 2 盒/)).toBeDefined()
   })
 
   it('unknown user → not-found, not a blank page', async () => {

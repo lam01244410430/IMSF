@@ -382,7 +382,7 @@ export function AdminRecipesPage() {
             <button
               type="button"
               className="btn btn-primary"
-              disabled={saving}
+              disabled={saving || (editingId !== null && touched.size === 0)}
               onClick={submitForm}
             >
               {t['admin.save']}
